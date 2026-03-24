@@ -14,23 +14,20 @@
 #ifdef TESTING
 #include "hack.h"
 #else
-#include "NH:src/tile.c"
+#include "../../src/tile.c"
 #endif
 
-#include "NH:win/share/tile.h"
+#include "../../win/share/tile.h"
 
-#include "NH:sys/amiga/windefs.h"
-#include "NH:sys/amiga/winext.h"
-#include "NH:sys/amiga/winproto.h"
+#include "windefs.h"
+#include "winext.h"
+#include "winproto.h"
 
 #ifdef OPT_DISPMAP
 #define DISPMAP /* use display_map() from dispmap.s */
 #endif
 
-/* NH:sys/amiga/winvchar.c */
-int main(int, char **);
-struct BitMap *MyAllocBitMap(int, int, int, long);
-void MyFreeBitMap(struct BitMap *);
+/* sys/amiga/winvchar.c */
 void FreeImageFiles(char **, struct BitMap **);
 void amiv_flush_glyph_buffer(struct Window *);
 void amiv_lprint_glyph(winid, int, int);
@@ -185,11 +182,14 @@ ReadImageFiles(char **filenames, struct BitMap **iffimg, char **errstrp)
     register int i, j;
     struct IFFHandle *iff;
     struct StoredProperty *prop;
+    char *buf;
 
-    IFFParseBase = OpenLibrary("iffparse.library", 0L);
     if (!IFFParseBase) {
-        *errstrp = "No iffparse.library";
-        return bmhds;
+        IFFParseBase = OpenLibrary("iffparse.library", 0L);
+        if (!IFFParseBase) {
+            *errstrp = "No iffparse.library";
+            return bmhds;
+        }
     }
 
     /*
@@ -205,8 +205,9 @@ ReadImageFiles(char **filenames, struct BitMap **iffimg, char **errstrp)
         }
         iff->iff_Stream = Open(filenames[i], MODE_OLDFILE);
         if (iff->iff_Stream == 0) {
-            char *buf = malloc(100 + strlen(filenames[i]));
             FreeImageFiles(filenames, iffimg);
+            FreeIFF(iff);
+            buf = malloc(100 + strlen(filenames[i]));
             sprintf(buf, "Can't open %s: %s", filenames[i], strerror(errno));
             *errstrp = buf;
             return bmhds;
@@ -219,8 +220,11 @@ ReadImageFiles(char **filenames, struct BitMap **iffimg, char **errstrp)
         PropChunk(iff, ID_BMAP, ID_PDAT);
         StopChunk(iff, ID_BMAP, ID_PLNE);
         if ((j = ParseIFF(iff, IFFPARSE_SCAN)) != 0) {
-            char *buf = malloc(100);
             FreeImageFiles(filenames, iffimg);
+            CloseIFF(iff);
+            Close(iff->iff_Stream);
+            FreeIFF(iff);
+            buf = malloc(100);
             sprintf(buf, "ParseIFF failed for image %d, failure code: %d", i,
                     j);
             *errstrp = buf;
@@ -303,8 +307,11 @@ ReadImageFiles(char **filenames, struct BitMap **iffimg, char **errstrp)
                                   pictdata.nplanes + amii_extraplanes,
                                   MEMF_CHIP | MEMF_CLEAR);
         if (iffimg[i] == NULL) {
-            char *buf = malloc(80);
             FreeImageFiles(filenames, iffimg);
+            CloseIFF(iff);
+            Close(iff->iff_Stream);
+            FreeIFF(iff);
+            buf = malloc(80);
             sprintf(buf, "Can't allocate bitmap for image %d\n", i);
             *errstrp = buf;
             return bmhds;
@@ -318,7 +325,6 @@ ReadImageFiles(char **filenames, struct BitMap **iffimg, char **errstrp)
         Close(iff->iff_Stream);
         FreeIFF(iff);
     }
-    CloseLibrary(IFFParseBase);
 
     tile = MyAllocBitMap(pictdata.xsize, pictdata.ysize,
                          pictdata.nplanes + amii_extraplanes,
@@ -991,7 +997,7 @@ struct Window *w;
          * code in amii_curs() in winfuncs.c.  curs_on_u() calls amii_curs()
          * to draw the cursor on top of the player
          */
-        y = w->BorderTop + (amii_g_nodes[i].y - 2) * rp->TxHeight
+        y = w->BorderTop + amii_g_nodes[i].y * rp->TxHeight
             + rp->TxBaseline + 1;
         x = amii_g_nodes[i].x * rp->TxWidth + w->BorderLeft;
 
@@ -1011,9 +1017,9 @@ struct Window *w;
     glyph_node_index = glyph_buffer_index = 0;
 }
 void
-amiga_print_glyph(window, color_index, glyph)
+amiga_print_glyph(window, color_index, glyph, bkglyph)
 winid window;
-int color_index, glyph;
+int color_index, glyph, bkglyph;
 {
     if (WINVERS_AMIV)
         amiv_lprint_glyph(window, color_index, glyph);

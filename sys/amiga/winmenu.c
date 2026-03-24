@@ -3,9 +3,9 @@
  */
 /* NetHack may be freely redistributed.  See license for details. */
 
-#include "NH:sys/amiga/windefs.h"
-#include "NH:sys/amiga/winext.h"
-#include "NH:sys/amiga/winproto.h"
+#include "windefs.h"
+#include "winext.h"
+#include "winproto.h"
 
 /* Start building the text for a menu */
 void
@@ -103,7 +103,6 @@ register BOOLEAN_P preselected;
     }
 
     mip->selector = ch;
-
     amii_putstr(window, attr, str);
 
     mip->str = cw->data[cw->cury - 1];
@@ -1029,8 +1028,7 @@ menu_item **retmip;
                         }
                         amip = find_menu_item(cw, aidx);
 
-                        if (amip && amip->canselect && amip->selector
-                            && how != PICK_NONE) {
+                        if (amip && amip->canselect && how != PICK_NONE) {
                             oidx = aidx;
                             if (!DoubleClick(oldsecs, oldmics, secs, mics)) {
                                 amip->selected = !amip->selected;
@@ -1281,6 +1279,7 @@ int start;
         cw->cols = (w->Width - w->BorderLeft - w->BorderRight - 4) / txwd;
     }
 
+
     /* Get the real line to display at */
     start = FindLine(win, start);
 
@@ -1300,7 +1299,7 @@ int start;
         if (i >= cw->maxrow) {
             if (WINVERS_AMIV && win == WIN_INVEN) {
                 amii_curs(win, 0, disprow - start);
-                amiga_print_glyph(win, 0, NO_GLYPH);
+                amiga_print_glyph(win, 0, NO_GLYPH, 0);
             }
             amii_curs(win, 1, disprow - start);
             amii_cl_end(cw, 0);
@@ -1320,7 +1319,7 @@ int start;
             amii_curs(win, 1, disprow - start);
             if (WINVERS_AMIV && win == WIN_INVEN) {
                 if (mip)
-                    amiga_print_glyph(win, 0, mip->glyph);
+                    amiga_print_glyph(win, 0, mip->glyph, 0);
                 amii_curs(win, 1, disprow - start);
             }
             col = 0;
@@ -1390,7 +1389,7 @@ int start;
                 amii_curs(win, 1, disprow - start - 1);
                 if (mip && win == WIN_INVEN && WINVERS_AMIV) {
                     /* Erase any previous glyph drawn here. */
-                    amiga_print_glyph(win, 0, NO_GLYPH);
+                    amiga_print_glyph(win, 0, NO_GLYPH, 0);
                     amii_curs(win, 1, disprow - start - 1);
                 }
                 Text(rp, "+", 1);

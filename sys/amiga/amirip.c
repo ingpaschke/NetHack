@@ -131,7 +131,7 @@ time_t when;
     if (!ripwin)
         goto cleanup;
 
-    LoadRGB4(&HackScreen->ViewPort, transpalette, amii_numcolors);
+    amii_LoadRGB(&HackScreen->ViewPort, transpalette, amii_numcolors);
 
     rp = ripwin->RPort;
     wh = ripwin->Height;
@@ -279,7 +279,7 @@ cleanup:
         CloseWindow(ripwin);
         Permit();
     }
-    LoadRGB4(&HackScreen->ViewPort, sysflags.amii_curmap, amii_numcolors);
+    amii_LoadRGB(&HackScreen->ViewPort, sysflags.amii_curmap, amii_numcolors);
 
     if (tbmp[0])
         FreeImageFiles(load_list, tbmp);
@@ -361,7 +361,7 @@ dofade(int start, int stop, int inc)
             b = (b * i) / 16;
             transpalette[j] = ((r << 8) | (g << 4) | b);
         }
-        LoadRGB4(&HackScreen->ViewPort, transpalette, amii_numcolors);
+        amii_LoadRGB(&HackScreen->ViewPort, transpalette, amii_numcolors);
         Delay(1);
     }
 }

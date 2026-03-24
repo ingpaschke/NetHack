@@ -29,9 +29,9 @@
 #endif
 
 /* Prototypes */
-#include "NH:sys/amiga/winami.p"
-#include "NH:sys/amiga/amiwind.p"
-#include "NH:sys/amiga/amidos.p"
+#include "winami.p"
+#include "amiwind.p"
+#include "amidos.p"
 
 extern char Initialized;
 extern struct window_procs amii_procs;
@@ -116,15 +116,7 @@ long
 freediskspace(path)
 char *path;
 {
-#ifdef UNTESTED
-    /* these changes from Patric Mueller <bhaak@gmx.net> for AROS to
-     * handle larger disks.  Also needs limits.h and aros/oldprograms.h
-     * for AROS.  (keni)
-     */
-    unsigned long long freeBytes = 0;
-#else
-    register long freeBytes = 0;
-#endif
+    long freeBytes = 0;
     register struct InfoData *infoData; /* Remember... longword aligned */
     char fileName[32];
 
@@ -149,6 +141,8 @@ char *path;
     {
         BPTR fileLock;
         infoData = (struct InfoData *) alloc(sizeof(struct InfoData));
+        if (!infoData)
+            return 0;
         if (fileLock = Lock(fileName, SHARED_LOCK)) {
             if (Info(fileLock, infoData)) {
                 /* We got a kind of DOS volume, since we can Lock it. */
@@ -156,24 +150,27 @@ char *path;
                 /* Kludge for the ever-full VOID: (oops RAM:) device */
                 if (infoData->id_UnitNumber == -1
                     && infoData->id_NumBlocks == infoData->id_NumBlocksUsed) {
-                    freeBytes = AvailMem(0L) - 64 * 1024L;
-                    /* Just a stupid guess at the */
-                    /* Ram-Handler overhead per block: */
-                    freeBytes -= freeBytes / 16;
+                    long avail = AvailMem(0L);
+                    if (avail > 64 * 1024L)
+                        freeBytes = avail - 64 * 1024L
+                                    - (avail - 64 * 1024L) / 16;
                 } else {
                     /* Normal kind of DOS file system device/volume */
-                    freeBytes =
-                        infoData->id_NumBlocks - infoData->id_NumBlocksUsed;
-                    freeBytes -= (freeBytes + EXTENSION) / (EXTENSION + 1);
-                    freeBytes *= infoData->id_BytesPerBlock;
-#ifdef UNTESTED
-                    if (freeBytes > LONG_MAX) {
-                        freeBytes = LONG_MAX;
+                    unsigned long freeBlocks;
+                    if (infoData->id_NumBlocks > infoData->id_NumBlocksUsed) {
+                        freeBlocks =
+                            infoData->id_NumBlocks - infoData->id_NumBlocksUsed;
+                        freeBlocks -= (freeBlocks + EXTENSION) / (EXTENSION + 1);
+                    } else {
+                        freeBlocks = 0;
                     }
-#endif
+                    /* Cap before multiplying to avoid 32-bit overflow
+                       on partitions larger than ~4 GB */
+                    if (freeBlocks > 0x7FFFFFFFUL / infoData->id_BytesPerBlock)
+                        freeBytes = 0x7FFFFFFFL;
+                    else
+                        freeBytes = freeBlocks * infoData->id_BytesPerBlock;
                 }
-                if (freeBytes < 0)
-                    freeBytes = 0;
             }
             UnLock(fileLock);
         }
@@ -504,3 +501,108 @@ register char *s;
     while ((lp = index(s, ':')) || (lp = index(s, '/')))
         *lp = '_';
 }
+
+/* Platform-specific random seed - use current time */
+unsigned long
+sys_random_seed(VOID_ARGS)
+{
+    unsigned long ourseed = 0UL;
+    time_t datetime = 0;
+
+    (void) time(&datetime);
+    ourseed = (unsigned long) datetime;
+    return ourseed;
+}
+
+#if defined(__GNUC__) && !defined(__SASC)
+/*
+ * POSIX syscall stubs for GCC AmigaOS cross-compilation (newlib-based).
+ * The AmigaOS newlib requires platform-specific implementations of these
+ * POSIX functions which are not part of the standard AmigaOS API.
+ */
+
+#include <ctype.h>
+#include <stddef.h>
+
+/* unlink: delete a file using AmigaOS DeleteFile() */
+int
+unlink(path)
+const char *path;
+{
+    return DeleteFile((char *) path) ? 0 : -1;
+}
+
+/* strnicmp: case-insensitive string comparison for n characters */
+int
+strnicmp(s1, s2, n)
+const char *s1;
+const char *s2;
+size_t n;
+{
+    while (n--) {
+        int c1 = tolower((unsigned char) *s1++);
+        int c2 = tolower((unsigned char) *s2++);
+        if (c1 != c2)
+            return c1 - c2;
+        if (!c1)
+            return 0;
+    }
+    return 0;
+}
+
+/* stricmp: case-insensitive string comparison (no length limit) */
+int
+stricmp(s1, s2)
+const char *s1;
+const char *s2;
+{
+    while (*s1 && *s2) {
+        int c1 = tolower((unsigned char) *s1++);
+        int c2 = tolower((unsigned char) *s2++);
+        if (c1 != c2)
+            return c1 - c2;
+    }
+    return tolower((unsigned char) *s1) - tolower((unsigned char) *s2);
+}
+
+/* signal: POSIX signal handling - stub for AmigaOS (use AmigaOS signals) */
+#include <signal.h>
+void (*signal(sig, handler))(int)
+int sig;
+void (*handler)(int);
+{
+    return SIG_DFL;
+}
+
+/* _link: newlib internal - hardlinks not supported on AmigaOS */
+int
+_link(oldpath, newpath)
+const char *oldpath;
+const char *newpath;
+{
+    return -1;
+}
+
+/* _gettimeofday: newlib internal - implemented via AmigaOS DateStamp */
+#include <sys/time.h>
+int
+_gettimeofday(tp, tzp)
+struct timeval *tp;
+void *tzp;
+{
+    if (tp) {
+        struct DateStamp ds;
+        DateStamp(&ds);
+        /* DateStamp: Days since 1/1/1978, Minutes since midnight, Ticks (1/50s) */
+        /* 8 years (1970->1978) + 2 leap days (1972, 1976) = 2922 days */
+#define AMIGA_EPOCH_OFFSET (2922UL * 86400UL)
+        tp->tv_sec  = (long)(ds.ds_Days * 86400UL
+                             + ds.ds_Minute * 60UL
+                             + ds.ds_Tick / 50UL)
+                      + AMIGA_EPOCH_OFFSET;
+        tp->tv_usec = (ds.ds_Tick % 50) * 20000L;
+    }
+    return 0;
+}
+
+#endif /* __GNUC__ && !__SASC */

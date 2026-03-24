@@ -347,7 +347,7 @@ E void *FDECL(memset, (void *, int, size_t));
 #else
 #if defined(AZTEC_50) || defined(NHSTDC) || defined(WIN32)
 E int FDECL(memcmp, (const void *, const void *, size_t));
-E void *FDECL(memcpy, (void *, const void *, size_t));
+E void *FDECL((memcpy), (void *, const void *, size_t));
 E void *FDECL(memset, (void *, int, size_t));
 #else
 E int FDECL(memcmp, (char *, char *, unsigned int));
@@ -361,7 +361,7 @@ E char *FDECL(memset, (char *, int, int));
 #if defined(BSD) && defined(ultrix) /* i.e., old versions of Ultrix */
 E void sleep();
 #endif
-#if defined(ULTRIX) || defined(SYSV)
+#if (defined(ULTRIX) || defined(SYSV)) && !defined(LINUX)
 E unsigned sleep();
 #endif
 #if defined(HPUX)
@@ -431,10 +431,10 @@ E char *FDECL(index, (const char *, int));
 E char *FDECL(rindex, (const char *, int));
 #endif
 
-E int FDECL(strcmp, (const char *, const char *));
-E int FDECL(strncmp, (const char *, const char *, size_t));
+E int FDECL((strcmp), (const char *, const char *));
+E int FDECL((strncmp), (const char *, const char *, size_t));
 #if defined(MICRO) || defined(MAC) || defined(VMS)
-E size_t FDECL(strlen, (const char *));
+E size_t FDECL((strlen), (const char *));
 #else
 #ifdef HPUX
 E unsigned int FDECL(strlen, (char *));

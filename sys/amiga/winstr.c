@@ -2,9 +2,9 @@
 /* Copyright (c) Gregg Wonderly, Naperville, Illinois,  1991,1992,1993. */
 /* NetHack may be freely redistributed.  See license for details. */
 
-#include "NH:sys/amiga/windefs.h"
-#include "NH:sys/amiga/winext.h"
-#include "NH:sys/amiga/winproto.h"
+#include "windefs.h"
+#include "winext.h"
+#include "winproto.h"
 
 /* Put a string into the indicated window using the indicated attribute */
 
@@ -278,6 +278,34 @@ const char *str;
     default:
         panic("Invalid or unset window type in putstr()");
     }
+}
+
+/* Like genl_putmixed but extracts the rndencode seed from the encoded string
+ * itself, working around the timing issue where status is encoded before
+ * moveloop sets context.rndencode. */
+void
+amii_putmixed(window, attr, str)
+winid window;
+int attr;
+const char *str;
+{
+    char buf[BUFSZ * 2];
+    const char *p;
+    int save_rnd = context.rndencode;
+    unsigned int rnd;
+
+    /* Extract rndencode from the first \G escape sequence so that
+     * decode_mixed succeeds even when called before moveloop runs. */
+    for (p = str; *p; p++) {
+        if (p[0] == '\\' && p[1] == 'G') {
+            if (sscanf(p + 2, "%4x", &rnd) == 1)
+                context.rndencode = (int) rnd;
+            break;
+        }
+    }
+
+    putstr(window, attr, decode_mixed(buf, str));
+    context.rndencode = save_rnd;
 }
 
 void
