@@ -56,3 +56,19 @@ Makefile.gcc-orig
 # Win32-specific ignores end
 .DS_Store
 
+# Amiga cross-build output
+build-amiga/
+
+# Generated source files
+src/tile.c
+src/monstr.c
+include/onames.h
+include/pm.h
+include/date.h
+include/dgn_comp.h
+include/lev_comp.h
+util/lev_yacc.c
+util/lev_lex.c
+util/dgn_yacc.c
+util/dgn_lex.c
+

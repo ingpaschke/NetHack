@@ -1,0 +1,86 @@
+Cross-compiling NetHack 3.6.7 for m68k-AmigaOS
+===============================================
+
+Prerequisites
+-------------
+
+1. m68k-amigaos GCC toolchain
+   Provides the cross-compiler, assembler, linker, and AmigaOS system headers.
+   Expected at: /opt/amiga/bin/m68k-amigaos-gcc (and friends)
+
+   The toolchain is available from:
+     https://github.com/bebbo/amiga-gcc
+
+   Tested with GCC 6.5.0b (bebbo fork).  The toolchain must include:
+     - m68k-amigaos-gcc   (compiler)
+     - m68k-amigaos-as    (assembler)
+     - m68k-amigaos-ld    (linker, invoked via gcc -lamiga)
+     - m68k-amigaos-ar    (archiver, for library inspection)
+     - m68k-amigaos-nm    (symbol tool, for diagnostics)
+     - libnix             (default C library, bundled with toolchain)
+     - libamiga           (-lamiga, AmigaOS stubs, bundled with toolchain)
+
+2. m68k-linux-gnu GCC toolchain
+   Used to compile makedefs, lev_comp, and dgn_comp as static m68k Linux
+   ELF binaries.  These are then run under qemu-m68k so their output is
+   natively 32-bit big-endian — no post-processing or endian-conversion
+   hacks are needed.
+
+   On Debian/Ubuntu:
+     apt install gcc-m68k-linux-gnu
+
+3. QEMU user-mode emulation for m68k
+   Runs the m68k-linux-gnu static binaries built in step 2.
+
+   On Debian/Ubuntu:
+     apt install qemu-user
+
+   The binary must be available as: qemu-m68k
+
+4. Native host GCC (gcc)
+   Used to compile the dlb tool (the data archive packer).
+   Any recent version on the build host is sufficient.
+
+5. GNU make
+   Used to drive the entire build.  Any version >= 3.81.
+
+6. flex and bison
+   Used to regenerate the level and dungeon compiler parsers if the
+   grammar source files (.l, .y) are modified.  Pre-generated C sources
+   are already present in util/, so flex and bison are only required if
+   you need to change lev_comp or dgn_comp grammars.
+
+   On Debian/Ubuntu:
+     apt install flex bison
+
+
+Build output
+------------
+
+All output lands under build-amiga/:
+
+  build-amiga/NetHack/NetHack     AmigaOS m68k HUNK binary
+  build-amiga/NetHack/nhdat       DLB archive (levels, text, options, etc.)
+  build-amiga/NetHack/nhsdat      DLB archive (sounds)
+  build-amiga/NetHack/*.font/     Amiga bitmap fonts
+  build-amiga/NetHack/license     License file (read outside the archive)
+  build-amiga/NetHack/symbols     Symbol definitions (read outside archive)
+
+
+Building
+--------
+
+  # Full build: binary + all data files
+  make -f sys/amiga/Makefile.cross
+
+  # Binary only (no data)
+  make -f sys/amiga/Makefile.cross obj link
+
+  # Data files only
+  make -f sys/amiga/Makefile.cross data
+
+  # Remove object files (keeps data and binary)
+  make -f sys/amiga/Makefile.cross clean
+
+  # Remove everything built
+  make -f sys/amiga/Makefile.cross spotless

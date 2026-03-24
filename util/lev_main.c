@@ -72,6 +72,7 @@
     if ((long) write(fd, (genericptr_t)(item), size) != (long) (size)) \
         return FALSE;
 
+
 #if defined(__BORLANDC__) && !defined(_WIN32)
 extern unsigned _stklen = STKSIZ;
 #endif
@@ -1498,6 +1499,7 @@ sp_lev *maze;
             if (opdat) {
                 struct opvar *ov = (struct opvar *) opdat;
                 int size;
+                /* spovartyp is xchar (1 byte); no byte-swap needed */
                 Write(fd, &(ov->spovartyp), sizeof(ov->spovartyp));
                 switch (ov->spovartyp) {
                 case SPOVAR_NULL:
