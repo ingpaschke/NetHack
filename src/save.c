@@ -290,7 +290,7 @@ register int fd, mode;
     bwrite(fd, (genericptr_t) &context, sizeof context);
     bwrite(fd, (genericptr_t) &flags, sizeof flags);
 #ifdef SYSFLAGS
-    bwrite(fd, (genericptr_t) &sysflags, sysflags);
+    bwrite(fd, (genericptr_t) &sysflags, sizeof sysflags);
 #endif
     urealtime.finish_time = getnow();
     urealtime.realtime += (long) (urealtime.finish_time

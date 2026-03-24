@@ -268,7 +268,7 @@ _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);*/
     if (argc == 0)
         chdirx(HACKDIR, 1);
 #endif
-    ami_wininit_data();
+    ami_wininit_data(WININIT);
 #endif
     initoptions();
 
