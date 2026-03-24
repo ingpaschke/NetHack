@@ -1487,6 +1487,7 @@ register int x, y;
         gbuf_stop[y] = x;
 }
 
+
 /*
  * Store the glyph in the 3rd screen for later flushing.
  */

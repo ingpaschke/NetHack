@@ -403,11 +403,6 @@ boolean resuming;
         if (iflags.sanity_check || iflags.debug_fuzzer)
             sanity_check();
 
-#ifdef CLIPPING
-        /* just before rhack */
-        cliparound(u.ux, u.uy);
-#endif
-
         u.umoved = FALSE;
 
         if (multi > 0) {
@@ -442,6 +437,11 @@ boolean resuming;
 
         if (vision_full_recalc)
             vision_recalc(0); /* vision! */
+#ifdef CLIPPING
+        /* after rhack() and vision_recalc() so that the map is redrawn
+           once with correct vision data, not twice (overshoot+correct) */
+        cliparound(u.ux, u.uy);
+#endif
         /* when running in non-tport mode, this gets done through domove() */
         if ((!context.run || flags.runmode == RUN_TPORT)
             && (multi && (!context.travel ? !(multi % 7) : !(moves % 7L)))) {

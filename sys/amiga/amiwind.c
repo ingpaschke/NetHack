@@ -3,9 +3,9 @@
 /*    Copyright (c) Kenneth Lorber, Bethesda, Maryland 1993,1996  */
 /* NetHack may be freely redistributed.  See license for details. */
 
-#include "NH:sys/amiga/windefs.h"
-#include "NH:sys/amiga/winext.h"
-#include "NH:sys/amiga/winproto.h"
+#include "windefs.h"
+#include "winext.h"
+#include "winproto.h"
 
 /* Have to undef CLOSE as display.h and intuition.h both use it */
 #undef CLOSE
@@ -21,13 +21,21 @@ static void ProcessMessage(register struct IntuiMessage *message);
 
 #define BufferQueueChar(ch) (KbdBuffer[KbdBuffered++] = (ch))
 
-struct Library *ConsoleDevice;
+struct Device *ConsoleDevice = NULL;
 
-#include "NH:sys/amiga/amimenu.c"
+#include "amimenu.c"
 
 /* Now our own variables */
 
-struct IntuitionBase *IntuitionBase;
+#ifdef SHAREDLIB
+struct DosLibrary *DOSBase = NULL;
+#endif
+struct IntuitionBase *IntuitionBase = NULL;
+struct GfxBase *GfxBase = NULL;
+struct Library *LayersBase = NULL;
+struct Library *GadToolsBase = NULL;
+struct Library *AslBase = NULL;
+struct Library *IFFParseBase = NULL;
 struct Screen *HackScreen;
 struct Window *pr_WindowPtr;
 struct MsgPort *HackPort;
@@ -38,7 +46,6 @@ char Initialized = 0;
 WEVENT lastevent;
 
 #ifdef HACKFONT
-struct GfxBase *GfxBase;
 struct Library *DiskfontBase;
 #endif
 
@@ -464,7 +471,17 @@ register struct IntuiMessage *message;
             ReDisplayData(WIN_INVEN);
         } else if (WINVERS_AMIV && (WIN_OVER != WIN_ERR
                                     && w == amii_wins[WIN_OVER]->win)) {
-            BufferQueueChar('R' - 64);
+            {
+                int i, have_redraw = 0;
+                for (i = 0; i < KbdBuffered; i++) {
+                    if (KbdBuffer[i] == 'R' - 64) {
+                        have_redraw = 1;
+                        break;
+                    }
+                }
+                if (!have_redraw)
+                    BufferQueueChar('R' - 64);
+            }
         } else if (WIN_MAP != WIN_ERR && w == amii_wins[WIN_MAP]->win) {
 #ifdef CLIPPING
             CO = (w->Width - w->BorderLeft - w->BorderRight) / mxsize;
@@ -477,7 +494,17 @@ register struct IntuiMessage *message;
                 clipping = FALSE;
                 clipx = clipy = 0;
             }
-            BufferQueueChar('R' - 64);
+            {
+                int i, have_redraw = 0;
+                for (i = 0; i < KbdBuffered; i++) {
+                    if (KbdBuffer[i] == 'R' - 64) {
+                        have_redraw = 1;
+                        break;
+                    }
+                }
+                if (!have_redraw)
+                    BufferQueueChar('R' - 64);
+            }
 #endif
         }
         break;
@@ -659,6 +686,16 @@ amii_cleanup()
         DiskfontBase = NULL;
     }
 #endif
+
+    if (IFFParseBase) {
+        CloseLibrary((struct Library *) IFFParseBase);
+        IFFParseBase = NULL;
+    }
+
+    if (AslBase) {
+        CloseLibrary((struct Library *) AslBase);
+        AslBase = NULL;
+    }
 
     if (GadToolsBase) {
         CloseLibrary((struct Library *) GadToolsBase);

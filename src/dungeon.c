@@ -1191,7 +1191,7 @@ u_on_newpos(x, y)
 int x, y;
 {
     if (!isok(x, y)) { /* validate location */
-        void VDECL((*func), (const char *, ...)) PRINTF_F(1, 2);
+        void VDECL((*func), (const char *, ...)); /* PRINTF_F(1, 2) */
 
         func = (x < 0 || y < 0 || x > COLNO - 1 || y > ROWNO - 1) ? panic
                : impossible;
@@ -1199,9 +1199,11 @@ int x, y;
     }
     u.ux = x;
     u.uy = y;
-#ifdef CLIPPING
-    cliparound(u.ux, u.uy);
-#endif
+    /* Note: cliparound() used to be called here, but that triggered
+       redraw_map() before vision_recalc(), causing a premature redraw
+       with stale vision data followed by a second corrected redraw.
+       Clipping is now handled solely by the main loop (allmain.c)
+       after each turn completes, giving a single clean redraw. */
     /* ridden steed always shares hero's location */
     if (u.usteed)
         u.usteed->mx = u.ux, u.usteed->my = u.uy;

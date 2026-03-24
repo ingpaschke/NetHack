@@ -3,9 +3,9 @@
  */
 /* NetHack may be freely redistributed.  See license for details. */
 
-#include "NH:sys/amiga/windefs.h"
-#include "NH:sys/amiga/winext.h"
-#include "NH:sys/amiga/winproto.h"
+#include "windefs.h"
+#include "winext.h"
+#include "winproto.h"
 #include "patchlevel.h"
 #include "date.h"
 
@@ -25,8 +25,57 @@ int xclipbord = 4, yclipbord = 2;
 #endif
 
 int mxsize, mysize;
+
+/* Track the last level we centered the clipping viewport on, so that
+   both amii_clear_nhwindow (pre-docrt centering) and amii_cliparound
+   (scroll/pan during play) can detect level changes. */
+static d_level clip_saved_level = { 127, 127 }; /* XXX */
 struct Rectangle amii_oldover;
 struct Rectangle amii_oldmsg;
+
+/*
+ * amii_LoadRGB -- palette loader that works correctly on RTG screens.
+ *
+ * On graphics.library v39+ (OS 3.0+, required for RTG) use LoadRGB32,
+ * which accepts full 8-bit-per-channel values and is the only palette
+ * function that RTG drivers honour correctly.  On older systems fall
+ * back to LoadRGB4.
+ *
+ * cmap16: array of 12-bit UWORD colour values in LoadRGB4 format (0x0RGB).
+ * Each 4-bit nibble is expanded to 8 bits by replication
+ * (e.g. 0xF -> 0xFF, 0xA -> 0xAA) before being passed to LoadRGB32.
+ */
+void
+amii_LoadRGB(vp, cmap16, numcolors)
+struct ViewPort *vp;
+UWORD *cmap16;
+int numcolors;
+{
+    if (GfxBase->LibNode.lib_Version >= 39) {
+        /* LoadRGB32 table layout:
+         *   [0]          = (count << 16) | first_register
+         *   [1..3*count] = R, G, B per entry as ULONG with 8-bit value << 24
+         *   [3*count+1]  = 0  (terminator)
+         */
+        ULONG table[AMII_MAXCOLORS * 3 + 2];
+        int i;
+        table[0] = ((ULONG) numcolors << 16) | 0UL;
+        for (i = 0; i < numcolors; i++) {
+            UWORD c = cmap16[i];
+            ULONG r = (c >> 8) & 0xf;
+            ULONG g = (c >> 4) & 0xf;
+            ULONG b =  c       & 0xf;
+            /* Replicate nibble to byte: n -> (n << 4) | n */
+            table[1 + i * 3 + 0] = ((r << 4) | r) << 24;
+            table[1 + i * 3 + 1] = ((g << 4) | g) << 24;
+            table[1 + i * 3 + 2] = ((b << 4) | b) << 24;
+        }
+        table[1 + numcolors * 3] = 0UL;
+        LoadRGB32(vp, table);
+    } else {
+        LoadRGB4(vp, cmap16, numcolors);
+    }
+}
 
 extern struct TextFont *RogueFont;
 
@@ -725,7 +774,9 @@ amii_create_nhwindow(type) register int type;
          */
         wd->data = (char **) alloc(3 * sizeof(char *));
         wd->data[0] = (char *) alloc(wd->cols + 10);
+        wd->data[0][0] = '\0';
         wd->data[1] = (char *) alloc(wd->cols + 10);
+        wd->data[1][0] = '\0';
         wd->data[2] = NULL;
         break;
 
@@ -1172,9 +1223,12 @@ char **argv;
     }
 #endif
 
-    if (WINVERS_AMIV)
+    if (WINVERS_AMIV) {
         amii_bmhd = ReadTileImageFiles();
-    else
+        /* Use the actual IFF depth so the screen gets as many bitplanes
+         * as the tile images need (e.g. 5 planes = 32 colours). */
+        amii_numcolors = 1L << amii_bmhd.nPlanes;
+    } else
         memcpy(amii_initmap, amii_init_map, sizeof(amii_initmap));
     memcpy(sysflags.amii_curmap, amii_initmap, sizeof(sysflags.amii_curmap));
 
@@ -1222,7 +1276,7 @@ char **argv;
     amiIDisplay->ypix = HackScreen->Height;
     amiIDisplay->xpix = HackScreen->Width;
 
-    LoadRGB4(&HackScreen->ViewPort, sysflags.amii_curmap, amii_numcolors);
+    amii_LoadRGB(&HackScreen->ViewPort, sysflags.amii_curmap, amii_numcolors);
 
     VisualInfo = GetVisualInfo(HackScreen, TAG_END);
     MenuStrip = CreateMenus(GTHackMenu, TAG_END);
@@ -1377,6 +1431,40 @@ register winid win;
 
     amii_setfillpens(w, cw->type);
     SetDrMd(w->RPort, JAM2);
+
+#ifdef CLIPPING
+    /* When clearing the map for a full redraw (docrt/cls), center the
+       clipping viewport on the player BEFORE the map is redrawn.
+       Without this, the first docrt() after a level change or new game
+       draws with stale clip coordinates (typically 0,0), leaving the
+       player off-screen until their first move triggers amii_cliparound. */
+    if (cw->type == NHW_MAP && clipping && u.ux
+        && !on_level(&u.uz, &clip_saved_level)) {
+        int COx, LIx;
+        struct RastPort *rp = w->RPort;
+
+        if (Is_rogue_level(&u.uz)) {
+            COx = (w->Width - w->BorderLeft - w->BorderRight) / rp->TxWidth;
+            LIx = (w->Height - w->BorderTop - w->BorderBottom) / rp->TxHeight;
+        } else {
+            COx = CO;
+            LIx = LI;
+        }
+        clipx = max(0, (int) u.ux - COx / 2);
+        clipxmax = clipx + COx;
+        if (clipxmax > COLNO) {
+            clipxmax = COLNO;
+            clipx = clipxmax - COx;
+        }
+        clipy = max(0, (int) u.uy - LIx / 2);
+        clipymax = clipy + LIx;
+        if (clipymax > ROWNO) {
+            clipymax = ROWNO;
+            clipy = clipymax - LIx;
+        }
+        clip_saved_level = u.uz;
+    }
+#endif
 
     if (cw->type == NHW_MENU || cw->type == NHW_TEXT) {
         RectFill(w->RPort, w->BorderLeft, w->BorderTop,
@@ -1974,7 +2062,7 @@ if(u.uz.dlevel != x){
 #endif
     if (WINVERS_AMIV && !Is_rogue_level(&u.uz)) {
         amii_curs(win, x, y);
-        amiga_print_glyph(win, 0, glyph);
+        amiga_print_glyph(win, 0, glyph, 0);
     } else /* AMII, or Rogue level in either version */
     {
         /* map glyph to character and color */
@@ -1982,17 +2070,18 @@ if(u.uz.dlevel != x){
         ch = (uchar) och;
         if (WINVERS_AMIV) { /* implies Rogue level here */
             amii_curs(win, x, y);
-            amiga_print_glyph(win, NO_COLOR, ch + 10000);
+            amiga_print_glyph(win, NO_COLOR, ch + 10000, 0);
         } else {
-            /* Move the cursor. */
-            amii_curs(win, x, y + 2);
+            /* Move the cursor. In multi-window mode the map window is
+             * separate, so dungeon y maps directly to window row y. */
+            amii_curs(win, x, y);
 
 #ifdef TEXTCOLOR
             /* Turn off color if rogue level. */
             if (Is_rogue_level(&u.uz))
                 color = NO_COLOR;
 
-            amiga_print_glyph(win, color, ch);
+            amiga_print_glyph(win, color, ch, 0);
 #else
             g_putch(ch); /* print the character */
 #endif
@@ -2124,6 +2213,28 @@ amii_setclipped()
 #endif
 }
 
+/* Redraw a rectangular region of the map via print_glyph.  Used after
+   ScrollRaster() shifts existing pixels — only the exposed strip needs
+   redrawing.  Does NOT flush; the caller flushes after all regions. */
+static void
+redraw_map_region(x1, y1, x2, y2)
+int x1, y1, x2, y2;
+{
+    int x, y, glyph;
+
+    if (!u.ux)
+        return;
+    if (x1 < 1) x1 = 1;
+    if (y1 < 0) y1 = 0;
+    if (x2 >= COLNO) x2 = COLNO - 1;
+    if (y2 >= ROWNO) y2 = ROWNO - 1;
+    for (y = y1; y <= y2; y++)
+        for (x = x1; x <= x2; x++) {
+            glyph = glyph_at(x, y);
+            print_glyph(WIN_MAP, x, y, glyph, NO_GLYPH);
+        }
+}
+
 /* XXX still to do: suppress scrolling if we violate the boundary but the
  * edge of the map is already displayed
  */
@@ -2156,16 +2267,25 @@ register int x, y;
      * reasonablely large window extra motion is avoided; for
      * the rogue level hopefully this means no motion at all.
      */
-    {
-        static d_level saved_level = { 127, 127 }; /* XXX */
-
-        if (!on_level(&u.uz, &saved_level)) {
-            scrollcnt = 1; /* jump with blanking */
-            clipx = clipy = 0;
-            clipxmax = COx;
-            clipymax = LIx;
-            saved_level = u.uz; /* save as new current level */
+    if (!on_level(&u.uz, &clip_saved_level)) {
+        scrollcnt = 1; /* jump with blanking */
+        /* Center viewport on the player for the new level.
+           Without this, clipx/clipy start at 0 and the border-based
+           repositioning below may not trigger if the player spawns
+           in the middle of the initial viewport. */
+        clipx = max(0, x - COx / 2);
+        clipxmax = clipx + COx;
+        if (clipxmax > COLNO) {
+            clipxmax = COLNO;
+            clipx = clipxmax - COx;
         }
+        clipy = max(0, y - LIx / 2);
+        clipymax = clipy + LIx;
+        if (clipymax > ROWNO) {
+            clipymax = ROWNO;
+            clipy = clipymax - LIx;
+        }
+        clip_saved_level = u.uz; /* save as new current level */
     }
 
     if (x <= clipx + xclipbord) {
@@ -2187,13 +2307,12 @@ register int x, y;
     reclip = 1;
     if (clipx != oldx || clipy != oldy || clipxmax != oldxmax
         || clipymax != oldymax) {
-#ifndef NOSCROLLRASTER
         struct Window *w = amii_wins[WIN_MAP]->win;
         struct RastPort *rp = w->RPort;
-        int xdelta, ydelta, xmod, ymod, i;
-        int incx, incy, mincx, mincy;
-        int savex, savey, savexmax, saveymax;
-        int scrx, scry;
+        int dx = clipx - oldx;
+        int dy = clipy - oldy;
+        int scrx, scry;       /* tile pixel dimensions */
+        int halfW, halfH;     /* half viewport in tiles */
 
         if (Is_rogue_level(&u.uz)) {
             scrx = rp->TxWidth;
@@ -2203,121 +2322,65 @@ register int x, y;
             scry = mysize;
         }
 
-        /* Ask that the glyph routines not draw the overview window */
-        reclip = 2;
-        cursor_off(WIN_MAP);
+        halfW = COx / 2;
+        halfH = LIx / 2;
 
-        /* Compute how far we are moving in terms of tiles */
-        mincx = clipx - oldx;
-        mincy = clipy - oldy;
+        /* Erase the map cursor before shifting pixels, otherwise the
+           old cursor position leaves a COMPLEMENT artifact on screen
+           (visible during farlook/getpos scrolling). */
+        if (WIN_MAP != WIN_ERR)
+            cursor_off(WIN_MAP);
 
-        /* How many tiles to get there in SCROLLCNT moves */
-        incx = (clipx - oldx) / scrollcnt;
-        incy = (clipy - oldy) / scrollcnt;
-
-        /* If less than SCROLLCNT tiles, then move by 1 tile if moving at all
-         */
-        if (incx == 0)
-            incx = (mincx != 0);
-        if (incy == 0)
-            incy = (mincy != 0);
-
-        /* Get count of pixels to move each iteration and final pixel count */
-        xdelta = ((clipx - oldx) * scrx) / scrollcnt;
-        xmod = ((clipx - oldx) * scrx) % scrollcnt;
-        ydelta = ((clipy - oldy) * scry) / scrollcnt;
-        ymod = ((clipy - oldy) * scry) % scrollcnt;
-
-        /* Preserve the final move location */
-        savex = clipx;
-        savey = clipy;
-        saveymax = clipymax;
-        savexmax = clipxmax;
-
-/*
- * Set clipping rectangle to be just the region that will be exposed so
- * that drawing will be faster
- */
-#if 0 /* Doesn't seem to work quite the way it should */
-	/* In some cases hero is 'centered' offscreen */
-	if( xdelta < 0 )
-	{
-	    clipx = oldx;
-	    clipxmax = clipx + incx;
-	}
-	else if( xdelta > 0 )
-	{
-	    clipxmax = oldxmax;
-	    clipx = clipxmax - incx;
-	}
-	else
-	{
-	    clipx = oldx;
-	    clipxmax = oldxmax;
-	}
-
-	if( ydelta < 0 )
-	{
-	    clipy = oldy;
-	    clipymax = clipy + incy;
-	}
-	else if( ydelta > 0 )
-	{
-	    clipymax = oldymax;
-	    clipy = clipymax - incy;
-	}
-	else
-	{
-	    clipy = oldy;
-	    clipymax = oldymax;
-	}
-#endif
-        /* Now, in scrollcnt moves, move the picture toward the final view */
-        for (i = 0; i < scrollcnt; ++i) {
-#ifdef DISPMAP
-            if (i == scrollcnt - 1 && (xmod != 0 || ymod != 0)
-                && (xdelta != 0 || ydelta != 0)) {
-                incx += (clipx - oldx) % scrollcnt;
-                incy += (clipy - oldy) % scrollcnt;
-                xdelta += xmod;
-                ydelta += ymod;
+        /* Large jumps (teleport, level change): ScrollRaster would
+           shift nearly all content off-screen, so just redraw.
+           Clear the window first so no stale pixels remain at edges
+           where the old and new viewports don't overlap. */
+        if (abs(dx) > halfW || abs(dy) > halfH
+            || scrollcnt != SCROLLCNT) {
+            {
+                int savedAPen = rp->FgPen;
+                int savedDrMd = rp->DrawMode;
+                SetAPen(rp, amii_otherBPen);
+                SetDrMd(rp, JAM1);
+                RectFill(rp, w->BorderLeft, w->BorderTop,
+                         w->Width - w->BorderRight - 1,
+                         w->Height - w->BorderBottom - 1);
+                SetAPen(rp, savedAPen);
+                SetDrMd(rp, savedDrMd);
             }
-#endif
-            /* Scroll the raster if we are scrolling */
-            if (xdelta != 0 || ydelta != 0) {
-                ScrollRaster(rp, xdelta, ydelta, w->BorderLeft, w->BorderTop,
-                             w->Width - w->BorderRight - 1,
-                             w->Height - w->BorderBottom - 1);
+            redraw_map();
+        } else {
+            /* Flush pending glyphs — they reference old clip coords */
+            flush_glyph_buffer(w);
 
-                if (mincx == 0)
-                    incx = 0;
-                else
-                    mincx -= incx;
+            /* Hardware-blit the viewport by the scroll delta */
+            ScrollRaster(rp, dx * scrx, dy * scry,
+                         w->BorderLeft, w->BorderTop,
+                         w->Width - w->BorderRight - 1,
+                         w->Height - w->BorderBottom - 1);
 
-                clipx += incx;
-                clipxmax += incx;
+            /* Redraw exposed strip(s) via print_glyph.
+               x2 uses clipxmax (not clipxmax-1) because the AMIV clip
+               check compares (map_x - 1) < clipxmax, making map column
+               clipxmax the last visible column.  redraw_map_region
+               clamps to COLNO-1 internally.
+               Diagonal scrolls produce two overlapping rects — harmless. */
+            if (dx > 0)     /* scrolled right: rightmost dx columns */
+                redraw_map_region(clipxmax - dx, clipy,
+                                  clipxmax, clipymax - 1);
+            else if (dx < 0) /* scrolled left: leftmost |dx| columns */
+                redraw_map_region(clipx, clipy,
+                                  clipx - dx, clipymax - 1);
 
-                if (mincy == 0)
-                    incy = 0;
-                else
-                    mincy -= incy;
+            if (dy > 0)     /* scrolled down: bottom dy rows */
+                redraw_map_region(clipx, clipymax - dy,
+                                  clipxmax, clipymax - 1);
+            else if (dy < 0) /* scrolled up: top |dy| rows */
+                redraw_map_region(clipx, clipy,
+                                  clipxmax, clipy - dy - 1);
 
-                clipy += incy;
-                clipymax += incy;
-
-                /* Draw the exposed portion */
-                redraw_map();
-                flush_glyph_buffer(amii_wins[WIN_MAP]->win);
-            }
+            flush_glyph_buffer(w);
         }
-
-        clipx = savex;
-        clipy = savey;
-        clipymax = saveymax;
-        clipxmax = savexmax;
-#endif
-        redraw_map();
-        flush_glyph_buffer(amii_wins[WIN_MAP]->win);
     }
     reclip = 0;
 #endif
