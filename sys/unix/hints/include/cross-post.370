@@ -383,6 +383,8 @@ mac68kpkg: $(GAMEBIN)
 	hcopy -r ../sys/mac/NHDeflts :NHDeflts && hattrib -t TEXT -c NHck NHDeflts
 	hcopy -r /dev/null :record      && hattrib -t TEXT -c NHck record
 	hcopy -r ../dat/symbols :symbols && hattrib -t TEXT -c NHck symbols
+	hmkdir save
+	hmkdir levels
 	humount
 	@echo "=== Wrapping with Apple Partition Map ==="
 	python3 ../sys/mac/tools/make_scsi_image2.py \

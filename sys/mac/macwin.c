@@ -633,29 +633,51 @@ SanePositions(void)
     height = _mt_window->portRect.bottom - _mt_window->portRect.top;
     width = _mt_window->portRect.right - _mt_window->portRect.left;
 
-    if (!RetrievePosition(kMapWindow, &top, &left)) {
-        top = mbar_height + (small_screen ? 2 : 20);
-        left = (screenArea.right - width) / 2;
-    }
-    MoveWindow(_mt_window, left, top, 1);
+    if (small_screen) {
+        /* Small screen (SE/30 512x342): message on top, map below.
+           Message window gets 3 lines + title bar (~60px).
+           Map window overlaps the message window's bottom decoration. */
+        short msg_height = 60;
+        short msg_top = mbar_height + 2;
+        short map_top = msg_top + msg_height - 4; /* overlap bottom border */
 
-    /* Message Window — align with map window */
-    if (!RetrievePosition(kMessageWindow, &top, &left)) {
-        top += height;
-        if (!small_screen)
-            top += 20;
-        /* left stays aligned with the map window */
+        /* Message window */
+        if (!RetrievePosition(kMessageWindow, &top, &left)) {
+            top = msg_top;
+            left = 0;
+        }
+        if (!RetrieveSize(kMessageWindow, top, left, &height, &width))
+            width = screenArea.right;
+        MoveWindow(theWindows[WIN_MESSAGE].its_window, left, top, 0);
+        SizeWindow(theWindows[WIN_MESSAGE].its_window, width, msg_height, 1);
+
+        /* Map window — below message, extending to bottom of screen */
+        if (!RetrievePosition(kMapWindow, &top, &left)) {
+            top = map_top;
+            left = 0;
+        }
+        MoveWindow(_mt_window, left, top, 1);
+    } else {
+        /* Large screen: map on top, message below */
+        if (!RetrievePosition(kMapWindow, &top, &left)) {
+            top = mbar_height + 20;
+            left = (screenArea.right - width) / 2;
+        }
+        MoveWindow(_mt_window, left, top, 1);
     }
 
-    if (!RetrieveSize(kMessageWindow, top, left, &height, &width)) {
-        /* Match map window width */
-        width = _mt_window->portRect.right - _mt_window->portRect.left;
-        height =
-            screenArea.bottom - top - (small_screen ? 2 - SBARHEIGHT : 2);
-        if (height > MAX_HEIGHT) {
-            height = MAX_HEIGHT;
-        } else if (height < MIN_HEIGHT) {
-            height = MIN_HEIGHT;
+    if (!small_screen) {
+        /* Message window — below map on large screens */
+        if (!RetrievePosition(kMessageWindow, &top, &left)) {
+            top += height + 20;
+        }
+        if (!RetrieveSize(kMessageWindow, top, left, &height, &width)) {
+            width = _mt_window->portRect.right - _mt_window->portRect.left;
+            height = screenArea.bottom - top - 2;
+            if (height > MAX_HEIGHT)
+                height = MAX_HEIGHT;
+            else if (height < MIN_HEIGHT)
+                height = MIN_HEIGHT;
         }
     }
 
@@ -2260,18 +2282,9 @@ BaseClick(NhWindow *wind, Point pt, UInt32 modifiers)
     pt.v = pt.v / wind->row_height;
     clicked_mod = (modifiers & shiftKey) ? CLICK_2 : CLICK_1;
 
-    /* click_to_cmd now returns void in 3.7; queue click directly */
-    {
-        click_to_cmd(pt.h, pt.v, clicked_mod);
-#if 1 //!TARGET_API_MAC_CARBON
-        if (cursor_locked)
-            while (WaitMouseUp())
-                /*SystemTask()*/;
-#endif
-
-        gClickedToMove = TRUE;
-        clicked_pos = pt;
-    }
+    /* TODO: click-to-move disabled — click_to_cmd queues wrong command
+       type for 3.7's command queue, causing "getdir: command queue had
+       no dir?" errors. Needs proper CMDQ_DIR integration. */
     return;
 }
 
