@@ -2188,11 +2188,10 @@ mac_print_glyph(winid win, coordxy x, coordxy y,
                 const glyph_info *glyphinfo,
                 const glyph_info *bkglyphinfo UNUSED)
 {
-    /* Minimal implementation: put the ttychar at (x,y) */
-    mac_curs(win, x, y);
-    if (glyphinfo && glyphinfo->ttychar) {
+    tty_curs(win, x, y);
+    if (glyphinfo) {
         term_start_color(glyphinfo->gm.sym.color);
-        add_tty_char(_mt_window, (short) glyphinfo->ttychar);
+        add_tty_char(_mt_window, (short) (glyphinfo->ttychar ? glyphinfo->ttychar : ' '));
         term_end_color();
     }
     update_tty(_mt_window);
@@ -2455,8 +2454,8 @@ MsgUpdate(NhWindow *wind)
     DrawGrowIcon(wind->its_window);
 
     for (l = 0; topl_resp[l]; l++) {
+        unsigned char namebuf[16];
         StringPtr name;
-        unsigned char tmp[2];
         FontInfo font;
         Rect frame;
         topl_resp_rect(l, &frame);
@@ -2480,9 +2479,9 @@ MsgUpdate(NhWindow *wind)
             name = "\x07any key";
             break;
         default:
-            tmp[0] = 1;
-            tmp[1] = topl_resp[l];
-            name = tmp;
+            namebuf[0] = 1;
+            namebuf[1] = topl_resp[l];
+            name = namebuf;
             break;
         }
         TextFont(kFontIDGeneva);
