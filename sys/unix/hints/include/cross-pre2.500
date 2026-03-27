@@ -568,7 +568,7 @@ override TARGET_CC = $(RETRO68)/bin/m68k-apple-macos-gcc
 override TARGET_CXX = $(RETRO68)/bin/m68k-apple-macos-g++
 override TARGET_AR = $(RETRO68)/bin/m68k-apple-macos-ar
 override TARGET_LINK = $(TARGET_CC)
-override TARGET_CFLAGS = -c -Os \
+MAC68K_COMMON_FLAGS = -m68020 \
 	-I../include -I../sys/mac \
 	$(LUAINCL) \
 	-DMAC -DMAC_CROSS -DNO_TERMS -DNO_SIGNAL -DNO_CHANGE_COLOR \
@@ -577,7 +577,8 @@ override TARGET_CFLAGS = -c -Os \
 	-Wall -Wno-missing-field-initializers \
 	-Wno-unused-parameter -Wno-unused-variable -Wno-four-char-constants \
 	-ffunction-sections -fdata-sections
-LUA_TARGET_CFLAGS = $(TARGET_CFLAGS)
+override TARGET_CFLAGS = -c -Os $(MAC68K_COMMON_FLAGS)
+LUA_TARGET_CFLAGS = -c -O2 $(MAC68K_COMMON_FLAGS)
 override TARGET_LFLAGS = -Wl,--gc-sections
 override TARGET_LIBS += -lm -lInterface
 
