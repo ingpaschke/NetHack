@@ -385,6 +385,9 @@ mac68kpkg: $(GAMEBIN)
 	hcopy -r ../dat/symbols :symbols && hattrib -t TEXT -c NHck symbols
 	hmkdir save
 	hmkdir levels
+	@printf 'number_pad:1\n' > /tmp/_nhcnf
+	hcopy -r /tmp/_nhcnf :nethack.cnf && hattrib -t TEXT -c NHck nethack.cnf
+	@rm -f /tmp/_nhcnf
 	humount
 	@echo "=== Wrapping with Apple Partition Map ==="
 	python3 ../sys/mac/tools/make_scsi_image2.py \
