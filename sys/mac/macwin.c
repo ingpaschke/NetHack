@@ -639,23 +639,23 @@ SanePositions(void)
     }
     MoveWindow(_mt_window, left, top, 1);
 
-    /* Message Window */
+    /* Message Window — align with map window */
     if (!RetrievePosition(kMessageWindow, &top, &left)) {
         top += height;
         if (!small_screen)
             top += 20;
+        /* left stays aligned with the map window */
     }
 
     if (!RetrieveSize(kMessageWindow, top, left, &height, &width)) {
+        /* Match map window width */
+        width = _mt_window->portRect.right - _mt_window->portRect.left;
         height =
             screenArea.bottom - top - (small_screen ? 2 - SBARHEIGHT : 2);
         if (height > MAX_HEIGHT) {
             height = MAX_HEIGHT;
         } else if (height < MIN_HEIGHT) {
             height = MIN_HEIGHT;
-            width = MIN_WIDTH;
-            left = screenArea.right - width;
-            top = screenArea.bottom - MIN_HEIGHT;
         }
     }
 
