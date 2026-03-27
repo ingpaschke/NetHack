@@ -68,9 +68,8 @@ pascal void CloseResFile(short refNum) = {0xA99A};
 #pragma parameter __A0 Get1Resource(__D0, __D1)
 pascal Handle Get1Resource(ResType type, short id) = {0xA81F};
 
-/* HasDepth — Video toolbox, not in Retro68 glue. Stub: assume no depth support */
-static inline short HasDepth(GDHandle gd, short depth, short wFlag, short fFlag)
-{ (void)gd; (void)depth; (void)wFlag; (void)fFlag; return 0; }
+/* HasDepth is in the Palette Manager (Palettes.h), available on System 7+ */
+#include <Palettes.h>
 
 /* Resource Manager traps missing from Retro68 glue */
 #pragma parameter __D0 CurResFile

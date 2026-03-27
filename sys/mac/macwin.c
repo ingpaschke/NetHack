@@ -731,6 +731,13 @@ mac_init_nhwindows(int *argcp, char **argv)
     tty_init_nhwindows(argcp, argv);
     iflags.window_inited = TRUE;
 
+    /* Enable color if the display supports it.
+       _mt_in_color is set by tty_init_nhwindows via Gestalt check. */
+    if (has_color(CLR_RED)) {
+        iflags.use_color = TRUE;
+        iflags.wc_color = TRUE;
+    }
+
     mac_create_nhwindow(NHW_BASE);
     tty_create_nhwindow(NHW_MESSAGE);
 
