@@ -47,6 +47,8 @@ main(void)
     svh.hackpid = getpid();
     init_nhwindows(&argc, (char **) &gh.hname);
 
+    raw_print("Please wait...");
+    raw_print("Reading options...");
     initoptions();
     /* Enable background colors for dark room rendering.
        On color Macs this uses real colors; on mono, mac_print_glyph
@@ -57,8 +59,10 @@ main(void)
     u.uhp = 1;
     finder_file_request();
 
+    raw_print("Loading data files...");
     dlb_init();
 
+    raw_print("Initializing vision...");
     vision_init();
     init_sound_disp_gamewindows();
     set_playmode();
@@ -72,6 +76,7 @@ main(void)
  * We'll return here if new game player_selection() renames the hero.
  */
 attempt_restore:
+    raw_print("Checking for saved game...");
     if (*svp.plname && (nhfp = restore_saved_game()) != 0) {
 #ifdef NEWS
         if (iflags.news) {
@@ -111,6 +116,7 @@ attempt_restore:
                 goto attempt_restore;
             }
         }
+        raw_print("Generating dungeon...");
         newgame();
         if (discover)
             You("are in non-scoring discovery mode.");
