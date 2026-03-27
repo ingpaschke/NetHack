@@ -22,6 +22,10 @@
 #endif
 
 /* No system-wide config file on classic Mac OS */
+
+/* Lua: use 32-bit integers and 32-bit floats.
+   Default 64-bit types are emulated in software on 68k and extremely slow. */
+#define LUA_32BITS
 #ifndef TARGET_API_MAC_OS8
 #define TARGET_API_MAC_OS8 1
 #endif

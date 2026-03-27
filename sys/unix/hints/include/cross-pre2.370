@@ -578,7 +578,7 @@ MAC68K_COMMON_FLAGS = -m68020 \
 	-Wno-unused-parameter -Wno-unused-variable -Wno-four-char-constants \
 	-ffunction-sections -fdata-sections
 override TARGET_CFLAGS = -c -Os $(MAC68K_COMMON_FLAGS)
-LUA_TARGET_CFLAGS = -c -O2 $(MAC68K_COMMON_FLAGS)
+LUA_TARGET_CFLAGS = -c -O2 -DLUA_32BITS $(MAC68K_COMMON_FLAGS)
 override TARGET_LFLAGS = -Wl,--gc-sections
 override TARGET_LIBS += -lm -lInterface
 
