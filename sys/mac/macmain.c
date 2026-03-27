@@ -48,6 +48,11 @@ main(void)
     init_nhwindows(&argc, (char **) &gh.hname);
 
     initoptions();
+    /* Enable background colors for dark room rendering.
+       On color Macs this uses real colors; on mono, mac_print_glyph
+       uses inverse video when framecolor is set. */
+    iflags.bgcolors = TRUE;
+    iflags.use_background_glyph = TRUE;
 
     u.uhp = 1;
     finder_file_request();
