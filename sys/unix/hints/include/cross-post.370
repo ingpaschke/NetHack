@@ -363,14 +363,40 @@ $(GAMEBIN) : $(HOBJ) $(LUACROSSLIB)
 #
 .PHONY: mac68kpkg
 mac68kpkg: $(GAMEBIN)
-	mkdir -p $(TARGETPFX)pkg
-	cp $(GAMEBIN) $(TARGETPFX)pkg/NetHack
-	-cp ../dat/nhdat $(TARGETPFX)pkg/nhdat
-	cp ../dat/license $(TARGETPFX)pkg/license
-	-cp ../dat/symbols $(TARGETPFX)pkg/symbols
-	-cp ../sys/mac/NHDeflts $(TARGETPFX)pkg/NHDeflts
-	touch $(TARGETPFX)pkg/record
-	@echo Mac 68k package at $(TARGETPFX)pkg
+	@echo "=== Compiling SIZE resource ==="
+	$(RETRO68)/bin/Rez ../sys/mac/nhsize.r -o $(TARGETPFX)nhsize.rsrc
+	@echo "=== Merging resources ==="
+	python3 ../sys/mac/tools/append_rsrc.py \
+		$(TARGETPFX).rsrc/NetHack \
+		$(TARGETPFX).rsrc/nhsize.rsrc
+	python3 ../sys/mac/tools/append_rsrc.py \
+		$(TARGETPFX).rsrc/NetHack \
+		$(TARGETPFX)resources/NetHack.rsrc.rsrc
+	@echo "=== Creating MacBinary ==="
+	python3 ../sys/mac/tools/make_macbin.py \
+		$(TARGETPFX)NetHack \
+		$(TARGETPFX).rsrc/NetHack \
+		$(TARGETPFX)NetHack.bin \
+		APPL NHck
+	@echo "=== Building HFS disk image ==="
+	dd if=/dev/zero of=$(TARGETPFX)nethack_hfs.img bs=1M count=14 2>/dev/null
+	hformat -l "NetHack 3.7" $(TARGETPFX)nethack_hfs.img
+	hmount $(TARGETPFX)nethack_hfs.img
+	hcopy -m $(TARGETPFX)NetHack.bin :
+	hcopy -r ../dat/nhdat :nhdat    && hattrib -t DATA -c NHck nhdat
+	hcopy -r ../dat/license :license && hattrib -t TEXT -c NHck license
+	hcopy -r ../sys/mac/NHDeflts :NHDeflts && hattrib -t TEXT -c NHck NHDeflts
+	hcopy -r /dev/null :record      && hattrib -t TEXT -c NHck record
+	hcopy -r ../dat/symbols :symbols && hattrib -t TEXT -c NHck symbols
+	humount
+	@echo "=== Wrapping with Apple Partition Map ==="
+	python3 ../sys/mac/tools/make_scsi_image2.py \
+		$(TARGETPFX)nethack_hfs.img \
+		$(TARGETPFX)NetHack.img
+	rm $(TARGETPFX)nethack_hfs.img
+	@echo "=== Done ==="
+	@echo "HFS disk image: $(TARGETPFX)NetHack.img"
+	@echo "MacBinary:      $(TARGETPFX)NetHack.bin"
 endif  # CROSS_TO_MAC68K
 
 ifdef CROSS_SHARED
