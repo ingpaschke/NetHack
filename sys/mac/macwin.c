@@ -1175,9 +1175,10 @@ topl_set_resp(char *resp, char def)
     frame.right = (BTN_IND + BTN_W) * r_len;
     InvalWindowRect(theWindows[WIN_MESSAGE].its_window, &frame);
 
-    strcpy(topl_resp, resp);
-    loc = strchr(resp, def);
-    topl_def_idx = loc ? loc - resp : -1;
+    memset(topl_resp, 0, sizeof topl_resp);
+    strncpy(topl_resp, resp, sizeof topl_resp - 1);
+    loc = strchr(topl_resp, def);
+    topl_def_idx = loc ? loc - topl_resp : -1;
 }
 
 static char
@@ -2186,15 +2187,30 @@ mac_raw_print_bold(const char *str)
 static void
 mac_print_glyph(winid win, coordxy x, coordxy y,
                 const glyph_info *glyphinfo,
-                const glyph_info *bkglyphinfo UNUSED)
+                const glyph_info *bkglyphinfo)
 {
     int ch;
+    boolean use_inverse = FALSE;
 
     tty_curs(win, x, y);
     ch = (glyphinfo && glyphinfo->ttychar) ? glyphinfo->ttychar : ' ';
+
+    /* Dark/unseen areas: inverse video for background color on mono,
+       or real background color if color is available */
+    if (bkglyphinfo && bkglyphinfo->framecolor != NO_COLOR) {
+        if (iflags.use_color)
+            term_start_bgcolor(bkglyphinfo->framecolor);
+        else
+            use_inverse = TRUE;
+    }
+    if (use_inverse)
+        term_start_attr(ATR_INVERSE);
     term_start_color(glyphinfo ? glyphinfo->gm.sym.color : NO_COLOR);
     add_tty_char(_mt_window, (short) ch);
     term_end_color();
+    if (use_inverse)
+        term_end_attr(ATR_INVERSE);
+
     /* Keep ttyDisplay cursor in sync — tty_curs skips move if it
        thinks cursor is already at the right position */
     wins[win]->curx++;
@@ -2458,7 +2474,7 @@ MsgUpdate(NhWindow *wind)
     DrawControls(wind->its_window);
     DrawGrowIcon(wind->its_window);
 
-    for (l = 0; topl_resp[l] && l < 10; l++) {
+    for (l = 0; in_topl_mode() && topl_resp[l] && l < 10; l++) {
         unsigned char namebuf[16];
         StringPtr name;
         FontInfo font;
