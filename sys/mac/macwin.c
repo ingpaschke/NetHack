@@ -122,7 +122,7 @@ extern WindowPtr _mt_window;
 static TEHandle top_line = (TEHandle) nil;
 static int topl_query_len;
 static int topl_def_idx = -1;
-static char topl_resp[10] = "";
+static char topl_resp[BUFSZ] = "";
 
 #define CHAR_ANY '\n'
 
@@ -2188,12 +2188,17 @@ mac_print_glyph(winid win, coordxy x, coordxy y,
                 const glyph_info *glyphinfo,
                 const glyph_info *bkglyphinfo UNUSED)
 {
+    int ch;
+
     tty_curs(win, x, y);
-    if (glyphinfo) {
-        term_start_color(glyphinfo->gm.sym.color);
-        add_tty_char(_mt_window, (short) (glyphinfo->ttychar ? glyphinfo->ttychar : ' '));
-        term_end_color();
-    }
+    ch = (glyphinfo && glyphinfo->ttychar) ? glyphinfo->ttychar : ' ';
+    term_start_color(glyphinfo ? glyphinfo->gm.sym.color : NO_COLOR);
+    add_tty_char(_mt_window, (short) ch);
+    term_end_color();
+    /* Keep ttyDisplay cursor in sync — tty_curs skips move if it
+       thinks cursor is already at the right position */
+    wins[win]->curx++;
+    ttyDisplay->curx++;
     update_tty(_mt_window);
 }
 
@@ -2410,7 +2415,7 @@ MsgClick(NhWindow *wind, Point pt)
 {
     int r_idx = 0;
 
-    while (topl_resp[r_idx]) {
+    while (topl_resp[r_idx] && r_idx < 10) {
         Rect frame;
         topl_resp_rect(r_idx, &frame);
         InsetRect(&frame, 1, 1);
@@ -2453,7 +2458,7 @@ MsgUpdate(NhWindow *wind)
     DrawControls(wind->its_window);
     DrawGrowIcon(wind->its_window);
 
-    for (l = 0; topl_resp[l]; l++) {
+    for (l = 0; topl_resp[l] && l < 10; l++) {
         unsigned char namebuf[16];
         StringPtr name;
         FontInfo font;
