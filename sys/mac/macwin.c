@@ -634,29 +634,35 @@ SanePositions(void)
     width = _mt_window->portRect.right - _mt_window->portRect.left;
 
     if (small_screen) {
-        /* Small screen (SE/30 512x342): message on top, map below.
-           Message window gets 3 lines + title bar (~60px).
-           Map window overlaps the message window's bottom decoration. */
-        short msg_height = 60;
-        short msg_top = mbar_height + 2;
-        short map_top = msg_top + msg_height - 4; /* overlap bottom border */
+        /* Small screen (SE/30 512x342): message on top with title bar
+           hidden behind menu bar, map below with bottom flush to screen.
+           Message content is visible between menu bar and map title. */
+        short map_width = _mt_window->portRect.right
+                          - _mt_window->portRect.left;
+        short map_height = _mt_window->portRect.bottom
+                           - _mt_window->portRect.top;
+        short center_left = (screenArea.right - map_width) / 2;
+        short title_bar_h = 18;
+        /* Space between menu bar and screen bottom minus map size */
+        short msg_visible = screenArea.bottom - mbar_height
+                            - map_height - title_bar_h;
+        short map_top = mbar_height + msg_visible;
 
-        /* Message window */
-        if (!RetrievePosition(kMessageWindow, &top, &left)) {
-            top = msg_top;
-            left = 0;
-        }
-        if (!RetrieveSize(kMessageWindow, top, left, &height, &width))
-            width = screenArea.right;
-        MoveWindow(theWindows[WIN_MESSAGE].its_window, left, top, 0);
-        SizeWindow(theWindows[WIN_MESSAGE].its_window, width, msg_height, 1);
+        if (msg_visible < 25)
+            msg_visible = 25; /* at least 2 lines */
 
-        /* Map window — below message, extending to bottom of screen */
-        if (!RetrievePosition(kMapWindow, &top, &left)) {
-            top = map_top;
-            left = 0;
-        }
-        MoveWindow(_mt_window, left, top, 1);
+        /* Message window: title hidden behind menu, content visible */
+        MoveWindow(theWindows[WIN_MESSAGE].its_window,
+                   center_left, mbar_height - title_bar_h, 0);
+        SizeWindow(theWindows[WIN_MESSAGE].its_window,
+                   map_width, msg_visible + title_bar_h, 1);
+
+        /* Map window: right below message, bottom at screen edge */
+        map_top = mbar_height + msg_visible;
+        MoveWindow(_mt_window, center_left, map_top, 1);
+
+        if (theWindows[WIN_MESSAGE].scrollBar)
+            DrawScrollbar(&theWindows[WIN_MESSAGE]);
     } else {
         /* Large screen: map on top, message below */
         if (!RetrievePosition(kMapWindow, &top, &left)) {
