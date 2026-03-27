@@ -336,6 +336,43 @@ amigapkg: $(AMITILES) ../util/uudecode
 	@echo amiga package zip file $(TARGETPFX)NH370AMI.ZIP
 endif  # CROSS_TO_AMIGA
 
+ifdef CROSS_TO_MAC68K
+# Mac 68k file dependencies
+$(TARGETPFX)macmain.o : ../sys/mac/macmain.c $(HACK_H)
+$(TARGETPFX)macwin.o : ../sys/mac/macwin.c $(HACK_H)
+$(TARGETPFX)mactty.o : ../sys/mac/mactty.c $(HACK_H)
+$(TARGETPFX)macmenu.o : ../sys/mac/macmenu.c $(HACK_H)
+$(TARGETPFX)mttymain.o : ../sys/mac/mttymain.c $(HACK_H)
+$(TARGETPFX)macfile.o : ../sys/mac/macfile.c $(HACK_H)
+$(TARGETPFX)maccurs.o : ../sys/mac/maccurs.c $(HACK_H)
+$(TARGETPFX)macerrs.o : ../sys/mac/macerrs.c $(HACK_H)
+$(TARGETPFX)mactopl.o : ../sys/mac/mactopl.c $(HACK_H)
+$(TARGETPFX)macunix.o : ../sys/mac/macunix.c $(HACK_H)
+$(TARGETPFX)mgetline.o : ../sys/mac/mgetline.c $(HACK_H)
+$(TARGETPFX)mmodal.o : ../sys/mac/mmodal.c
+$(TARGETPFX)dprintf.o : ../sys/mac/dprintf.c $(HACK_H)
+$(TARGETPFX)wintty.o : ../win/tty/wintty.c $(HACK_H)
+	$(TARGET_CC) $(TARGET_CFLAGS) -o$@ $<
+$(TARGETPFX)topl.o : ../win/tty/topl.c $(HACK_H)
+	$(TARGET_CC) $(TARGET_CFLAGS) -o$@ $<
+$(TARGETPFX)getline.o : ../win/tty/getline.c $(HACK_H)
+	$(TARGET_CC) $(TARGET_CFLAGS) -o$@ $<
+$(GAMEBIN) : $(HOBJ) $(LUACROSSLIB)
+	$(TARGET_LINK) $(TARGET_LFLAGS) -o $(GAMEBIN) \
+	$(HOBJ) $(LUACROSSLIB) $(WINLIB) $(TARGET_LIBS)
+#
+.PHONY: mac68kpkg
+mac68kpkg: $(GAMEBIN)
+	mkdir -p $(TARGETPFX)pkg
+	cp $(GAMEBIN) $(TARGETPFX)pkg/NetHack
+	-cp ../dat/nhdat $(TARGETPFX)pkg/nhdat
+	cp ../dat/license $(TARGETPFX)pkg/license
+	-cp ../dat/symbols $(TARGETPFX)pkg/symbols
+	-cp ../sys/mac/NHDeflts $(TARGETPFX)pkg/NHDeflts
+	touch $(TARGETPFX)pkg/record
+	@echo Mac 68k package at $(TARGETPFX)pkg
+endif  # CROSS_TO_MAC68K
+
 ifdef CROSS_SHARED
 # shared file dependencies
 $(TARGETPFX)pcmain.o : ../sys/share/pcmain.c $(HACK_H)

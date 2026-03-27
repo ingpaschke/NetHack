@@ -1,0 +1,34 @@
+diff --git a/Elf2Mac/Elf2Mac.cc b/Elf2Mac/Elf2Mac.cc
+index 76b81a76a9..c5ed64a892 100644
+--- a/Elf2Mac/Elf2Mac.cc
++++ b/Elf2Mac/Elf2Mac.cc
+@@ -196,6 +196,7 @@ int main(int argc, char *argv[])
+         }
+  
+         args2.push_back("--no-warn-rwx-segments");
++        args2.push_back("--emit-relocs");
+         args2.push_back("-o");
+         args2.push_back(outputFile + ".gdb");
+         args2.push_back("-T");
+diff --git a/Elf2Mac/Section.cc b/Elf2Mac/Section.cc
+index eb0097cbf9..2842deda14 100644
+--- a/Elf2Mac/Section.cc
++++ b/Elf2Mac/Section.cc
+@@ -229,13 +229,11 @@ void Section::FixRelocs(bool allowDirectCodeRefs)
+                     {
+                         if(sym.section.get() != this)
+                         {
+-                            std::cerr << "Invalid ref from "
+-                                      << name << ":" << std::hex << rela.r_offset-shdr.sh_addr << std::dec
+-                                      << " to " << sym.section->name
+-                                      << "(" << sym.name << ")"
+-                                      << "+" << rela.r_offset << std::endl;
++                            /* Cross-section JT ref with addend (e.g. function
++                               pointer in .data referencing .code).
++                               Treat as a regular relocation instead of aborting. */
++                            relocBase = RelocBase::jumptable;
+                         }
+-                        assert(sym.section.get() == this);
+                     }
+                 }
+                 else if(allowDirectCodeRefs)
