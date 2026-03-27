@@ -1062,13 +1062,15 @@ set_savefile_name(boolean regularize_it)
     if (strlen(gs.SAVEF) < (SAVESIZE - 1))
         (void) strncat(gs.SAVEF, svp.plname, (SAVESIZE - strlen(gs.SAVEF)));
 #endif
-#if defined(MICRO) && !defined(WIN32) && !defined(MSDOS)
+#if defined(MAC)
+    /* Mac: save file is just the player name in the app directory */
+    Strcpy(gs.SAVEF, svp.plname);
+#elif defined(MICRO) && !defined(WIN32) && !defined(MSDOS)
     if (strlen(gs.SAVEP) < (SAVESIZE - 1))
         Strcpy(gs.SAVEF, gs.SAVEP);
-    else
 #ifdef AMIGA
-        if (strlen(gs.SAVEP) + strlen(bbs_id) < (SAVESIZE - 1))
-            strncat(gs.SAVEF, bbs_id, PATHLEN);
+    if (strlen(gs.SAVEP) + strlen(bbs_id) < (SAVESIZE - 1))
+        strncat(gs.SAVEF, bbs_id, PATHLEN);
 #endif
     {
         int i = strlen(gs.SAVEP);

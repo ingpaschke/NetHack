@@ -111,6 +111,7 @@ attempt_restore:
             You("are in non-scoring discovery mode.");
     }
 
+    set_savefile_name(TRUE); /* ensure SAVEF is set for dosave */
     UndimMenuBar(); /* Yes, this is the place for it (!) */
 
     moveloop(resuming);
