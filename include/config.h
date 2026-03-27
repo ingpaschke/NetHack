@@ -229,7 +229,7 @@
 #define WIZARD_NAME "wizard" /* value is ignored if SYSCF is enabled */
 #endif
 
-#ifndef SYSCF
+#if !defined(SYSCF) && !defined(MAC)
 #define SYSCF                /* use a global configuration */
 #define SYSCF_FILE "sysconf" /* global configuration is in a file */
 #endif
@@ -613,7 +613,9 @@ typedef unsigned char uchar;
 
 /* enable status highlighting via STATUS_HILITE directives in run-time
    config file and the 'statushilites' option */
+#ifndef MAC
 #define STATUS_HILITES         /* support hilites of status fields */
+#endif
 
 /* #define WINCHAIN */              /* stacked window systems */
 

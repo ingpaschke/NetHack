@@ -7086,27 +7086,35 @@ initoptions(void)
      */
     if (go.opt_phase != builtin_opt)
          initoptions_init();
+
+    /*
+     * Call each option function with an init flag and give it a chance
+     * to make any preparations that it might require.  We do this
+     * whether or not the option itself is ever specified; that's
+     * irrelevant for the init call.  Doing this allows the prep code for
+     * option settings to remain adjacent to, and in the same function as,
+     * the code that processes those options.
+     */
+    for (i = 0; i < OPTCOUNT; ++i) {
+        if (allopt[i].optfn)
+            (*allopt[i].optfn)(i, do_init, FALSE, empty_optstr, empty_optstr);
+    }
+
+
 #ifdef SYSCF
-/* someday there may be other SYSCF alternatives besides text file */
 #ifdef SYSCF_FILE
-    /* If SYSCF_FILE is specified, it _must_ exist... */
     assure_syscf_file();
     config_error_init(TRUE, SYSCF_FILE, FALSE);
-
-    /* ... and _must_ parse correctly. */
     go.opt_phase = syscf_opt;
     if (!read_config_file(SYSCF_FILE, set_in_sysconf)) {
         if (config_error_done() && !iflags.initoptions_noterminate)
             nh_terminate(EXIT_FAILURE);
     }
     config_error_done();
-    /*
-     * TODO [maybe]: parse the sysopt entries which are space-separated
-     * lists of usernames into arrays with one name per element.
-     */
 #endif
 #endif /* SYSCF */
 
+    /* Carry out options that got deferred from early_options */
     /* Carry out options that got deferred from early_options */
     if (gd.deferred_showpaths)
         do_deferred_showpaths(0);  /* does not return */
@@ -7322,7 +7330,11 @@ initoptions_init(void)
  */
 void
 initoptions_finish(void)
-{   nhsym sym = 0;
+{
+    nhsym sym = 0;
+    char *opts = 0, *xtraopts = 0;
+    const char *envname, *namesrc, *nameval;
+#ifndef MAC
 
     rcfile();
 
