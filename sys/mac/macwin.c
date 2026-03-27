@@ -2187,30 +2187,15 @@ mac_raw_print_bold(const char *str)
 static void
 mac_print_glyph(winid win, coordxy x, coordxy y,
                 const glyph_info *glyphinfo,
-                const glyph_info *bkglyphinfo)
+                const glyph_info *bkglyphinfo UNUSED)
 {
     int ch;
-    boolean use_inverse = FALSE;
 
     tty_curs(win, x, y);
     ch = (glyphinfo && glyphinfo->ttychar) ? glyphinfo->ttychar : ' ';
-
-    /* Dark/unseen areas: inverse video for background color on mono,
-       or real background color if color is available */
-    if (bkglyphinfo && bkglyphinfo->framecolor != NO_COLOR) {
-        if (iflags.use_color)
-            term_start_bgcolor(bkglyphinfo->framecolor);
-        else
-            use_inverse = TRUE;
-    }
-    if (use_inverse)
-        term_start_attr(ATR_INVERSE);
     term_start_color(glyphinfo ? glyphinfo->gm.sym.color : NO_COLOR);
     add_tty_char(_mt_window, (short) ch);
     term_end_color();
-    if (use_inverse)
-        term_end_attr(ATR_INVERSE);
-
     /* Keep ttyDisplay cursor in sync — tty_curs skips move if it
        thinks cursor is already at the right position */
     wins[win]->curx++;
