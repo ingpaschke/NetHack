@@ -7086,6 +7086,9 @@ initoptions(void)
      */
     if (go.opt_phase != builtin_opt)
          initoptions_init();
+#ifdef MAC
+    raw_print("  Initializing option defaults...");
+#endif
 
     /*
      * Call each option function with an init flag and give it a chance
@@ -7099,6 +7102,9 @@ initoptions(void)
         if (allopt[i].optfn)
             (*allopt[i].optfn)(i, do_init, FALSE, empty_optstr, empty_optstr);
     }
+#ifdef MAC
+    raw_print("  Reading config file...");
+#endif
 
 
 #ifdef SYSCF

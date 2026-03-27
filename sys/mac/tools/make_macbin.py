@@ -49,8 +49,13 @@ def make_macbinary(name, ftype, creator, data_fork, rsrc_fork):
     struct.pack_into('>I', header, 83, len(data_fork))
     # Bytes 87-90: resource fork length
     struct.pack_into('>I', header, 87, len(rsrc_fork))
-    # Bytes 91-94: creation date (0 = use current)
-    # Bytes 95-98: modification date (0 = use current)
+    # Bytes 91-94: creation date (seconds since 1904-01-01)
+    # Bytes 95-98: modification date
+    import time
+    mac_epoch = 2082844800  # seconds between 1904-01-01 and 1970-01-01
+    now = int(time.time()) + mac_epoch
+    struct.pack_into('>I', header, 91, now)
+    struct.pack_into('>I', header, 95, now)
     # Bytes 99-100: Get Info comment length (0)
     # Byte 101: Finder flags low byte
     header[101] = 0

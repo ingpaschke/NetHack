@@ -76,7 +76,7 @@ main(void)
  * We'll return here if new game player_selection() renames the hero.
  */
 attempt_restore:
-    raw_print("Checking for saved game...");
+    raw_print("Selecting character...");
     if (*svp.plname && (nhfp = restore_saved_game()) != 0) {
 #ifdef NEWS
         if (iflags.news) {
