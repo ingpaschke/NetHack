@@ -380,7 +380,6 @@ mac68kpkg: $(GAMEBIN)
 	hcopy -m $(TARGETPFX)NetHack.bin :
 	hcopy -r ../dat/nhdat :nhdat    && hattrib -t DATA -c nh37 nhdat
 	hcopy -r ../dat/license :license && hattrib -t TEXT -c nh37 license
-	hcopy -r ../sys/mac/NHDeflts :NHDeflts && hattrib -t TEXT -c nh37 NHDeflts
 	hcopy -r /dev/null :record      && hattrib -t TEXT -c nh37 record
 	hcopy -r ../dat/symbols :symbols && hattrib -t TEXT -c nh37 symbols
 	hcopy -r ../doc/Guidebook.txt :Guidebook && hattrib -t TEXT -c nh37 Guidebook
