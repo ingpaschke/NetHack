@@ -383,31 +383,8 @@ mac68kpkg: $(GAMEBIN)
 	hcopy -r ../sys/mac/NHDeflts :NHDeflts && hattrib -t TEXT -c nh37 NHDeflts
 	hcopy -r /dev/null :record      && hattrib -t TEXT -c nh37 record
 	hcopy -r ../dat/symbols :symbols && hattrib -t TEXT -c nh37 symbols
-	hmkdir save
-	hmkdir levels
-	@printf '%s\n' \
-		'# NetHack 3.7 Mac - default configuration' \
-		'# Edit this file to customize your game.' \
-		'' \
-		'# Use number pad for movement (all supported Macs have one)' \
-		'OPTIONS=number_pad' \
-		'' \
-		'# Display' \
-		'OPTIONS=color,!lit_corridor,toptenwin' \
-		'' \
-		'# Gameplay' \
-		'OPTIONS=autopickup,pickup_types:$$$$!?+/="%*' \
-		'OPTIONS=menustyle:full,checkpoint' \
-		'OPTIONS=showexp,showscore,time' \
-		'OPTIONS=verbose,prayconfirm,confirm,safe_pet' \
-		'OPTIONS=tombstone,scores:10t/3a/o' \
-		'' \
-		'# Pets' \
-		'OPTIONS=catname:Kaori,dogname:Hachi' \
-		'OPTIONS=!fixinv,sortpack,autoquiver' \
-		> /tmp/_nhcnf
-	hcopy -r /tmp/_nhcnf ":NetHack Defaults" && hattrib -t TEXT -c nh37 "NetHack Defaults"
-	@rm -f /tmp/_nhcnf
+	hcopy -r ../doc/Guidebook.txt :Guidebook && hattrib -t TEXT -c nh37 Guidebook
+	hcopy -r ../sys/mac/NHDeflts ":NetHack Defaults" && hattrib -t TEXT -c nh37 "NetHack Defaults"
 	humount
 	@echo "=== Wrapping with Apple Partition Map ==="
 	python3 ../sys/mac/tools/make_scsi_image2.py \

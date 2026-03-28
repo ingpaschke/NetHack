@@ -1,14 +1,6 @@
-# NetHack 3.6	NHDeflts	$NHDT-Date: 1432512798 2015/05/25 00:13:18 $  $NHDT-Branch: master $:$NHDT-Revision: 1.7 $
-# Copyright (c) 2002 by Dean Luick, Mark Modrall, and Kevin Hugo
-# NetHack may be freely redistributed.  See license for details.
-#
-# Default settings for the Macintosh port of NetHack.
-# Lines beginning with a `#' character are "comments" and are
-# ignored all the way to the end of the line.  Using this
-# method, some of the lines below have been disabled so you
-# can see an example without having those options actually
-# set.  Remove the `#' character to "uncomment" the line and
-# allow those options to take effect.
+# NetHack 3.7 - Default settings for the Macintosh port.
+# Lines beginning with '#' are comments. Remove the '#' to
+# enable an option. See the Guidebook for full documentation.
 
 
 ### Display ###
@@ -106,8 +98,8 @@ OPTIONS=verbose
 # Automatically dig if wielding a pick
 #OPTIONS=autodig
 
-# Disable autopickup (toggle it with the `@' command)
-#OPTIONS=!autopickup,pickup_types:$*
+# Autopickup useful items (toggle it with the `@' command)
+OPTIONS=autopickup,pickup_types:$!?+/="*
 
 # Automatically fill the quiver
 #OPTIONS=autoquiver
@@ -130,7 +122,7 @@ OPTIONS=!fixinv,perm_invent,sortpack
 
 ### Pets ###
 # What to call your starting pet, and its type
-#OPTIONS=dogname:Quinn,catname:Vladimir,horsename:Silver,pettype:dog
+OPTIONS=catname:Kaori,dogname:Hachi
 
 # Don't intentionally attack your pets
 OPTIONS=confirm,!hilite_pet,safe_pet
