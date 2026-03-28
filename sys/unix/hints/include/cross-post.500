@@ -383,6 +383,9 @@ mac68kpkg: $(GAMEBIN)
 	hcopy -r /dev/null :record      && hattrib -t TEXT -c nh37 record
 	hcopy -r ../dat/symbols :symbols && hattrib -t TEXT -c nh37 symbols
 	hcopy -r ../doc/Guidebook.txt :Guidebook && hattrib -t TEXT -c nh37 Guidebook
+	cd .. && git diff origin/NetHack-3.7..HEAD | gzip > /tmp/_nhpatch.gz && cd src
+	hcopy -r /tmp/_nhpatch.gz :nh37-mac.patch.gz && hattrib -t DATA -c nh37 nh37-mac.patch.gz
+	@rm -f /tmp/_nhpatch.gz
 	hcopy -r ../sys/mac/NHDeflts ":NetHack Defaults" && hattrib -t TEXT -c nh37 "NetHack Defaults"
 	humount
 	@echo "=== Wrapping with Apple Partition Map ==="
