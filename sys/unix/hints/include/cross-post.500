@@ -379,6 +379,26 @@ mac68kpkg: $(GAMEBIN)
 	hmount $(TARGETPFX)nethack_hfs.img
 	hcopy -m $(TARGETPFX)NetHack.bin :
 	hcopy -r ../dat/nhdat :nhdat    && hattrib -t DATA -c nh37 nhdat
+	@printf '%s\n' \
+		'NetHack 3.7 for 68k Macintosh' \
+		'Prerelease for MARCHintosh 2026' \
+		'' \
+		'Requires: System 7 or later, 5 MB RAM, 32-bit addressing.' \
+		'Runs on any Mac with a 68020 or later CPU.' \
+		'Color supported on color-capable Macs.' \
+		'' \
+		'Place all files in the same folder and double-click NetHack.' \
+		'Edit "NetHack Defaults" to customize options.' \
+		'See the Guidebook for how to play.' \
+		'' \
+		'This is a prerelease build. Comments and bug reports to:' \
+		'ipaschke@lpclabs.de' \
+		'' \
+		'Source diff against upstream NetHack 3.7 included as' \
+		'nh37-mac.patch.gz. See sys/mac/BUILD.md for build instructions.' \
+		> /tmp/_readme
+	hcopy -r /tmp/_readme ":Read Me" && hattrib -t TEXT -c nh37 "Read Me"
+	@rm -f /tmp/_readme
 	hcopy -r ../dat/license :license && hattrib -t TEXT -c nh37 license
 	hcopy -r /dev/null :record      && hattrib -t TEXT -c nh37 record
 	hcopy -r ../dat/symbols :symbols && hattrib -t TEXT -c nh37 symbols
