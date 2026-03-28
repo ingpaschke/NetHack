@@ -39,14 +39,14 @@ main(void)
     int argc = 1;
     boolean resuming = FALSE; /* assume new game */
 
-    /* Detach the DATA resource so it isn't cached between launches.
+    /* Mark the DATA resource purgeable so it isn't cached between launches.
        The Retro68 runtime has already copied it into the app's globals.
        Without this, relaunching without rebooting reuses the dirty
        DATA from the first run, causing a bus error. */
     {
         Handle h = Get1Resource('DATA', 0);
         if (h)
-            DetachResource(h);
+            HPurge(h);
     }
 
     early_init(argc, (char **) 0);
@@ -57,46 +57,28 @@ main(void)
     svh.hackpid = getpid();
     init_nhwindows(&argc, (char **) &gh.hname);
 
-    {
-        long t0, t1, t2, t3;
-        char tbuf[80];
+    initoptions();
+    iflags.bgcolors = TRUE;
+    iflags.use_background_glyph = TRUE;
 
-        raw_print("Please wait...");
+    u.uhp = 1;
+    finder_file_request();
 
-        t0 = TickCount();
-        raw_print("Reading options...");
-        initoptions();
-        t1 = TickCount();
+    dlb_init();
 
-        iflags.bgcolors = TRUE;
-        iflags.use_background_glyph = TRUE;
-        u.uhp = 1;
-        finder_file_request();
+    vision_init();
+    init_sound_disp_gamewindows();
+    set_playmode();
+    plnamesuffix();
+    iflags.renameallowed = TRUE;
 
-        raw_print("Loading data files...");
-        dlb_init();
-        t2 = TickCount();
-
-        raw_print("Initializing display...");
-        vision_init();
-        init_sound_disp_gamewindows();
-        set_playmode();
-        plnamesuffix();
-        iflags.renameallowed = TRUE;
-        getlock();
-        t3 = TickCount();
-
-        Sprintf(tbuf, "Init: opts=%lds dlb=%lds disp=%lds",
-                (t1-t0)/60, (t2-t1)/60, (t3-t2)/60);
-        raw_print(tbuf);
-    }
+    getlock();
 
 /*
  * First, try to find and restore a save file for specified character.
  * We'll return here if new game player_selection() renames the hero.
  */
 attempt_restore:
-    raw_print("Selecting character...");
     if (*svp.plname && (nhfp = restore_saved_game()) != 0) {
 #ifdef NEWS
         if (iflags.news) {
@@ -136,16 +118,7 @@ attempt_restore:
                 goto attempt_restore;
             }
         }
-        {
-            long tg0, tg1;
-            char tbuf2[40];
-            raw_print("Generating dungeon...");
-            tg0 = TickCount();
-            newgame();
-            tg1 = TickCount();
-            Sprintf(tbuf2, "Dungeon gen: %lds", (tg1-tg0)/60);
-            raw_print(tbuf2);
-        }
+        newgame();
         if (discover)
             You("are in non-scoring discovery mode.");
     }
