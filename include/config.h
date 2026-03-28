@@ -613,9 +613,7 @@ typedef unsigned char uchar;
 
 /* enable status highlighting via STATUS_HILITE directives in run-time
    config file and the 'statushilites' option */
-#ifndef MAC
 #define STATUS_HILITES         /* support hilites of status fields */
-#endif
 
 /* #define WINCHAIN */              /* stacked window systems */
 
