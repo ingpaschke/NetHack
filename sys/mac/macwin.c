@@ -1594,7 +1594,11 @@ MoveScrollBar(ControlHandle theBar, short part)
 		break;
 	}
 #else
-    winUpdateFuncs[GetWindowKind(theWin) - WIN_BASE_KIND](&fake, theWin);
+    {
+        int kind = GetWindowKind(theWin) - WIN_BASE_KIND;
+        if (kind >= 0 && kind < NUM_FUNCS)
+            winUpdateFuncs[kind](&fake, theWin);
+    }
 #endif
     if (rgn) {
         EndUpdate(theWin);
@@ -3083,7 +3087,7 @@ HandleKey(EventRecord *theEvent)
     WindowPtr theWindow = FrontWindow();
 
     if (theEvent->modifiers & cmdKey) {
-        if (theEvent->message & 0xff == '.') {
+        if ((theEvent->message & 0xff) == '.') {
             /* Flush key queue */
             keyQueueCount = keyQueueWrite = keyQueueRead = 0;
             theEvent->message = '\033';
@@ -3096,7 +3100,8 @@ HandleKey(EventRecord *theEvent)
     dispatchKey:
         if (theWindow) {
             int kind = GetWindowKind(theWindow) - WIN_BASE_KIND;
-            winKeyFuncs[kind](theEvent, theWindow);
+            if (kind >= 0 && kind < NUM_FUNCS)
+                winKeyFuncs[kind](theEvent, theWindow);
         } else {
             GeneralKey(theEvent, (WindowPtr) 0);
         }
@@ -3126,10 +3131,12 @@ HandleClick(EventRecord *theEvent)
 #if 1 //!TARGET_API_MAC_CARBON
         if (not_inSelect) {
             int kind = GetWindowKind(theWindow) - WIN_BASE_KIND;
-            winCursorFuncs[kind](theEvent, theWindow, gMouseRgn);
-            SelectWindow(theWindow);
-            SetPortWindowPort(theWindow);
-            winClickFuncs[kind](theEvent, theWindow);
+            if (kind >= 0 && kind < NUM_FUNCS) {
+                winCursorFuncs[kind](theEvent, theWindow, gMouseRgn);
+                SelectWindow(theWindow);
+                SetPortWindowPort(theWindow);
+                winClickFuncs[kind](theEvent, theWindow);
+            }
         } else {
             nhbell();
         }
@@ -3237,8 +3244,11 @@ HandleUpdate(EventRecord *theEvent)
 		break;
 	}
 #else
-    winUpdateFuncs[GetWindowKind(theWindow) - WIN_BASE_KIND](&fake,
-                                                             theWindow);
+    {
+        int kind = GetWindowKind(theWindow) - WIN_BASE_KIND;
+        if (kind >= 0 && kind < NUM_FUNCS)
+            winUpdateFuncs[kind](&fake, theWindow);
+    }
 #endif
 
     if (theWindow == _mt_window && existing_update_region) {

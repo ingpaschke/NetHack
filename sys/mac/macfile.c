@@ -255,14 +255,12 @@ macopen(const char *name, int flags, long fileType)
      * we fail with default, etc. etc. Besides, we should use HOpen
      * and permissions.
      */
-    if ((flags & O_RDONLY) == O_RDONLY) {
-        perm = fsRdPerm;
-    }
-    if ((flags & O_WRONLY) == O_WRONLY) {
-        perm = fsWrPerm;
-    }
     if ((flags & O_RDWR) == O_RDWR) {
         perm = fsRdWrPerm;
+    } else if ((flags & O_WRONLY) == O_WRONLY) {
+        perm = fsWrPerm;
+    } else {
+        perm = fsRdPerm;
     }
     if (HOpen(theDirs.dataRefNum, theDirs.dataDirID, s, perm, &refNum)) {
         return OpenHandleFile(s, fileType);
