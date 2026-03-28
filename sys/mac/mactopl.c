@@ -48,10 +48,6 @@ topl_yn_function(const char *query, const char *resp, char def)
     return c;
 }
 
-char
-mac_yn_function(query, resp, def)
-const char *query, *resp;
-char def;
 /*
  *   Generic yes/no function. 'def' is the default (returned by space or
  *   return; 'esc' returns 'q', or 'n', or the default, depending on
@@ -59,6 +55,8 @@ char def;
  *   is asked about the string.
  *   If resp is NULL, any single character is accepted and returned.
  */
+char
+mac_yn_function(const char *query, const char *resp, char def)
 {
     return topl_yn_function(query, resp, def);
 }

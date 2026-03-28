@@ -128,7 +128,7 @@ extern void error(const char *, ...);
 #define SAVE_TYPE 'SAVE'
 #define PREF_TYPE 'PREF'
 #define DATA_TYPE 'DATA'
-#define MAC_CREATOR 'nh31'  /* Registered with DTS ! */
+#define MAC_CREATOR 'NHck'  /* NetHack 3.7 Mac port */
 #define TEXT_CREATOR 'ttxt' /* Something the user can actually edit */
 
 /*
