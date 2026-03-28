@@ -396,17 +396,31 @@ mac68kpkg: $(GAMEBIN)
 		'' \
 		'Source diff against upstream NetHack 3.7 included as' \
 		'nh37-mac.patch.gz. See sys/mac/BUILD.md for build instructions.' \
-		> /tmp/_readme
+		| tr '\n' '\r' > /tmp/_readme
 	hcopy -r /tmp/_readme ":Read Me" && hattrib -t TEXT -c ttxt "Read Me"
 	@rm -f /tmp/_readme
-	hcopy -r ../dat/license :license && hattrib -t TEXT -c ttxt license
+	tr '\n' '\r' < ../dat/license > /tmp/_cr && hcopy -r /tmp/_cr :license && hattrib -t TEXT -c ttxt license
 	hcopy -r /dev/null :record      && hattrib -t TEXT -c nh37 record
-	hcopy -r ../dat/symbols :symbols && hattrib -t TEXT -c nh37 symbols
-	hcopy -r ../doc/Guidebook.txt :Guidebook && hattrib -t TEXT -c ttxt Guidebook
+	tr '\n' '\r' < ../dat/symbols > /tmp/_cr && hcopy -r /tmp/_cr :symbols && hattrib -t TEXT -c nh37 symbols
+	tr '\n' '\r' < ../doc/Guidebook.txt > /tmp/_cr && hcopy -r /tmp/_cr :Guidebook && hattrib -t TEXT -c ttxt Guidebook
 	cd .. && git diff origin/NetHack-3.7..HEAD | gzip > /tmp/_nhpatch.gz && cd src
 	hcopy -r /tmp/_nhpatch.gz :nh37-mac.patch.gz && hattrib -t DATA -c nh37 nh37-mac.patch.gz
 	@rm -f /tmp/_nhpatch.gz
-	hcopy -r ../sys/mac/NHDeflts ":NetHack Defaults" && hattrib -t TEXT -c ttxt "NetHack Defaults"
+	@printf '%s\r' \
+		'# NetHack 3.7 Mac - default configuration' \
+		'# Edit this file to customize options.' \
+		'' \
+		'OPTIONS=number_pad:1' \
+		'OPTIONS=color,!lit_corridor' \
+		'OPTIONS=autopickup,pickup_types:$$!?+/="' \
+		'OPTIONS=menustyle:full,checkpoint' \
+		'OPTIONS=showexp,showscore,time' \
+		'OPTIONS=verbose,confirm,safe_pet' \
+		'OPTIONS=sortpack,autoquiver' \
+		'OPTIONS=catname:Kaori,dogname:Hachi' \
+		> /tmp/_cr
+	hcopy -r /tmp/_cr ":NetHack Defaults" && hattrib -t TEXT -c ttxt "NetHack Defaults"
+	@rm -f /tmp/_cr
 	humount
 	@echo "=== Wrapping with Apple Partition Map ==="
 	python3 ../sys/mac/tools/make_scsi_image2.py \
