@@ -48,7 +48,7 @@ main(void)
     init_nhwindows(&argc, (char **) &gh.hname);
 
     {
-        long t0, t1, t2, t3, t4;
+        long t0, t1, t2, t3;
         char tbuf[80];
 
         raw_print("Please wait...");

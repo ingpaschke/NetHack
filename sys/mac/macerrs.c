@@ -18,20 +18,17 @@
 void
 error(const char *format, ...)
 {
+    char cbuf[512];
     Str255 buf;
     va_list ap;
-    volatile int _wait;
 
     va_start(ap, format);
-    vsprintf((char *) buf, format, ap);
+    vsnprintf(cbuf, sizeof cbuf, format, ap);
     va_end(ap);
 
-    C2P((char *) buf, buf);
+    C2P(cbuf, buf);
     ParamText(buf, (StringPtr) "", (StringPtr) "", (StringPtr) "");
     Alert(128, (ModalFilterUPP) NULL);
-    /* Freeze after showing error so we can read it */
-    _wait = 1;
-    while(_wait) ;
     ExitToShell();
 }
 
