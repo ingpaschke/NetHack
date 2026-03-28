@@ -633,57 +633,29 @@ SanePositions(void)
     height = _mt_window->portRect.bottom - _mt_window->portRect.top;
     width = _mt_window->portRect.right - _mt_window->portRect.left;
 
-    if (small_screen) {
-        /* Small screen (SE/30 512x342): message on top with title bar
-           hidden behind menu bar, map below with bottom flush to screen.
-           Message content is visible between menu bar and map title. */
-        short map_width = _mt_window->portRect.right
-                          - _mt_window->portRect.left;
-        short map_height = _mt_window->portRect.bottom
-                           - _mt_window->portRect.top;
-        short center_left = (screenArea.right - map_width) / 2;
-        short title_bar_h = 18;
-        /* Space between menu bar and screen bottom minus map size */
-        short msg_visible = screenArea.bottom - mbar_height
-                            - map_height - title_bar_h;
-        short map_top = mbar_height + msg_visible;
+    if (!RetrievePosition(kMapWindow, &top, &left)) {
+        top = mbar_height + (small_screen ? 2 : 20);
+        left = (screenArea.right - width) / 2;
+    }
+    MoveWindow(_mt_window, left, top, 1);
 
-        if (msg_visible < 25)
-            msg_visible = 25; /* at least 2 lines */
-
-        /* Message window: title hidden behind menu, content visible */
-        MoveWindow(theWindows[WIN_MESSAGE].its_window,
-                   center_left, mbar_height - title_bar_h, 0);
-        SizeWindow(theWindows[WIN_MESSAGE].its_window,
-                   map_width, msg_visible + title_bar_h, 1);
-
-        /* Map window: right below message, bottom at screen edge */
-        map_top = mbar_height + msg_visible;
-        MoveWindow(_mt_window, center_left, map_top, 1);
-
-        if (theWindows[WIN_MESSAGE].scrollBar)
-            DrawScrollbar(&theWindows[WIN_MESSAGE]);
-    } else {
-        /* Large screen: map on top, message below */
-        if (!RetrievePosition(kMapWindow, &top, &left)) {
-            top = mbar_height + 20;
-            left = (screenArea.right - width) / 2;
-        }
-        MoveWindow(_mt_window, left, top, 1);
+    /* Message Window */
+    if (!RetrievePosition(kMessageWindow, &top, &left)) {
+        top += height;
+        if (!small_screen)
+            top += 20;
     }
 
-    if (!small_screen) {
-        /* Message window — below map on large screens */
-        if (!RetrievePosition(kMessageWindow, &top, &left)) {
-            top += height + 20;
-        }
-        if (!RetrieveSize(kMessageWindow, top, left, &height, &width)) {
-            width = _mt_window->portRect.right - _mt_window->portRect.left;
-            height = screenArea.bottom - top - 2;
-            if (height > MAX_HEIGHT)
-                height = MAX_HEIGHT;
-            else if (height < MIN_HEIGHT)
-                height = MIN_HEIGHT;
+    if (!RetrieveSize(kMessageWindow, top, left, &height, &width)) {
+        height =
+            screenArea.bottom - top - (small_screen ? 2 - SBARHEIGHT : 2);
+        if (height > MAX_HEIGHT) {
+            height = MAX_HEIGHT;
+        } else if (height < MIN_HEIGHT) {
+            height = MIN_HEIGHT;
+            width = MIN_WIDTH;
+            left = screenArea.right - width;
+            top = screenArea.bottom - MIN_HEIGHT;
         }
     }
 
