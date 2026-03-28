@@ -412,9 +412,15 @@ mac68kpkg: $(GAMEBIN)
 	python3 ../sys/mac/tools/make_scsi_image2.py \
 		$(TARGETPFX)nethack_hfs.img \
 		$(TARGETPFX)NetHack.img
+	@echo "=== Creating Disk Copy 4.2 image ==="
+	python3 ../sys/mac/tools/make_dc42.py \
+		$(TARGETPFX)nethack_hfs.img \
+		$(TARGETPFX)NetHack.dsk \
+		"NetHack 3.7"
 	rm $(TARGETPFX)nethack_hfs.img
 	@echo "=== Done ==="
-	@echo "HFS disk image: $(TARGETPFX)NetHack.img"
+	@echo "SCSI image:     $(TARGETPFX)NetHack.img"
+	@echo "Disk Copy 4.2:  $(TARGETPFX)NetHack.dsk"
 	@echo "MacBinary:      $(TARGETPFX)NetHack.bin"
 endif  # CROSS_TO_MAC68K
 
