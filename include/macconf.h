@@ -22,6 +22,8 @@
 #endif
 
 /* No system-wide config file on classic Mac OS */
+#undef STATUS_HILITES  /* Mac port doesn't support terminal-based hilites;
+                          with it defined, WIN_STATUS is never displayed */
 
 /* Lua: use 32-bit integers and 32-bit floats.
    Default 64-bit types are emulated in software on 68k and extremely slow. */

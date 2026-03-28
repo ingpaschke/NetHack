@@ -7105,22 +7105,27 @@ initoptions(void)
 #ifdef MAC
     raw_print("  Reading config file...");
 #endif
-
-
 #ifdef SYSCF
+/* someday there may be other SYSCF alternatives besides text file */
 #ifdef SYSCF_FILE
+    /* If SYSCF_FILE is specified, it _must_ exist... */
     assure_syscf_file();
     config_error_init(TRUE, SYSCF_FILE, FALSE);
+
+    /* ... and _must_ parse correctly. */
     go.opt_phase = syscf_opt;
     if (!read_config_file(SYSCF_FILE, set_in_sysconf)) {
         if (config_error_done() && !iflags.initoptions_noterminate)
             nh_terminate(EXIT_FAILURE);
     }
     config_error_done();
+    /*
+     * TODO [maybe]: parse the sysopt entries which are space-separated
+     * lists of usernames into arrays with one name per element.
+     */
 #endif
 #endif /* SYSCF */
 
-    /* Carry out options that got deferred from early_options */
     /* Carry out options that got deferred from early_options */
     if (gd.deferred_showpaths)
         do_deferred_showpaths(0);  /* does not return */
