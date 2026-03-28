@@ -372,21 +372,21 @@ mac68kpkg: $(GAMEBIN)
 		$(TARGETPFX)NetHack \
 		$(TARGETPFX).rsrc/NetHack \
 		$(TARGETPFX)NetHack.bin \
-		APPL NHck
+		APPL nh37
 	@echo "=== Building HFS disk image ==="
 	dd if=/dev/zero of=$(TARGETPFX)nethack_hfs.img bs=1M count=14 2>/dev/null
 	hformat -l "NetHack 3.7" $(TARGETPFX)nethack_hfs.img
 	hmount $(TARGETPFX)nethack_hfs.img
 	hcopy -m $(TARGETPFX)NetHack.bin :
-	hcopy -r ../dat/nhdat :nhdat    && hattrib -t DATA -c NHck nhdat
-	hcopy -r ../dat/license :license && hattrib -t TEXT -c NHck license
-	hcopy -r ../sys/mac/NHDeflts :NHDeflts && hattrib -t TEXT -c NHck NHDeflts
-	hcopy -r /dev/null :record      && hattrib -t TEXT -c NHck record
-	hcopy -r ../dat/symbols :symbols && hattrib -t TEXT -c NHck symbols
+	hcopy -r ../dat/nhdat :nhdat    && hattrib -t DATA -c nh37 nhdat
+	hcopy -r ../dat/license :license && hattrib -t TEXT -c nh37 license
+	hcopy -r ../sys/mac/NHDeflts :NHDeflts && hattrib -t TEXT -c nh37 NHDeflts
+	hcopy -r /dev/null :record      && hattrib -t TEXT -c nh37 record
+	hcopy -r ../dat/symbols :symbols && hattrib -t TEXT -c nh37 symbols
 	hmkdir save
 	hmkdir levels
 	@printf 'number_pad:1\n' > /tmp/_nhcnf
-	hcopy -r /tmp/_nhcnf :nethack.cnf && hattrib -t TEXT -c NHck nethack.cnf
+	hcopy -r /tmp/_nhcnf :nethack.cnf && hattrib -t TEXT -c nh37 nethack.cnf
 	@rm -f /tmp/_nhcnf
 	humount
 	@echo "=== Wrapping with Apple Partition Map ==="
