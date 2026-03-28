@@ -47,29 +47,39 @@ main(void)
     svh.hackpid = getpid();
     init_nhwindows(&argc, (char **) &gh.hname);
 
-    raw_print("Please wait...");
-    raw_print("Reading options...");
-    initoptions();
-    /* Enable background colors for dark room rendering.
-       On color Macs this uses real colors; on mono, mac_print_glyph
-       uses inverse video when framecolor is set. */
-    iflags.bgcolors = TRUE;
-    iflags.use_background_glyph = TRUE;
+    {
+        long t0, t1, t2, t3, t4;
+        char tbuf[80];
 
-    u.uhp = 1;
-    finder_file_request();
+        raw_print("Please wait...");
 
-    raw_print("Loading data files...");
-    dlb_init();
+        t0 = TickCount();
+        raw_print("Reading options...");
+        initoptions();
+        t1 = TickCount();
 
-    raw_print("Initializing vision...");
-    vision_init();
-    init_sound_disp_gamewindows();
-    set_playmode();
-    plnamesuffix();
-    iflags.renameallowed = TRUE;
+        iflags.bgcolors = TRUE;
+        iflags.use_background_glyph = TRUE;
+        u.uhp = 1;
+        finder_file_request();
 
-    getlock();
+        raw_print("Loading data files...");
+        dlb_init();
+        t2 = TickCount();
+
+        raw_print("Initializing display...");
+        vision_init();
+        init_sound_disp_gamewindows();
+        set_playmode();
+        plnamesuffix();
+        iflags.renameallowed = TRUE;
+        getlock();
+        t3 = TickCount();
+
+        Sprintf(tbuf, "Init: opts=%lds dlb=%lds disp=%lds",
+                (t1-t0)/60, (t2-t1)/60, (t3-t2)/60);
+        raw_print(tbuf);
+    }
 
 /*
  * First, try to find and restore a save file for specified character.
@@ -116,8 +126,16 @@ attempt_restore:
                 goto attempt_restore;
             }
         }
-        raw_print("Generating dungeon...");
-        newgame();
+        {
+            long tg0, tg1;
+            char tbuf2[40];
+            raw_print("Generating dungeon...");
+            tg0 = TickCount();
+            newgame();
+            tg1 = TickCount();
+            Sprintf(tbuf2, "Dungeon gen: %lds", (tg1-tg0)/60);
+            raw_print(tbuf2);
+        }
         if (discover)
             You("are in non-scoring discovery mode.");
     }
