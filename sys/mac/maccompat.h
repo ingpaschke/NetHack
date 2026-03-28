@@ -68,6 +68,9 @@ pascal void CloseResFile(short refNum) = {0xA99A};
 #pragma parameter __A0 Get1Resource(__D0, __D1)
 pascal Handle Get1Resource(ResType type, short id) = {0xA81F};
 
+#pragma parameter DetachResource(__A0)
+pascal void DetachResource(Handle h) = {0xA992};
+
 /* HasDepth is in the Palette Manager (Palettes.h), available on System 7+ */
 #include <Palettes.h>
 

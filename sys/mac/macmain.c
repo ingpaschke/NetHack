@@ -39,6 +39,16 @@ main(void)
     int argc = 1;
     boolean resuming = FALSE; /* assume new game */
 
+    /* Detach the DATA resource so it isn't cached between launches.
+       The Retro68 runtime has already copied it into the app's globals.
+       Without this, relaunching without rebooting reuses the dirty
+       DATA from the first run, causing a bus error. */
+    {
+        Handle h = Get1Resource('DATA', 0);
+        if (h)
+            DetachResource(h);
+    }
+
     early_init(argc, (char **) 0);
     choose_windows("mac");
     InitMac();
