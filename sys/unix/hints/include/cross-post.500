@@ -386,7 +386,7 @@ mac68kpkg: $(GAMEBIN)
 	hmkdir save
 	hmkdir levels
 	@printf 'number_pad:1\n' > /tmp/_nhcnf
-	hcopy -r /tmp/_nhcnf :nethack.cnf && hattrib -t TEXT -c nh37 nethack.cnf
+	hcopy -r /tmp/_nhcnf ":NetHack Defaults" && hattrib -t TEXT -c nh37 "NetHack Defaults"
 	@rm -f /tmp/_nhcnf
 	humount
 	@echo "=== Wrapping with Apple Partition Map ==="
