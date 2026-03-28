@@ -9,7 +9,7 @@ toolchain targeting Motorola 68k Macs in 32-bit addressing mode.
 
 Install Retro68 to `/opt/retro68` (or set `RETRO68=` to your path).
 
-**Two patches are required** — see "Retro68 Modifications" below.
+**Three patches are required** — see "Retro68 Modifications" below.
 
 ### Apple Universal Interfaces 3.4
 
@@ -25,21 +25,15 @@ Master) disk image:
     cp <mpw-gm>/Libraries/Libraries/Interface.o \
        /opt/retro68/m68k-apple-macos/lib/libInterface.a
 
-The build uses `-I/opt/retro68/universal/CIncludes` (via the sys/mac include
-path) and `-lInterface`.
-
 ### Host Tools
 
-- `hfsutils` — `hformat`, `hmount`, `hcopy`, `hattrib`, `humount`
-- `qemu-system-m68k` (QEMU 8.0+) — for testing
-- `gdb-multiarch` — for debugging
+- `hfsutils` — `hformat`, `hmount`, `hcopy`, `hattrib`, `humount`, `hmkdir`
 - Python 3 — for resource fork and disk image tools
+- `qemu-system-m68k` (QEMU 8.0+) — optional, for testing
 
 ---
 
 ## Building
-
-### Quick Build
 
     cd NetHack
     make CROSS_TO_MAC68K=1 all
@@ -47,121 +41,41 @@ path) and `-lInterface`.
 This produces:
 - `targets/mac68k/NetHack` — data fork (tiny text stub)
 - `targets/mac68k/.rsrc/NetHack` — resource fork (CODE/DATA/RELA segments)
-- `targets/mac68k/NetHack.gdb` — ELF with debug symbols (for GDB)
-
-### Manual Build (when `make` doesn't detect changes)
-
-    cd NetHack/src
-
-    # Compile a single file
-    /opt/retro68/bin/m68k-apple-macos-gcc -c -Os \
-        -I../include -I../sys/mac -I../lib/lua-5.4.8/src \
-        -DMAC -DMAC_CROSS -DNO_TERMS -DNO_SIGNAL -DNO_CHANGE_COLOR \
-        -DOPAQUE_TOOLBOX_STRUCTS=0 -DACCESSOR_CALLS_ARE_FUNCTIONS=0 \
-        -DCROSSCOMPILE -DCROSSCOMPILE_TARGET -DCROSS_TO_MAC68K \
-        -ffunction-sections -fdata-sections \
-        -o ../targets/mac68k/<file>.o <file>.c
-
-    # Link (output name MUST be "NetHack", not "NetHack.gdb")
-    /opt/retro68/bin/m68k-apple-macos-gcc \
-        -Wl,--gc-sections \
-        -o ../targets/mac68k/NetHack \
-        ../targets/mac68k/*.o \
-        ../targets/mac68k/lua548.a \
-        ../targets/mac68k/hacklib.a \
-        -lm -lInterface
-
-**Important**: The `-o` argument must be `NetHack`, not `NetHack.gdb`.
-Elf2Mac (which acts as the linker) creates three files:
-- `NetHack` — data fork
-- `.rsrc/NetHack` — resource fork with CODE/DATA/RELA resources
-- `NetHack.gdb` — ELF binary with debug symbols
-
-If you pass `-o NetHack.gdb`, the resource fork goes to `.rsrc/NetHack.gdb`
-and the ELF debug file is lost.
-
----
+- `targets/mac68k/NetHack.gdb` — ELF with debug symbols
 
 ## Packaging
 
-### 1. Compile the SIZE resource
+    make CROSS_TO_MAC68K=1 mac68kpkg
 
-    /opt/retro68/bin/Rez sys/mac/nhsize.r -o /tmp/nhsize.rsrc
+This runs the full packaging pipeline:
+1. Compile SIZE resource with Rez
+2. Merge SIZE + NHrsrc UI resources into the resource fork
+3. Create MacBinary II file
+4. Build HFS disk image with all data files, `save/` and `levels/`
+   directories, and `nethack.cnf`
+5. Wrap with Apple Partition Map for SCSI emulators
 
-Rez puts the output resource fork in `/tmp/.rsrc/nhsize.rsrc` (not the
-file path you specify — that's the data fork).
+Output:
+- `targets/mac68k/NetHack.img` — ready for QEMU or BlueSCSI
+- `targets/mac68k/NetHack.bin` — MacBinary for `hcopy -m` to existing disks
 
-### 2. Merge resources into the resource fork
+### Updating an existing disk (e.g. BlueSCSI)
 
-    # Append SIZE resource (preserves CODE/RELA offsets)
-    python3 sys/mac/tools/append_rsrc.py \
-        targets/mac68k/.rsrc/NetHack \
-        /tmp/.rsrc/nhsize.rsrc
+    hmount /path/to/disk.hda
+    hdel NetHack
+    hcopy -m targets/mac68k/NetHack.bin :
+    humount
 
-    # Append NHrsrc UI resources (menus, windows, dialogs, fonts)
-    python3 sys/mac/tools/append_rsrc.py \
-        targets/mac68k/.rsrc/NetHack \
-        targets/mac68k/resources/NetHack.rsrc.rsrc
+**Never recreate a BlueSCSI disk image from scratch** if it has a working
+SilverLining driver — use `hmount`/`hcopy`/`humount` to update files in place.
+
+### Resource merging note
 
 **Do NOT use `Rez --copy`** to merge resources. Rez reorganizes the data
 section and shifts CODE/DATA/RELA resources from their original offsets,
 which causes Bus Errors when the Retro68 runtime tries to load them.
-`append_rsrc.py` appends new resources at the END of the data section,
-preserving all existing offsets.
-
-### 3. Create MacBinary
-
-    python3 sys/mac/tools/make_macbin.py \
-        targets/mac68k/NetHack \
-        targets/mac68k/.rsrc/NetHack \
-        targets/mac68k/NetHack.bin \
-        APPL NHck
-
-Arguments: `<data_fork> <rsrc_fork> <output> [type] [creator]`
-
-### 4. Create HFS disk image
-
-    # Create and format
-    dd if=/dev/zero of=/tmp/nethack_hfs.img bs=1M count=14
-    hformat -l "NetHack 3.7" /tmp/nethack_hfs.img
-    hmount /tmp/nethack_hfs.img
-
-    # Copy NetHack (MacBinary preserves resource fork)
-    hcopy -m targets/mac68k/NetHack.bin :
-
-    # Copy data files (raw copy, then set type/creator)
-    hcopy -r dat/nhdat :nhdat
-    hcopy -r dat/license :license
-    hcopy -r sys/mac/NHDeflts :NHDeflts
-    hcopy -r /dev/null :record
-    hcopy -r dat/symbols :symbols
-
-    hattrib -t DATA -c NHck nhdat
-    hattrib -t TEXT -c NHck license
-    hattrib -t TEXT -c NHck NHDeflts
-    hattrib -t TEXT -c NHck record
-    hattrib -t TEXT -c NHck symbols
-
-    humount
-
-### 5. Wrap with Apple Partition Map (for SCSI emulators)
-
-    python3 sys/mac/tools/make_scsi_image2.py \
-        /tmp/nethack_hfs.img /tmp/nethack_scsi.img
-
-For BlueSCSI or QEMU, you may need to patch in a SilverLining SCSI driver
-at the start of the image (first 96 blocks = 49152 bytes). If you have a
-driver backup:
-
-    python3 -c "
-    with open('driver_backup.bin', 'rb') as f:
-        driver = f.read()
-    with open('/tmp/nethack_scsi.img', 'r+b') as f:
-        f.write(driver)
-    "
-
-**Never recreate a BlueSCSI disk image from scratch** if it has a working
-SilverLining driver — use `hmount`/`hcopy`/`humount` to update files in place.
+The build uses `append_rsrc.py` which appends new resources at the END
+of the data section, preserving all existing offsets.
 
 ---
 
@@ -171,37 +85,12 @@ SilverLining driver — use `hmount`/`hcopy`/`humount` to update files in place.
         -bios "<path-to-quadra-800-rom>" \
         -drive file=pram.img,format=raw,if=mtd \
         -drive file=boot.hda,format=raw,media=disk \
-        -drive file=nethack.img,format=raw,media=disk \
-        -g 800x600x8 \
-        -s \
-        -monitor tcp:127.0.0.1:4444,server,nowait
+        -drive file=NetHack.img,format=raw,media=disk \
+        -g 800x600x8
 
-- `-s` enables GDB stub on port 1234
-- `-monitor tcp:...` enables QEMU monitor on port 4444
 - `pram.img` with `if=mtd` persists PRAM settings (32-bit mode, etc.)
 - The boot disk must have System 7.x installed with 32-bit mode enabled
   (Memory control panel → 32-Bit Addressing: On)
-
-### Debugging with GDB
-
-    gdb-multiarch -ex "set architecture m68k" -ex "target remote :1234"
-
-The code includes `volatile int _dbg_spin = 1; while(_dbg_spin);` as a
-breakpoint at the start of `main()`. To release:
-
-    # Stop CPU via QEMU monitor first
-    echo "stop" | nc 127.0.0.1 4444
-
-    # Then in GDB:
-    set *(int*)<spin_var_address> = 0
-    detach
-
-Find the spin variable address from the QEMU monitor register dump:
-the variable is at `A6 - 20` (frame pointer minus 20).
-
-**Never write to Mac OS low memory (0x0000–0x2000) from GDB.** This
-corrupts exception vectors and system globals. Install any traps or
-diagnostic code from C code within the application.
 
 ---
 
@@ -253,7 +142,7 @@ Then rebuild Elf2Mac:
 
 ### 3. libretrocrt.a: Remove StripAddress24 masking (32-BIT MODE)
 
-**Files**: `libretro/relocate.c`, `libretro/MultiSegApp.c` (binary patch)
+**Files**: `libretro/relocate.c`, `libretro/MultiSegApp.c`
 **What**: Recompile these two files with `StripAddress24` redefined as an
 identity function (no 24-bit address masking).
 **Why**: The default `StripAddress24` macro masks addresses to 24 bits
@@ -299,16 +188,3 @@ To rebuild:
 | `decode_hqx.py` | Decode BinHex 4.0 (.hqx) files to data + resource forks |
 | `dump_rsrc.py` | Dump resource fork contents (types, IDs, sizes) |
 | `verify_rela.py` | Verify RELA relocations by replaying them |
-
----
-
-## NHrsrc UI Resources
-
-The UI resources (menus, windows, dialogs, fonts, strings) are in
-`targets/mac68k/resources/NetHack.rsrc.rsrc`. This was decoded from the
-original `NHrsrc.hqx` using `decode_hqx.py`.
-
-To re-decode from scratch:
-
-    python3 sys/mac/tools/decode_hqx.py sys/mac/NHrsrc.hqx /tmp/nhrsrc
-    # Resource fork is at /tmp/nhrsrc.rsrc (or /tmp/.rsrc/nhrsrc)
