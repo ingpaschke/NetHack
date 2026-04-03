@@ -358,6 +358,9 @@ $(GAMEBIN) : $(HOBJ) $(LUACROSSLIB)
 #
 .PHONY: mac68kpkg
 mac68kpkg: $(GAMEBIN)
+	@echo "=== Decoding UI resources ==="
+	python3 ../sys/mac/tools/decode_hqx.py \
+		../sys/mac/NHrsrc.hqx $(TARGETPFX)resources
 	@echo "=== Compiling SIZE resource ==="
 	$(RETRO68)/bin/Rez ../sys/mac/nhsize.r -o $(TARGETPFX)nhsize.rsrc
 	@echo "=== Merging resources ==="
@@ -406,20 +409,7 @@ mac68kpkg: $(GAMEBIN)
 	cd .. && git diff origin/NetHack-3.7..HEAD | gzip > /tmp/_nhpatch.gz && cd src
 	hcopy -r /tmp/_nhpatch.gz :nh37-mac.patch.gz && hattrib -t DATA -c nh37 nh37-mac.patch.gz
 	@rm -f /tmp/_nhpatch.gz
-	@printf '%s\r' \
-		'# NetHack 3.7 Mac - default configuration' \
-		'# Edit this file to customize options.' \
-		'' \
-		'OPTIONS=number_pad:1' \
-		'OPTIONS=color,!lit_corridor' \
-		'OPTIONS=autopickup,pickup_types:$$!?+/="' \
-		'OPTIONS=menustyle:full,checkpoint' \
-		'OPTIONS=showexp,showscore,time' \
-		'OPTIONS=verbose,confirm,safe_pet' \
-		'OPTIONS=sortpack,autoquiver' \
-		'OPTIONS=catname:Kaori,dogname:Hachi' \
-		> /tmp/_cr
-	hcopy -r /tmp/_cr ":NetHack Defaults" && hattrib -t TEXT -c ttxt "NetHack Defaults"
+	tr '\n' '\r' < ../sys/mac/NHDeflts > /tmp/_cr && hcopy -r /tmp/_cr ":NetHack Defaults" && hattrib -t TEXT -c ttxt "NetHack Defaults"
 	@rm -f /tmp/_cr
 	humount
 	@echo "=== Wrapping with Apple Partition Map ==="
