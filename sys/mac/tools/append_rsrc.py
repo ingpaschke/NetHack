@@ -79,6 +79,10 @@ def main():
             src_data = f.read()
         src_resources, _, _ = read_rsrc_fork(src_data)
         for rtype, rid, rname, attrs, rdoff, rdata in src_resources:
+            # Rename 'nh31' signature resource type to 'nh37'
+            if bytes(rtype) == b'nh31':
+                rtype = b'nh37'
+                print("  Renaming resource type: nh31 -> nh37")
             key = (bytes(rtype), rid)
             if key not in existing:
                 new_resources.append((rtype, rid, rname, attrs, rdata))
@@ -97,6 +101,10 @@ def main():
     # Append new resources to data section
     new_resource_entries = []
     for rtype, rid, rname, attrs, rdata in new_resources:
+        # Patch old creator code 'nh31' to 'nh37' in BNDL and signature resources
+        if bytes(rtype) == b'BNDL' and rdata[:4] == b'nh31':
+            rdata = b'nh37' + rdata[4:]
+            print("  Patched BNDL creator: nh31 -> nh37")
         new_rdoff = len(new_data)
         new_data += struct.pack('>I', len(rdata))
         new_data += rdata
