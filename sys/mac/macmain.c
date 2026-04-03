@@ -156,14 +156,24 @@ copy_file(short src_vol, long src_dir, short dst_vol, long dst_dir,
                 buf = NewHandle(count);
                 err = MemError();
                 if (err == noErr) {
-                    while (count > 0) {
+                    long buf_size = count;
+                    while (file_len > 0) {
+                        count = (file_len > buf_size) ? buf_size : file_len;
                         OSErr rd_err = FSRead(src_ref, &count, *buf);
+                        if (count <= 0) {
+                            err = rd_err ? rd_err : ioErr;
+                            break;
+                        }
                         err = FSWrite(dst_ref, &count, *buf);
-                        if (err == noErr)
+                        if (err != noErr)
+                            break;
+                        if (rd_err != noErr && rd_err != eofErr) {
                             err = rd_err;
+                            break;
+                        }
                         file_len -= count;
                     }
-                    if (file_len == 0)
+                    if (err == noErr && file_len == 0)
                         err = noErr;
 
                     DisposeHandle(buf);

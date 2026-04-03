@@ -68,11 +68,11 @@ FlushWinFile(void)
     long len;
 
     if (!winFileInit) {
+        InitWinFile();
         if (!winFileName[0]) {
             return;
         }
         HCreate(winFileVol, winFileDir, winFileName, MAC_CREATOR, PREF_TYPE);
-        HCreateResFile(winFileVol, winFileDir, winFileName);
     }
     if (HOpen(winFileVol, winFileDir, winFileName, fsWrPerm, &ref)) {
         return;
