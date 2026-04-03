@@ -860,20 +860,17 @@ create_bonesfile(d_level *lev, char **bonesid, char errbuf[])
             failed = errno;
         }
         if (nhfp->structlevel) {
-#if defined(MICRO) || defined(WIN32)
+#if defined(MAC)
+            nhfp->fd = maccreat(file, LEVL_TYPE);
+#elif defined(MICRO) || defined(WIN32)
             /* Use O_TRUNC to force the file to be shortened if it already
              * exists and is currently longer.
              */
             nhfp->fd = open(file,
                             O_WRONLY | O_CREAT | O_TRUNC | O_BINARY, FCMASK);
-#else /* ?MICRO || WIN32 */
-/* implies UNIX or MAC (MAC is for OS9 or earlier) */
-#ifdef MAC
-            nhfp->fd = maccreat(file, BONE_TYPE);
-#else
+#else /* UNIX */
             nhfp->fd = creat(file, FCMASK);
-#endif  /* ?MAC */
-#endif  /* ?MICRO || WIN32 */
+#endif  /* MAC / MICRO / UNIX */
             if (nhfp->fd < 0)
                 failed = errno;
 #if defined(MSDOS)
@@ -1041,13 +1038,15 @@ set_savefile_name(boolean regularize_it)
     if (strlen(gs.SAVEF) < (SAVESIZE - 1))
         (void) strncat(gs.SAVEF, svp.plname, (SAVESIZE - strlen(gs.SAVEF)));
 #endif
-#if defined(MICRO) && !defined(WIN32) && !defined(MSDOS)
+#if defined(MAC)
+    /* Mac: save file is just the player name in the app directory */
+    Strcpy(gs.SAVEF, svp.plname);
+#elif defined(MICRO) && !defined(WIN32) && !defined(MSDOS)
     if (strlen(gs.SAVEP) < (SAVESIZE - 1))
         Strcpy(gs.SAVEF, gs.SAVEP);
-    else
 #ifdef AMIGA
-        if (strlen(gs.SAVEP) + strlen(bbs_id) < (SAVESIZE - 1))
-            strncat(gs.SAVEF, bbs_id, PATHLEN);
+    if (strlen(gs.SAVEP) + strlen(bbs_id) < (SAVESIZE - 1))
+        strncat(gs.SAVEF, bbs_id, PATHLEN);
 #endif
     {
         int i = strlen(gs.SAVEP);
@@ -1159,17 +1158,14 @@ create_savefile(void)
 #ifdef SAVEFILE_DEBUGGING
             nhfp->fplog = fopen("create-savefile.log", "w");
 #endif
-#if defined(MICRO) || defined(WIN32)
+#if defined(MAC)
+            nhfp->fd = maccreat(fq_save, SAVE_TYPE);
+#elif defined(MICRO) || defined(WIN32)
             nhfp->fd = open(fq_save, O_WRONLY | O_BINARY | O_CREAT | O_TRUNC,
                             FCMASK);
-#else /* !MICRO && !WIN32 */
-/* UNIX || MAC implied (MAC is OS9 or earlier only) */
-#ifdef MAC
-            nhfp->fd = maccreat(fq_save, SAVE_TYPE);
-#else
+#else /* UNIX */
             nhfp->fd = creat(fq_save, FCMASK);
-#endif
-#endif /* MICRO || WIN32 */
+#endif /* MAC / MICRO / UNIX */
 #if defined(MSDOS) || defined(WIN32)
         if (nhfp->fd >= 0)
             (void) setmode(nhfp->fd, O_BINARY);
