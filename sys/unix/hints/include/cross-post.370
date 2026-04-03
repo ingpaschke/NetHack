@@ -384,7 +384,6 @@ mac68kpkg: $(GAMEBIN)
 	hcopy -r ../dat/nhdat :nhdat    && hattrib -t DATA -c nh37 nhdat
 	@printf '%s\n' \
 		'NetHack 3.7 for 68k Macintosh' \
-		'Prerelease for MARCHintosh 2026' \
 		'' \
 		'Requires: System 7 or later, 5 MB RAM, 32-bit addressing.' \
 		'Runs on any Mac with a 68020 or later CPU.' \
@@ -394,11 +393,7 @@ mac68kpkg: $(GAMEBIN)
 		'Edit "NetHack Defaults" to customize options.' \
 		'See the Guidebook for how to play.' \
 		'' \
-		'This is a prerelease build. Comments and bug reports to:' \
-		'ipaschke@lpclabs.de' \
-		'' \
-		'Source diff against upstream NetHack 3.7 included as' \
-		'nh37-mac.patch.gz. See sys/mac/BUILD.md for build instructions.' \
+		'Source: https://github.com/ingpaschke/NetHack' \
 		| tr '\n' '\r' > /tmp/_readme
 	hcopy -r /tmp/_readme ":Read Me" && hattrib -t TEXT -c ttxt "Read Me"
 	@rm -f /tmp/_readme
@@ -406,9 +401,6 @@ mac68kpkg: $(GAMEBIN)
 	hcopy -r /dev/null :record      && hattrib -t TEXT -c nh37 record
 	tr '\n' '\r' < ../dat/symbols > /tmp/_cr && hcopy -r /tmp/_cr :symbols && hattrib -t TEXT -c nh37 symbols
 	tr '\n' '\r' < ../doc/Guidebook.txt > /tmp/_cr && hcopy -r /tmp/_cr :Guidebook && hattrib -t TEXT -c ttxt Guidebook
-	cd .. && git diff origin/NetHack-3.7..HEAD | gzip > /tmp/_nhpatch.gz && cd src
-	hcopy -r /tmp/_nhpatch.gz :nh37-mac.patch.gz && hattrib -t DATA -c nh37 nh37-mac.patch.gz
-	@rm -f /tmp/_nhpatch.gz
 	tr '\n' '\r' < ../sys/mac/NHDeflts > /tmp/_cr && hcopy -r /tmp/_cr ":NetHack Defaults" && hattrib -t TEXT -c ttxt "NetHack Defaults"
 	@rm -f /tmp/_cr
 	humount
