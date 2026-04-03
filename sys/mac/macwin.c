@@ -1062,6 +1062,16 @@ leave_topl_mode(char *answer)
     }
     putstr(WIN_MESSAGE, ATR_BOLD, answer);
 
+    /* Invalidate the button area so stale buttons get erased */
+    if (topl_resp[0]) {
+        Rect frame;
+        int r_len = strlen(topl_resp);
+        topl_resp_rect(0, &frame);
+        frame.right = (BTN_IND + BTN_W) * r_len + BTN_IND;
+        InvalWindowRect(aWin->its_window, &frame);
+        memset(topl_resp, 0, sizeof topl_resp);
+    }
+
     (*top_line)->viewRect.left += 10000;
     UndimMenuBar();
 }
@@ -2276,11 +2286,11 @@ BaseClick(NhWindow *wind, Point pt, UInt32 modifiers)
     pt.h = pt.h / wind->char_width + 1;
     pt.v = pt.v / wind->row_height;
     clicked_mod = (modifiers & shiftKey) ? CLICK_2 : CLICK_1;
-
-    /* TODO: click-to-move disabled — click_to_cmd queues wrong command
-       type for 3.7's command queue, causing "getdir: command queue had
-       no dir?" errors. Needs proper CMDQ_DIR integration. */
-    return;
+    clicked_pos = pt;
+    /* Signal a click event. mac_nhgetch checks gClickedToMove to
+       exit its event loop and return 0. The core's readchar() then
+       calls click_to_cmd() with coordinates from mac_nh_poskey(). */
+    gClickedToMove = 1;
 }
 
 static void
