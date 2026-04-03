@@ -17,7 +17,7 @@ KeyDown(unsigned short code)
 void
 mac_dprintf(char *format, ...)
 {
-    char buffer[500];
+    char buffer[512];
     va_list list;
     int doit;
 #define DO_DEBUGSTR 1
@@ -35,7 +35,7 @@ mac_dprintf(char *format, ...)
 
         if (doit) {
             va_start(list, format);
-            vsprintf(&buffer[1], format, list);
+            vsnprintf(&buffer[1], sizeof buffer - 1, format, list);
             va_end(list);
 
             if (doit == DO_DEBUGSTR) {
