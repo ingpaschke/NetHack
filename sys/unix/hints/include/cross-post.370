@@ -384,7 +384,6 @@ mac68kpkg: $(GAMEBIN)
 	hcopy -r ../dat/nhdat :nhdat    && hattrib -t DATA -c nh37 nhdat
 	@printf '%s\n' \
 		'NetHack 3.7 for 68k Macintosh' \
-		'Prerelease for MARCHintosh 2026' \
 		'' \
 		'Requires: System 7 or later, 5 MB RAM, 32-bit addressing.' \
 		'Runs on any Mac with a 68020 or later CPU.' \
@@ -393,9 +392,6 @@ mac68kpkg: $(GAMEBIN)
 		'Place all files in the same folder and double-click NetHack.' \
 		'Edit "NetHack Defaults" to customize options.' \
 		'See the Guidebook for how to play.' \
-		'' \
-		'This is a prerelease build. Comments and bug reports to:' \
-		'ipaschke@lpclabs.de' \
 		| tr '\n' '\r' > /tmp/_readme
 	hcopy -r /tmp/_readme ":Read Me" && hattrib -t TEXT -c ttxt "Read Me"
 	@rm -f /tmp/_readme
