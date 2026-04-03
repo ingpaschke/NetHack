@@ -13,7 +13,7 @@
 #endif
 
 static Boolean winFileInit = 0;
-static unsigned char winFileName[32] = "\pNetHack Preferences";
+static unsigned char winFileName[32] = "\x13NetHack Preferences";
 static long winFileDir;
 static short winFileVol;
 
@@ -53,9 +53,11 @@ InitWinFile(void)
         return;
     }
     len = sizeof(savePos);
-    if (!FSRead(ref, &len, savePos)) {
-        winFileInit = 1;
+    if (FSRead(ref, &len, savePos) && len == 0) {
+        /* Read failed and got nothing — leave savePos uninitialized */
+        memset(savePos, 0, sizeof savePos);
     }
+    winFileInit = 1; /* don't retry on every call */
     FSClose(ref);
 }
 
@@ -66,11 +68,11 @@ FlushWinFile(void)
     long len;
 
     if (!winFileInit) {
+        InitWinFile();
         if (!winFileName[0]) {
             return;
         }
         HCreate(winFileVol, winFileDir, winFileName, MAC_CREATOR, PREF_TYPE);
-        HCreateResFile(winFileVol, winFileDir, winFileName);
     }
     if (HOpen(winFileVol, winFileDir, winFileName, fsWrPerm, &ref)) {
         return;
@@ -87,19 +89,19 @@ RetrievePosition(short kind, short *top, short *left)
     Point p;
 
     if (kind < 0 || kind > kLastWindowKind) {
-        dprintf("Retrieve Bad kind %d", kind);
+        mac_dprintf("Retrieve Bad kind %d", kind);
         return 0;
     }
     InitWinFile();
     if (!savePos[kind].validPos) {
-        dprintf("Retrieve Not stored kind %d", kind);
+        mac_dprintf("Retrieve Not stored kind %d", kind);
         return 0;
     }
     p.v = savePos[kind].top;
     p.h = savePos[kind].left;
     *left = p.h;
     *top = p.v;
-    dprintf("Retrieve Kind %d Pt (%d,%d)", kind, p.h, p.v);
+    mac_dprintf("Retrieve Kind %d Pt (%d,%d)", kind, p.h, p.v);
     return (PtInRgn(p, GetGrayRgn()));
 }
 
@@ -126,14 +128,14 @@ static void
 SavePosition(short kind, short top, short left)
 {
     if (kind < 0 || kind > kLastWindowKind) {
-        dprintf("Save bad kind %d", kind);
+        mac_dprintf("Save bad kind %d", kind);
         return;
     }
     InitWinFile();
     savePos[kind].validPos = 1;
     savePos[kind].top = top;
     savePos[kind].left = left;
-    dprintf("Save kind %d pt (%d,%d)", kind, left, top);
+    mac_dprintf("Save kind %d pt (%d,%d)", kind, left, top);
     FlushWinFile();
 }
 
@@ -141,7 +143,7 @@ static void
 SaveSize(short kind, short height, short width)
 {
     if (kind < 0 || kind > kLastWindowKind) {
-        dprintf("Save bad kind %d", kind);
+        mac_dprintf("Save bad kind %d", kind);
         return;
     }
     InitWinFile();
@@ -163,7 +165,7 @@ GetWinKind(WindowPtr win)
     if (kind < 0 || kind > NHW_TEXT) {
         return -1;
     }
-    dprintf("In win kind %d (%lx)", kind, win);
+    mac_dprintf("In win kind %d (%lx)", kind, win);
     switch (kind) {
     case NHW_MAP:
     case NHW_STATUS:
@@ -180,7 +182,7 @@ GetWinKind(WindowPtr win)
         kind = kTextWindow;
         break;
     }
-    dprintf("Out kind %d", kind);
+    mac_dprintf("Out kind %d", kind);
     return kind;
 }
 

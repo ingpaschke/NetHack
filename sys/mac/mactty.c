@@ -17,11 +17,12 @@
 #include <Resources.h>
 #endif
 
-char game_active = 0; /* flag to window rendering routines not to use ppat */
+/* game_active was a flag to window rendering routines not to use ppat;
+ * replaced by checking iflags.window_inited in 3.7 */
 
 /* these declarations are here because I can't include macwin.h without
  * including the world */
-extern void dprintf(char *, ...); /* dprintf.c */
+extern void mac_mac_dprintf(char *, ...); /* dprintf.c */
 
 /*
  * Borrowed from the Mac tty port
@@ -104,16 +105,15 @@ dispose_ptr(void *ptr)
     return MemError();
 }
 
-#if 0 /* Use alloc.c instead */
 /*
- * Allocate a pointer using the set memory-allocator
+ * Allocate a pointer using the Mac Memory Manager
  */
 static short
-alloc_ptr (void **ptr, long size) {
-	*ptr = NewPtr (size);
-	return MemError ();
+alloc_ptr(void **ptr, long size)
+{
+    *ptr = NewPtr(size);
+    return MemError();
 }
-#endif
 
 /*
  * Set up a GWorld in the record
@@ -144,11 +144,11 @@ allocate_offscreen_world(tty_record *record)
     if (other < mem_here + MEMORY_MARGIN) {
         mem_here = other - MEMORY_MARGIN;
     }
-    dprintf("Heap %ld Required %ld", mem_here, required_mem);
+    mac_dprintf("Heap %ld Required %ld", mem_here, required_mem);
     if (required_mem > mem_here) {
         mem_there = required_mem;
         if (required_mem > TempMaxMem(&mem_there)) {
-            dprintf("No memory");
+            mac_dprintf("No memory");
             return memFullErr;
         }
         world_flags |= useTempMem;
@@ -160,7 +160,7 @@ allocate_offscreen_world(tty_record *record)
         select_offscreen_port(record);
         SetOrigin(0, 0);
         select_onscreen_window(record);
-        dprintf("New GWorld @ %lx;dm", gw);
+        mac_dprintf("New GWorld @ %lx;dm", gw);
     }
     return s_err;
 }
@@ -328,11 +328,11 @@ do_set_port_font(tty_record *record)
 void
 tty_nhbell(void)
 {
-    Handle h = GetNamedResource('snd ', "\pNetHack Bell");
+    Handle h = GetNamedResource('snd ', "\x0cNetHack Bell");
 
     if (h) {
         HLock(h);
-        SndPlay((SndChannelPtr) 0, (SndListHandle) h, 0);
+        SndPlay((SndChannelPtr) 0, (Handle) h, 0);
         ReleaseResource(h);
     } else
         SysBeep(30);
@@ -475,7 +475,7 @@ copy_bits(tty_record *record, Rect *bounds, short xfer_mode,
     if (record->uses_gworld) {
         pix_state = GetPixelsState(GetGWorldPixMap(record->offscreen_world));
         LockPixels(GetGWorldPixMap(record->offscreen_world));
-        source = (BitMapPtr) *GetGWorldPixMap(record->offscreen_world);
+        source = (BitMap *) *GetGWorldPixMap(record->offscreen_world);
     } else
         source = &record->its_bits;
 
@@ -493,20 +493,9 @@ copy_bits(tty_record *record, Rect *bounds, short xfer_mode,
  * Fill an area with the background color
  */
 static void
-erase_rect(tty_record *record, Rect *area)
+erase_rect(tty_record *record UNUSED, Rect *area)
 {
-    if (game_active && u.uhp > 0 && iflags.use_stone
-        && record->its_window == _mt_window) {
-        PixPatHandle ppat;
-
-        ppat = GetPixPat(iflags.use_stone + 127); /* find which pat to get */
-        if (ppat) { /* in game window, using backgroung pattern, and have
-                       pattern */
-            FillCRect(area, ppat);
-            DisposePixPat(ppat);
-            return;
-        }
-    }
+    /* use_stone background pattern support removed in 3.7 */
     EraseRect(area);
 }
 
@@ -533,7 +522,7 @@ force_tty_coordinate_system_recalc(WindowPtr window)
          * may go very
          * much downhill from here!
          */
-        dprintf("alloc_bits returned null in "
+        mac_dprintf("alloc_bits returned null in "
                 "force_tty_coordinate_system_recalc!");
         return s_err;
     }

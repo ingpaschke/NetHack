@@ -8,7 +8,7 @@
 #include "mactty.h"
 #include "wintty.h"
 
-#if !TARGET_API_MAC_CARBON
+#if !TARGET_API_MAC_CARBON && !defined(CROSS_TO_MAC68K)
 #include <Palettes.h>
 #endif
 #include <Gestalt.h>
@@ -16,6 +16,15 @@
 #define MT_WINDOW 135
 #define MT_WIDTH 80
 #define MT_HEIGHT 24
+
+/* The Mac port uses its own tty emulation layer (mactty.c) but
+ * still references ttyDisplay/wins/BASE_WINDOW from wintty.h.
+ * Provide the storage here since win/tty/wintty.c is not linked. */
+#ifndef TTY_GRAPHICS
+struct DisplayDesc *ttyDisplay = (struct DisplayDesc *) 0;
+struct WinDesc *wins[MAXWIN];
+winid BASE_WINDOW;
+#endif
 
 /*
  * Names:
@@ -69,7 +78,7 @@ static char _colors_inverse[CLR_MAX] = {
 #define SECONDARY_CHANNEL_LIMIT 12
 
 void
-tty_change_color(int color, long rgb, int reverse)
+mac_change_color(int color, long rgb, int reverse)
 {
     long inverse, working_rgb = rgb;
     int total_power = 0, max_channel = 0;
@@ -113,7 +122,7 @@ tty_change_color(int color, long rgb, int reverse)
 }
 
 void
-tty_change_background(int white_or_black)
+mac_change_background(int white_or_black)
 {
     register int i;
 
@@ -148,7 +157,7 @@ tty_change_background(int white_or_black)
 }
 
 char *
-tty_get_color_string(void)
+mac_get_color_string(void)
 {
     char *ptr;
     int count;
@@ -201,10 +210,10 @@ _mt_init_stuff(void)
     CO = MT_WIDTH;
 
     if (!strcmp(windowprocs.name, "mac")) {
-        dprintf("Mac Windows");
+        mac_dprintf("Mac Windows");
         LI -= 1;
     } else {
-        dprintf("TTY Windows");
+        mac_dprintf("TTY Windows");
     }
 
     /*
@@ -226,9 +235,16 @@ _mt_init_stuff(void)
         }
     }
 
-    if (create_tty(&_mt_window, WIN_BASE_KIND + NHW_MAP, _mt_in_color)
-        != noErr)
-        error("_mt_init_stuff: Couldn't create tty.");
+    {
+        short err = create_tty(&_mt_window, WIN_BASE_KIND + NHW_MAP, _mt_in_color);
+        if (err != noErr) {
+            /* Try again in B&W if color failed */
+            _mt_in_color = 0;
+            err = create_tty(&_mt_window, WIN_BASE_KIND + NHW_MAP, 0);
+            if (err != noErr)
+                error("_mt_init_stuff: Couldn't create tty (err=%d).", (int)err);
+        }
+    }
     SetWindowKind(_mt_window, WIN_BASE_KIND + NHW_MAP);
     SelectWindow(_mt_window);
     SetPortWindowPort(_mt_window);
@@ -237,9 +253,13 @@ _mt_init_stuff(void)
     font_size = iflags.wc_fontsiz_map
                     ? iflags.wc_fontsiz_map
                     : (iflags.large_font && !small_screen) ? 12 : 9;
-    if (init_tty_number(_mt_window, win_fonts[NHW_MAP], font_size, CO, LI)
-        != noErr)
-        error("_mt_init_stuff: Couldn't init tty.");
+    {
+        short fnum = win_fonts[NHW_MAP] ? win_fonts[NHW_MAP] : 4; /* Monaco */
+        short err = init_tty_number(_mt_window, fnum, font_size, CO, LI);
+        if (err != noErr)
+            error("_mt_init_stuff: init tty err=%d font=%d sz=%d",
+                  (int)err, (int)fnum, (int)font_size);
+    }
 
     if (get_tty_metrics(_mt_window, &num_cols, &num_rows, &win_width,
                         &win_height, &font_num, &font_size, &char_width,
@@ -248,7 +268,7 @@ _mt_init_stuff(void)
 
     SizeWindow(_mt_window, win_width + 2, win_height + 2, 1);
     if (RetrievePosition(kMapWindow, &vert, &hor)) {
-        dprintf("Moving window to (%d,%d)", hor, vert);
+        mac_dprintf("Moving window to (%d,%d)", hor, vert);
         MoveWindow(_mt_window, hor, vert, 1);
     }
     ShowWindow(_mt_window);
@@ -501,7 +521,7 @@ msmsg(const char *str, ...)
     char buf[1000];
 
     va_start(args, str);
-    vsprintf(buf, str, args);
+    vsnprintf(buf, sizeof buf, str, args);
     va_end(args);
 
     xputs(buf);
@@ -602,6 +622,45 @@ term_puts(const char *str)
 {
     xputs(str);
     return strlen(str);
+}
+
+#ifdef CHANGE_COLOR
+/* Wrappers with tty_ names so wintty.c's tty_procs struct can resolve */
+void tty_change_color(int c, long r, int v) { mac_change_color(c, r, v); }
+void tty_change_background(int w) { mac_change_background(w); }
+char *tty_get_color_string(void) { return mac_get_color_string(); }
+#endif
+
+/* term_* stubs for 3.7 wintty.c compatibility */
+void
+term_clear_screen(void)
+{
+    clear_tty(_mt_window);
+    update_tty(_mt_window);
+}
+
+void
+term_shutdown(void)
+{
+    /* noop - cleanup done elsewhere */
+}
+
+void
+term_start_extracolor(uint32 customcolor UNUSED, uint16 color256idx UNUSED)
+{
+    /* no extended color support on classic Mac */
+}
+
+void
+term_end_extracolor(void)
+{
+    /* no extended color support on classic Mac */
+}
+
+void
+g_pututf8(uint32 c UNUSED)
+{
+    /* UTF-8 output not supported on classic Mac */
 }
 
 int

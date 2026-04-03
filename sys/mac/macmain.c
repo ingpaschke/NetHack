@@ -1,4 +1,4 @@
-/* NetHack 3.6	macmain.c	$NHDT-Date: 1432512796 2015/05/25 00:13:16 $  $NHDT-Branch: master $:$NHDT-Revision: 1.21 $ */
+/* NetHack 3.7	macmain.c	$NHDT-Date: 1432512796 2015/05/25 00:13:16 $  $NHDT-Branch: master $:$NHDT-Revision: 1.21 $ */
 /* Copyright (c) Stichting Mathematisch Centrum, Amsterdam, 1985. */
 /*-Copyright (c) Robert Patrick Rankin, 2009. */
 /* NetHack may be freely redistributed.  See license for details. */
@@ -10,9 +10,9 @@
 #include "macwin.h"
 #include "mactty.h"
 
-#if 1 /*!TARGET_API_MAC_CARBON*/
+#if !defined(__GNUC__)
 #include <OSUtils.h>
-#include <files.h>
+#include <Files.h>
 #include <Types.h>
 #include <Dialogs.h>
 #include <Packages.h>
@@ -28,53 +28,48 @@
 static void finder_file_request(void);
 int main(void);
 
-#if __SC__ || __MRC__
+#if defined(__SC__) || defined(__MRC__)
 QDGlobals qd;
 #endif
 
 int
 main(void)
 {
-    register int fd = -1;
+    NHFILE *nhfp;
     int argc = 1;
     boolean resuming = FALSE; /* assume new game */
 
-    early_init();
-    windowprocs = mac_procs;
+    /* Mark the DATA resource purgeable so it isn't cached between launches.
+       The Retro68 runtime has already copied it into the app's globals.
+       Without this, relaunching without rebooting reuses the dirty
+       DATA from the first run, causing a bus error. */
+    {
+        Handle h = Get1Resource('DATA', 0);
+        if (h)
+            HPurge(h);
+    }
+
+    early_init(argc, (char **) 0);
+    choose_windows("mac");
     InitMac();
 
     gh.hname = "Mac Hack";
-    hackpid = getpid();
-
-    setrandom();
-    initoptions();
+    svh.hackpid = getpid();
     init_nhwindows(&argc, (char **) &gh.hname);
 
-    /*
-     * It seems you really want to play.
-     */
-    u.uhp = 1; /* prevent RIP on early quits */
+    initoptions();
+    iflags.bgcolors = TRUE;
+    iflags.use_background_glyph = TRUE;
 
+    u.uhp = 1;
     finder_file_request();
 
-    dlb_init(); /* must be before newgame() */
+    dlb_init();
 
-    /*
-     *  Initialize the vision system.  This must be before mklev() on a
-     *  new game or before a level restore on a saved game.
-     */
     vision_init();
-
     init_sound_disp_gamewindows();
-
-    set_playmode(); /* sets plname to "wizard" for wizard mode */
-    /* strip role,race,&c suffix; calls askname() if plname[] is empty
-       or holds a generic user name like "player" or "games" */
+    set_playmode();
     plnamesuffix();
-    /* unlike Unix where the game might be invoked with a script
-       which forces a particular character name for each player
-       using a shared account, we always allow player to rename
-       the character during role/race/&c selection */
     iflags.renameallowed = TRUE;
 
     getlock();
@@ -84,7 +79,7 @@ main(void)
  * We'll return here if new game player_selection() renames the hero.
  */
 attempt_restore:
-    if ((fd = restore_saved_game()) >= 0) {
+    if (*svp.plname && (nhfp = restore_saved_game()) != 0) {
 #ifdef NEWS
         if (iflags.news) {
             display_file(NEWS, FALSE);
@@ -93,8 +88,7 @@ attempt_restore:
 #endif
         pline("Restoring save file...");
         mark_synch(); /* flush output */
-        game_active = 1;
-        if (dorecover(fd)) {
+        if (dorecover(nhfp)) {
             resuming = TRUE; /* not starting new game */
             if (discover)
                 You("are in non-scoring discovery mode.");
@@ -124,12 +118,12 @@ attempt_restore:
                 goto attempt_restore;
             }
         }
-        game_active = 1; /* done with selection, draw active game window */
         newgame();
         if (discover)
             You("are in non-scoring discovery mode.");
     }
 
+    set_savefile_name(TRUE); /* ensure SAVEF is set for dosave */
     UndimMenuBar(); /* Yes, this is the place for it (!) */
 
     moveloop(resuming);
@@ -162,14 +156,24 @@ copy_file(short src_vol, long src_dir, short dst_vol, long dst_dir,
                 buf = NewHandle(count);
                 err = MemError();
                 if (err == noErr) {
-                    while (count > 0) {
+                    long buf_size = count;
+                    while (file_len > 0) {
+                        count = (file_len > buf_size) ? buf_size : file_len;
                         OSErr rd_err = FSRead(src_ref, &count, *buf);
+                        if (count <= 0) {
+                            err = rd_err ? rd_err : ioErr;
+                            break;
+                        }
                         err = FSWrite(dst_ref, &count, *buf);
-                        if (err == noErr)
+                        if (err != noErr)
+                            break;
+                        if (rd_err != noErr && rd_err != eofErr) {
                             err = rd_err;
+                            break;
+                        }
                         file_len -= count;
                     }
-                    if (file_len == 0)
+                    if (err == noErr && file_len == 0)
                         err = noErr;
 
                     DisposeHandle(buf);
@@ -200,7 +204,7 @@ process_openfile(short src_vol, long src_dir, Str255 fName, OSType ftype)
 
     if (src_vol != theDirs.dataRefNum
         || src_dir != theDirs.dataDirID
-               && CatMove(src_vol, src_dir, fName, theDirs.dataDirID, "\p:")
+               && CatMove(src_vol, src_dir, fName, theDirs.dataDirID, "\x01:")
                       != noErr) {
         HCreate(theDirs.dataRefNum, theDirs.dataDirID, fName, MAC_CREATOR,
                 SAVE_TYPE);
@@ -283,9 +287,15 @@ finder_file_request(void)
 
 /* validate wizard mode if player has requested access to it */
 boolean
-authorize_wizard_mode()
+authorize_wizard_mode(void)
 {
     /* other ports validate user name or character name here */
+    return TRUE;
+}
+
+boolean
+authorize_explore_mode(void)
+{
     return TRUE;
 }
 

@@ -10,33 +10,51 @@
 /*
  * Compiler selection is based on the following symbols:
  *
- *  __SC__			sc, a MPW 68k compiler
- *  __MRC__			mrc, a MPW PowerPC compiler
- *	THINK_C			Think C compiler
- *	__MWERKS__		Metrowerks' Codewarrior compiler
- *
- * We use these early in config.h to define some needed symbols,
- * including MAC.
- #
- # The Metrowerks compiler defines __STDC__ (which sets NHSTC) and uses
- # WIDENED_PROTOTYPES (defined if UNWIDENED_PROTOTYPES is undefined and
- # NHSTDC is defined).
+ *  __GNUC__        Retro68 GCC cross-compiler
+ *  __SC__          sc, a MPW 68k compiler
+ *  __MRC__         mrc, a MPW PowerPC compiler
+ *  THINK_C         Think C compiler
+ *  __MWERKS__      Metrowerks' Codewarrior compiler
  */
 
 #ifndef __powerc
 #define MAC68K /* 68K mac (non-powerpc) */
 #endif
+
+/* No system-wide config file on classic Mac OS */
+#undef STATUS_HILITES  /* Mac port doesn't support terminal-based hilites;
+                          with it defined, WIN_STATUS is never displayed */
+
+/* Lua: use 32-bit integers and 32-bit floats.
+   Default 64-bit types are emulated in software on 68k and extremely slow. */
+#define LUA_32BITS
+#ifndef TARGET_API_MAC_OS8
+#define TARGET_API_MAC_OS8 1
+#endif
 #ifndef TARGET_API_MAC_CARBON
 #define TARGET_API_MAC_CARBON 0
 #endif
+/* Use classic (non-opaque) toolbox structs and direct field access */
+#ifndef OPAQUE_TOOLBOX_STRUCTS
+#define OPAQUE_TOOLBOX_STRUCTS 0
+#endif
+#ifndef ACCESSOR_CALLS_ARE_FUNCTIONS
+#define ACCESSOR_CALLS_ARE_FUNCTIONS 0
+#endif
 
+#if defined(__GNUC__) && defined(CROSSCOMPILE)
+/* Retro68 GCC cross-compiler — random() is provided */
+#else
 #ifndef __MACH__
 #define RANDOM
+#endif
 #endif
 #define NO_SIGNAL /* You wouldn't believe our signals ... */
 #define FILENAME 256
 #define NO_TERMS /* For tty port (see wintty.h) */
+#ifndef NO_CHANGE_COLOR
 #define CHANGE_COLOR
+#endif
 
 /* Use these two includes instead of system.h. */
 #include <string.h>
@@ -51,18 +69,16 @@
  * include the relevant files in the relevant .c files instead !
  */
 #if TARGET_API_MAC_CARBON
-#ifdef GNUC
-/* Avoid including <CarbonCore/fp.h> -- it has a conflicting expl() */
-#define __FP__
-#include <Carbon/Carbon.h>
+# ifdef __GNUC__
+#  define __FP__
+#  include <Carbon/Carbon.h>
+# else
+#  define __FENV__
+#  include <machine/types.h>
+#  include <Carbon.h>
+# endif
 #else
-/* Avoid including <fenv.h> -- it uses GENERATINGPOWERPC */
-#define __FENV__
-#include <machine/types.h>
-#include <Carbon.h>
-#endif
-#else
-#include <MacTypes.h>
+# include <MacTypes.h>
 #endif
 
 /*
@@ -92,6 +108,9 @@ extern void error(const char *, ...);
  */
 #if !((defined(__SC__) || defined(__MRC__) || defined(__MACH__)) \
       && (defined(SPEC_LEV) || defined(DGN_COMP)))
+#ifndef O_BINARY
+#define O_BINARY 0
+#endif
 #define creat maccreat
 #define open macopen
 #define close macclose
@@ -111,7 +130,7 @@ extern void error(const char *, ...);
 #define SAVE_TYPE 'SAVE'
 #define PREF_TYPE 'PREF'
 #define DATA_TYPE 'DATA'
-#define MAC_CREATOR 'nh31'  /* Registered with DTS ! */
+#define MAC_CREATOR 'nh37'  /* NetHack 3.7 Mac port */
 #define TEXT_CREATOR 'ttxt' /* Something the user can actually edit */
 
 /*

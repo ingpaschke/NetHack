@@ -17,8 +17,10 @@
 #include <AppleEvents.h>
 #include <Gestalt.h>
 #include <TextUtils.h>
+#ifndef CROSS_TO_MAC68K
 #include <DiskInit.h>
 #include <ControlDefinitions.h>
+#endif
 #endif
 
 /**********************************************************************
@@ -120,7 +122,7 @@ extern WindowPtr _mt_window;
 static TEHandle top_line = (TEHandle) nil;
 static int topl_query_len;
 static int topl_def_idx = -1;
-static char topl_resp[10] = "";
+static char topl_resp[BUFSZ] = "";
 
 #define CHAR_ANY '\n'
 
@@ -355,6 +357,7 @@ AppleEventHandler(const AppleEvent *inAppleEvent, AppleEvent *outAEReply,
 
 short win_fonts[NHW_TEXT + 1];
 
+
 void
 InitMac(void)
 {
@@ -363,8 +366,8 @@ InitMac(void)
     Str255 volName;
 
 #if !TARGET_API_MAC_CARBON
-    if (LMGetDefltStack() < 50 * 1024L) {
-        SetApplLimit((void *) ((long) LMGetCurStackBase() - (50 * 1024L)));
+    if (LMGetDefltStack() < 256 * 1024L) {
+        SetApplLimit((void *) ((long) LMGetCurStackBase() - (256 * 1024L)));
     }
     MaxApplZone();
     for (i = 0; i < 5; i++)
@@ -416,11 +419,11 @@ InitMac(void)
     MoveScrollUPP = NewControlActionUPP(MoveScrollBar);
 
     /* Set up base fonts for all window types */
-    GetFNum("\pHackFont", &i);
+    GetFNum("\x08HackFont", &i);
     if (i == 0)
         i = kFontIDMonaco;
     win_fonts[NHW_BASE] = win_fonts[NHW_MAP] = win_fonts[NHW_STATUS] = i;
-    GetFNum("\pPSHackFont", &i);
+    GetFNum("\x0aPSHackFont", &i);
     if (i == 0)
         i = kFontIDGeneva;
     win_fonts[NHW_MESSAGE] = i;
@@ -481,6 +484,14 @@ InitMac(void)
 /*
  * Change default window fonts.
  */
+short set_font_name(int window_type, char *font_name);
+
+short
+set_font_name(int window_type, char *font_name)
+{
+    return set_tty_font_name(window_type, font_name);
+}
+
 short
 set_tty_font_name(int window_type, char *font_name)
 {
@@ -522,7 +533,7 @@ DrawScrollbar(NhWindow *aWin)
                     win_height - SBARHEIGHT + 2);
     }
     vis = (win_height > (50 + SBARHEIGHT));
-    if (vis != IsControlVisible(aWin->scrollBar)) {
+    if (vis != ((** aWin->scrollBar).contrlVis != 0)) {
         /* current status != control */
         if (vis) /* if visible, show */
             ShowControl(aWin->scrollBar);
@@ -581,10 +592,10 @@ SanePositions(void)
     rmsg.top = rbase.bottom + 2;
     rmsg.bottom = rmsg.top + height;
     rmsg.left = rbase.left;
-    rmsgr.right = rbase.right;
+    rmsg.right = rbase.right;
     RetrievePosition(kMessageWindow, &rmsg.top, &rmsg.left);
     if (RetrieveSize(kMessageWindow, rmsg.top, rmsg.left, &height, &width)) {
-        rmsgr.right = rmsg.left + width;
+        rmsg.right = rmsg.left + width;
         rmsg.bottom = rmsg.top + height;
     }
     SetWindowBounds(theWindows[NHW_MESSAGE].its_window, kWindowContentRgn,
@@ -611,7 +622,11 @@ SanePositions(void)
     WindowPtr theWindow;
     NhWindow *nhWin;
 
+#ifdef CROSS_TO_MAC68K
+    screenArea = qd.screenBits.bounds;
+#else
     screenArea = GetQDGlobalsScreenBits(&qbitmap)->bounds;
+#endif
     OffsetRect(&screenArea, -screenArea.left, -screenArea.top);
 
     /* Map Window */
@@ -689,6 +704,8 @@ SanePositions(void)
         }
     }
 #endif
+    /* Bring the map window to the front */
+    SelectWindow(_mt_window);
     return (0);
 }
 
@@ -696,10 +713,13 @@ void
 mac_init_nhwindows(int *argcp, char **argv)
 {
     Rect r;
+
 #if !TARGET_API_MAC_CARBON
-    Rect scr = (*GetGrayRgn())->rgnBBox;
-    small_screen =
-        scr.bottom - scr.top <= (iflags.large_font ? 12 * 40 : 9 * 40);
+    {
+        Rect scr = (*GetGrayRgn())->rgnBBox;
+        small_screen =
+            scr.bottom - scr.top <= (iflags.large_font ? 12 * 40 : 9 * 40);
+    }
 #endif
 
     InitMenuRes();
@@ -713,26 +733,23 @@ mac_init_nhwindows(int *argcp, char **argv)
     tty_init_nhwindows(argcp, argv);
     iflags.window_inited = TRUE;
 
-    /* Some ugly hacks to make both interfaces happy:
-     * Mac port uses both tty interface (for main map) and extra windows.  The
-     * winids need to
-     * be kept in synch for both interfaces to map.  Also, the "blocked"
-     * display_nhwindow case
-     * for the map automatically calls the tty interface for the message box,
-     * so some version
-     * of the message box has to exist in the tty world to prevent a meltdown,
-     * even though most
-     * messages are handled in mac window.
-     */
+    /* Enable color if the display supports it.
+       _mt_in_color is set by tty_init_nhwindows via Gestalt check. */
+    if (has_color(CLR_RED)) {
+        iflags.use_color = TRUE;
+        iflags.wc_color = TRUE;
+    }
+
     mac_create_nhwindow(NHW_BASE);
     tty_create_nhwindow(NHW_MESSAGE);
 
-#if 1 //!TARGET_API_MAC_CARBON
-    /* Resize and reposition the message window */
+#if !TARGET_API_MAC_CARBON
     RetrievePosition(kMessageWindow, &r.top, &r.left);
     RetrieveSize(kMessageWindow, r.top, r.left, &r.bottom, &r.right);
-    MoveWindow(theWindows[NHW_MESSAGE].its_window, r.left, r.top, false);
-    SizeWindow(theWindows[NHW_MESSAGE].its_window, r.right, r.bottom, true);
+    if (theWindows[NHW_MESSAGE].its_window) {
+        MoveWindow(theWindows[NHW_MESSAGE].its_window, r.left, r.top, false);
+        SizeWindow(theWindows[NHW_MESSAGE].its_window, r.right, r.bottom, true);
+    }
 #endif
     return;
 }
@@ -779,13 +796,13 @@ got1:
     aWin->miSize = 0;
     aWin->menuChar = 'a';
 
-    dprintf("cre_win: New kind %d", kind);
+    mac_dprintf("cre_win: New kind %d", kind);
 
     if (kind == NHW_BASE || kind == NHW_MAP || kind == NHW_STATUS) {
         short x_sz, x_sz_p, y_sz, y_sz_p;
         if (kind != NHW_BASE) {
             if (i != tty_create_nhwindow(kind)) {
-                dprintf("cre_win: error creating kind %d", kind);
+                mac_dprintf("cre_win: error creating kind %d", kind);
             }
             if (kind == NHW_MAP) {
                 wins[i]->offy =
@@ -876,7 +893,7 @@ got1:
         r.bottom -= (r.top + SBARHEIGHT);
         r.top = -1;
         aWin->scrollBar =
-            NewControl(aWin->its_window, &r, "\p", (r.bottom > r.top + 50), 0,
+            NewControl(aWin->its_window, &r, "\x00", (r.bottom > r.top + 50), 0,
                        0, 0, 16, 0L);
         aWin->scrollPos = 0;
     }
@@ -1003,6 +1020,17 @@ enter_topl_mode(char *query)
     if (in_topl_mode())
         return;
 
+    /* Clear any leftover button state from a previous prompt */
+    if (topl_resp[0]) {
+        Rect frame;
+        int r_len = strlen(topl_resp);
+        topl_resp_rect(0, &frame);
+        frame.right = (BTN_IND + BTN_W) * r_len + BTN_IND;
+        InvalWindowRect(theWindows[WIN_MESSAGE].its_window, &frame);
+        memset(topl_resp, 0, sizeof topl_resp);
+        topl_def_idx = -1;
+    }
+
     putstr(WIN_MESSAGE, ATR_BOLD, query);
 
     topl_query_len = strlen(query);
@@ -1046,6 +1074,16 @@ leave_topl_mode(char *answer)
         --aWin->y_size;
     }
     putstr(WIN_MESSAGE, ATR_BOLD, answer);
+
+    /* Invalidate the button area so stale buttons get erased */
+    if (topl_resp[0]) {
+        Rect frame;
+        int r_len = strlen(topl_resp);
+        topl_resp_rect(0, &frame);
+        frame.right = (BTN_IND + BTN_W) * r_len + BTN_IND;
+        InvalWindowRect(aWin->its_window, &frame);
+        memset(topl_resp, 0, sizeof topl_resp);
+    }
 
     (*top_line)->viewRect.left += 10000;
     UndimMenuBar();
@@ -1167,9 +1205,10 @@ topl_set_resp(char *resp, char def)
     frame.right = (BTN_IND + BTN_W) * r_len;
     InvalWindowRect(theWindows[WIN_MESSAGE].its_window, &frame);
 
-    strcpy(topl_resp, resp);
-    loc = strchr(resp, def);
-    topl_def_idx = loc ? loc - resp : -1;
+    memset(topl_resp, 0, sizeof topl_resp);
+    strncpy(topl_resp, resp, sizeof topl_resp - 1);
+    loc = strchr(topl_resp, def);
+    topl_def_idx = loc ? loc - topl_resp : -1;
 }
 
 static char
@@ -1293,7 +1332,7 @@ adjust_window_pos(NhWindow *aWin, short width, short height)
  * until presumed seen.
  */
 void
-mac_display_nhwindow(winid win, BOOLEAN_P f)
+mac_display_nhwindow(winid win, boolean f)
 {
     NhWindow *aWin = &theWindows[win];
     WindowPtr theWindow = aWin->its_window;
@@ -1373,7 +1412,7 @@ mac_destroy_nhwindow(winid win)
     }
     if (win == WIN_INVEN || win == WIN_MESSAGE) {
         if (iflags.window_inited) {
-            if (flags.tombstone && killer[0]) {
+            if (flags.tombstone && svk.killer.name[0]) {
                 /* Prepare for the coming of the tombstone window. */
                 win_fonts[NHW_TEXT] = kFontIDMonaco;
             }
@@ -1578,7 +1617,11 @@ MoveScrollBar(ControlHandle theBar, short part)
 		break;
 	}
 #else
-    winUpdateFuncs[GetWindowKind(theWin) - WIN_BASE_KIND](&fake, theWin);
+    {
+        int kind = GetWindowKind(theWin) - WIN_BASE_KIND;
+        if (kind >= 0 && kind < NUM_FUNCS)
+            winUpdateFuncs[kind](&fake, theWin);
+    }
 #endif
     if (rgn) {
         EndUpdate(theWin);
@@ -1632,7 +1675,7 @@ filter_scroll_key(const int ch, NhWindow *aWin)
 int
 mac_doprev_message(void)
 {
-    if (WIN_MESSAGE) {
+    if (WIN_MESSAGE != WIN_ERR) {
         NhWindow *winToScroll = &theWindows[WIN_MESSAGE];
         mac_display_nhwindow(WIN_MESSAGE, FALSE);
         SetPortWindowPort(winToScroll->its_window);
@@ -1804,7 +1847,12 @@ mac_putstr(winid win, int attr, const char *str)
     char *src, *sline, *dst, ch;
 
     if (win < 0 || win >= NUM_MACWINDOWS || !aWin->its_window) {
-        error("putstr: Invalid win %d (Max %d).", win, NUM_MACWINDOWS, attr);
+        /* During early init, WIN_MESSAGE is -1; use raw_print instead */
+        if (win < 0 && str) {
+            raw_print(str);
+            return;
+        }
+        error("putstr: Invalid win %d (Max %d).", win, NUM_MACWINDOWS);
         return;
     }
 
@@ -1825,7 +1873,7 @@ mac_putstr(winid win, int attr, const char *str)
     if (win == WIN_MESSAGE) {
         r.right -= SBARWIDTH;
         r.bottom -= SBARHEIGHT;
-        if (flags.page_wait
+        if (flags.safe_wait
             && aWin->last_more_lin
                    <= aWin->y_size - (r.bottom - r.top) / aWin->row_height) {
             aWin->last_more_lin = aWin->y_size;
@@ -1847,6 +1895,8 @@ mac_putstr(winid win, int attr, const char *str)
             aWin->save_lin = 0;
             aWin->y_curs = 0;
             aWin->y_size = 0;
+            in_putstr--;
+            return;
         }
     }
 
@@ -1919,7 +1969,7 @@ mac_curs(winid win, int x, int y)
 }
 
 int
-mac_nh_poskey(int *a, int *b, int *c)
+mac_nh_poskey(coordxy *a, coordxy *b, int *c)
 {
     int ch = mac_nhgetch();
     *a = clicked_pos.h;
@@ -1936,12 +1986,11 @@ mac_start_menu(winid win, unsigned long mbehavior)
 }
 
 void
-mac_add_menu(winid win, int glyph, const anything *any, CHAR_P menuChar,
-             CHAR_P groupAcc, int attr, const char *inStr, unsigned int itemflags)
+mac_add_menu(winid win, const glyph_info *glyphinfo UNUSED,
+             const anything *any, char menuChar,
+             char groupAcc, int attr, int clr UNUSED,
+             const char *inStr, unsigned int itemflags)
 {
-#if defined(__SC__) || defined(__MRC__)
-#pragma unused(glyph)
-#endif
     NhWindow *aWin = &theWindows[win];
     const char *str;
     char locStr[4 + BUFSZ];
@@ -2049,7 +2098,10 @@ mac_select_menu(winid win, int how, menu_item **selected_list)
         if (c == CHAR_ESC) {
             /* deselect everything */
             aWin->miSelLen = 0;
-            break;
+            HideWindow(theWin);
+            *selected_list = 0;
+            inSelect = WIN_ERR;
+            return -1; /* cancelled */
         } else if (ClosingWindowChar(c)) {
             break;
         } else {
@@ -2085,9 +2137,7 @@ mac_select_menu(winid win, int how, menu_item **selected_list)
 #include "dlb.h"
 
 static void
-mac_display_file(name, complain)
-const char *name; /* not ANSI prototype because of boolean parameter */
-boolean complain;
+mac_display_file(const char *name, boolean complain)
 {
     Ptr buf;
     int win;
@@ -2123,9 +2173,91 @@ port_help()
     display_file(PORT_HELP, TRUE);
 }
 
+/* optfn_hicolor: Mac-specific option handler for "hicolor"
+ * (same as palette but reversed). Referenced from optlist.h NHOPTC. */
+int
+optfn_hicolor(int optidx UNUSED, int req UNUSED, boolean negated UNUSED,
+              char *opts UNUSED, char *op UNUSED)
+{
+    /* hicolor is same as palette but reversed — stub for now */
+    return 1; /* optn_ok */
+}
+
 static void
 mac_unimplemented(void)
 {
+}
+
+static void
+mac_player_selection(void)
+{
+    /* Player selection handled via mac_askname / macmenu.c */
+}
+
+static void
+mac_resume_nhwindows(void)
+{
+    /* noop on classic Mac OS */
+}
+
+static void
+mac_mark_synch(void)
+{
+    /* noop - could call mac_get_nh_event if needed */
+}
+
+static void
+mac_raw_print(const char *str)
+{
+    if (str && *str) {
+        add_tty_string(_mt_window, str);
+        add_tty_char(_mt_window, CHAR_CR);
+        update_tty(_mt_window);
+    }
+}
+
+static void
+mac_raw_print_bold(const char *str)
+{
+    if (str && *str) {
+        term_start_raw_bold();
+        add_tty_string(_mt_window, str);
+        add_tty_char(_mt_window, CHAR_CR);
+        term_end_raw_bold();
+        update_tty(_mt_window);
+    }
+}
+
+static void
+mac_print_glyph(winid win, coordxy x, coordxy y,
+                const glyph_info *glyphinfo,
+                const glyph_info *bkglyphinfo UNUSED)
+{
+    int ch;
+
+    tty_curs(win, x, y);
+    ch = (glyphinfo && glyphinfo->ttychar) ? glyphinfo->ttychar : ' ';
+    term_start_color(glyphinfo ? glyphinfo->gm.sym.color : NO_COLOR);
+    add_tty_char(_mt_window, (short) ch);
+    term_end_color();
+    /* Keep ttyDisplay cursor in sync — tty_curs skips move if it
+       thinks cursor is already at the right position */
+    wins[win]->curx++;
+    ttyDisplay->curx++;
+    update_tty(_mt_window);
+}
+
+static void
+mac_update_inventory(int arg UNUSED)
+{
+    /* stub - could trigger inventory window redraw */
+}
+
+static win_request_info *
+mac_ctrl_nhwindow(winid win UNUSED, int request UNUSED,
+                  win_request_info *wri UNUSED)
+{
+    return (win_request_info *) 0;
 }
 
 static void
@@ -2142,13 +2274,16 @@ try_key_queue(char *bufp)
 {
     if (keyQueueCount) {
         char ch;
+        int i = 0;
         for (ch = GetFromKeyQueue();; ch = GetFromKeyQueue()) {
             if (ch == CHAR_LF || ch == CHAR_CR)
                 ch = 0;
-            *bufp++ = ch;
+            if (i < QUEUE_LEN)
+                bufp[i++] = ch;
             if (ch == 0)
                 break;
         }
+        bufp[QUEUE_LEN] = 0;
         return 1;
     }
     return 0;
@@ -2164,20 +2299,11 @@ BaseClick(NhWindow *wind, Point pt, UInt32 modifiers)
     pt.h = pt.h / wind->char_width + 1;
     pt.v = pt.v / wind->row_height;
     clicked_mod = (modifiers & shiftKey) ? CLICK_2 : CLICK_1;
-
-    if (strchr(topl_resp, *click_to_cmd(pt.h, pt.v, clicked_mod)))
-        nhbell();
-    else {
-#if 1 //!TARGET_API_MAC_CARBON
-        if (cursor_locked)
-            while (WaitMouseUp())
-                /*SystemTask()*/;
-#endif
-
-        gClickedToMove = TRUE;
-        clicked_pos = pt;
-    }
-    return;
+    clicked_pos = pt;
+    /* Signal a click event. mac_nhgetch checks gClickedToMove to
+       exit its event loop and return 0. The core's readchar() then
+       calls click_to_cmd() with coordinates from mac_nh_poskey(). */
+    gClickedToMove = 1;
 }
 
 static void
@@ -2189,10 +2315,9 @@ BaseCursor(NhWindow *wind, Point pt)
     if (cursor_locked)
         dir = (char *) 0;
     else {
-        dir_bas = (char *) Cmd.dirchars;
-        dir =
-            strchr(dir_bas, *click_to_cmd(pt.h / wind->char_width + 1,
-                                          pt.v / wind->row_height, CLICK_1));
+        /* click_to_cmd returns void in 3.7; simplified cursor handling */
+        dir_bas = (char *) gc.Cmd.dirchars;
+        dir = (char *) 0; /* TODO: restore direction-based cursor */
     }
     ch = GetCursor(dir ? dir - dir_bas + 513 : 512);
     if (ch) {
@@ -2329,7 +2454,7 @@ MsgClick(NhWindow *wind, Point pt)
 {
     int r_idx = 0;
 
-    while (topl_resp[r_idx]) {
+    while (topl_resp[r_idx] && r_idx < 10) {
         Rect frame;
         topl_resp_rect(r_idx, &frame);
         InsetRect(&frame, 1, 1);
@@ -2372,35 +2497,35 @@ MsgUpdate(NhWindow *wind)
     DrawControls(wind->its_window);
     DrawGrowIcon(wind->its_window);
 
-    for (l = 0; topl_resp[l]; l++) {
+    for (l = 0; in_topl_mode() && topl_resp[l] && l < 10; l++) {
+        unsigned char namebuf[16];
         StringPtr name;
-        unsigned char tmp[2];
         FontInfo font;
         Rect frame;
         topl_resp_rect(l, &frame);
         switch (topl_resp[l]) {
         case 'y':
-            name = "\pyes";
+            name = "\x03yes";
             break;
         case 'n':
-            name = "\pno";
+            name = "\x02no";
             break;
         case 'N':
-            name = "\pNone";
+            name = "\x04None";
             break;
         case 'a':
-            name = "\pall";
+            name = "\x03all";
             break;
         case 'q':
-            name = "\pquit";
+            name = "\x04quit";
             break;
         case CHAR_ANY:
-            name = "\pany key";
+            name = "\x07any key";
             break;
         default:
-            tmp[0] = 1;
-            tmp[1] = topl_resp[l];
-            name = tmp;
+            namebuf[0] = 1;
+            namebuf[1] = topl_resp[l];
+            name = namebuf;
             break;
         }
         TextFont(kFontIDGeneva);
@@ -2468,7 +2593,7 @@ MsgUpdate(NhWindow *wind)
     HUnlock(wind->windowText);
 
 #if !TARGET_API_MAC_CARBON
-    r.bottom = r.top + aWin->save_lin * aWin->row_height;
+    r.bottom = r.top + wind->save_lin * wind->row_height;
     r.top = r.bottom - 1;
     FillRect(&r, (void *) &qd.gray);
 #endif
@@ -2781,7 +2906,7 @@ macClickMenu(EventRecord *theEvent, WindowRef theWindow)
     Point p;
     NhWindow *aWin = GetNhWin(theWindow);
 
-    if (aWin->scrollBar && IsControlVisible(aWin->scrollBar)) {
+    if (aWin->scrollBar && ((** aWin->scrollBar).contrlVis != 0)) {
         short code;
         ControlHandle theBar;
 
@@ -2937,7 +3062,7 @@ macClickText(EventRecord *theEvent, WindowPtr theWindow)
 {
     NhWindow *aWin = GetNhWin(theWindow);
 
-    if (aWin->scrollBar && IsControlVisible(aWin->scrollBar)) {
+    if (aWin->scrollBar && ((** aWin->scrollBar).contrlVis != 0)) {
         short code;
         Point p = theEvent->where;
         ControlHandle theBar;
@@ -2986,10 +3111,29 @@ GeneralKey(EventRecord *theEvent, WindowPtr theWindow)
 #if defined(__SC__) || defined(__MRC__)
 #pragma unused(theWindow)
 #endif
-#if 0
-	trans_num_keys (theEvent);
-#endif
-    AddToKeyQueue(topl_resp_key(theEvent->message & 0xff), TRUE);
+    unsigned char ch;
+
+    if (theEvent->modifiers & optionKey) {
+        /* Option acts as Meta/Alt: re-translate the key code without
+           the Option modifier to get the base character, then set
+           the high bit so the core sees it as M-<key>. */
+        unsigned short keyCode = (theEvent->message >> 8) & 0xff;
+        unsigned long state = 0;
+        Handle kchr = GetResource('KCHR', 0);
+        if (kchr) {
+            unsigned long result = KeyTranslate(*kchr, keyCode, &state);
+            ch = (result & 0xff);
+            if (ch)
+                ch |= 0x80;
+            else
+                ch = theEvent->message & 0xff;
+        } else {
+            ch = theEvent->message & 0xff;
+        }
+    } else {
+        ch = theEvent->message & 0xff;
+    }
+    AddToKeyQueue(topl_resp_key(ch), TRUE);
 }
 
 static void
@@ -2998,7 +3142,7 @@ HandleKey(EventRecord *theEvent)
     WindowPtr theWindow = FrontWindow();
 
     if (theEvent->modifiers & cmdKey) {
-        if (theEvent->message & 0xff == '.') {
+        if ((theEvent->message & 0xff) == '.') {
             /* Flush key queue */
             keyQueueCount = keyQueueWrite = keyQueueRead = 0;
             theEvent->message = '\033';
@@ -3011,7 +3155,8 @@ HandleKey(EventRecord *theEvent)
     dispatchKey:
         if (theWindow) {
             int kind = GetWindowKind(theWindow) - WIN_BASE_KIND;
-            winKeyFuncs[kind](theEvent, theWindow);
+            if (kind >= 0 && kind < NUM_FUNCS)
+                winKeyFuncs[kind](theEvent, theWindow);
         } else {
             GeneralKey(theEvent, (WindowPtr) 0);
         }
@@ -3041,10 +3186,12 @@ HandleClick(EventRecord *theEvent)
 #if 1 //!TARGET_API_MAC_CARBON
         if (not_inSelect) {
             int kind = GetWindowKind(theWindow) - WIN_BASE_KIND;
-            winCursorFuncs[kind](theEvent, theWindow, gMouseRgn);
-            SelectWindow(theWindow);
-            SetPortWindowPort(theWindow);
-            winClickFuncs[kind](theEvent, theWindow);
+            if (kind >= 0 && kind < NUM_FUNCS) {
+                winCursorFuncs[kind](theEvent, theWindow, gMouseRgn);
+                SelectWindow(theWindow);
+                SetPortWindowPort(theWindow);
+                winClickFuncs[kind](theEvent, theWindow);
+            }
         } else {
             nhbell();
         }
@@ -3152,8 +3299,11 @@ HandleUpdate(EventRecord *theEvent)
 		break;
 	}
 #else
-    winUpdateFuncs[GetWindowKind(theWindow) - WIN_BASE_KIND](&fake,
-                                                             theWindow);
+    {
+        int kind = GetWindowKind(theWindow) - WIN_BASE_KIND;
+        if (kind >= 0 && kind < NUM_FUNCS)
+            winUpdateFuncs[kind](&fake, theWindow);
+    }
 #endif
 
     if (theWindow == _mt_window && existing_update_region) {
@@ -3247,35 +3397,50 @@ HandleEvent(EventRecord *theEvent)
  *	Interface definition, for windows.c
  */
 
+/* mttymain.c: Mac-specific color functions (renamed to avoid conflict
+   with wintty.c's versions when both are linked) */
+extern void mac_change_color(int, long, int);
+extern void mac_change_background(int);
+extern char *mac_get_color_string(void);
+
 struct window_procs mac_procs = {
-    "mac",
+    WPID(mac),
     WC_COLOR | WC_HILITE_PET | WC_FONT_MAP | WC_FONT_MENU | WC_FONT_MESSAGE
         | WC_FONT_STATUS | WC_FONT_TEXT | WC_FONTSIZ_MAP | WC_FONTSIZ_MENU
         | WC_FONTSIZ_MESSAGE | WC_FONTSIZ_STATUS | WC_FONTSIZ_TEXT,
     0L,
-    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},   /* color availability */
+    {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
     mac_init_nhwindows,
-    mac_unimplemented, /* see macmenu.c:mac_askname() for player selection */
+    mac_player_selection,
     mac_askname, mac_get_nh_event, mac_exit_nhwindows, mac_suspend_nhwindows,
-    mac_unimplemented, mac_create_nhwindow, mac_clear_nhwindow,
+    mac_resume_nhwindows, mac_create_nhwindow, mac_clear_nhwindow,
     mac_display_nhwindow, mac_destroy_nhwindow, mac_curs, mac_putstr,
     genl_putmixed, mac_display_file, mac_start_menu, mac_add_menu,
-    mac_end_menu, mac_select_menu, genl_message_menu, mac_unimplemented,
-    mac_get_nh_event, mac_get_nh_event,
+    mac_end_menu, mac_select_menu, genl_message_menu,
+    mac_mark_synch, mac_get_nh_event, /* wait_synch */
 #ifdef CLIPPING
     mac_cliparound,
 #endif
 #ifdef POSITIONBAR
     donull,
 #endif
-    tty_print_glyph, tty_raw_print, tty_raw_print_bold, mac_nhgetch,
+    mac_print_glyph, mac_raw_print, mac_raw_print_bold, mac_nhgetch,
     mac_nh_poskey, tty_nhbell, mac_doprev_message, mac_yn_function,
     mac_getlin, mac_get_ext_cmd, mac_number_pad, mac_delay_output,
 #ifdef CHANGE_COLOR
-    tty_change_color, tty_change_background, set_tty_font_name,
-    tty_get_color_string,
+    mac_change_color,
+#ifdef MAC
+    mac_change_background, set_tty_font_name,
 #endif
-    genl_outrip, genl_preference_update, genl_can_suspend_no,
+    mac_get_color_string,
+#endif
+    genl_outrip, genl_preference_update,
+    genl_getmsghistory, genl_putmsghistory,
+    genl_status_init, genl_status_finish, genl_status_enablefield,
+    genl_status_update,
+    genl_can_suspend_no,
+    mac_update_inventory,
+    mac_ctrl_nhwindow,
 };
 
 /*macwin.c*/
