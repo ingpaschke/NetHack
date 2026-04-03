@@ -1060,13 +1060,15 @@ aboutNetHack()
     if (theMenubar >= mbarRegular) {
         (void) doversion(); /* is this necessary? */
     } else {
-        unsigned char aboutStr[32] = "\x0cNetHack 3.4.";
+        unsigned char aboutStr[32];
+        char tmp[32];
+        int slen;
 
-        if (PATCHLEVEL > 10) {
-            aboutStr[++aboutStr[0]] = '0' + PATCHLEVEL / 10;
-        }
-
-        aboutStr[++aboutStr[0]] = '0' + (PATCHLEVEL % 10);
+        slen = snprintf(tmp, sizeof tmp, "NetHack %d.%d.%d",
+                        VERSION_MAJOR, VERSION_MINOR, PATCHLEVEL);
+        if (slen > 255) slen = 255;
+        aboutStr[0] = slen;
+        memcpy(&aboutStr[1], tmp, slen);
 
         ParamText(aboutStr, "\x19\rdevteam@www.nethack.org", "\x00", "\x00");
         (void) Alert(alrtMenuNote, (ModalFilterUPP) 0L);

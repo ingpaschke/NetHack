@@ -521,7 +521,7 @@ msmsg(const char *str, ...)
     char buf[1000];
 
     va_start(args, str);
-    vsprintf(buf, str, args);
+    vsnprintf(buf, sizeof buf, str, args);
     va_end(args);
 
     xputs(buf);

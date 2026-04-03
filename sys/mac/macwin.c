@@ -1652,7 +1652,7 @@ filter_scroll_key(const int ch, NhWindow *aWin)
 int
 mac_doprev_message(void)
 {
-    if (WIN_MESSAGE) {
+    if (WIN_MESSAGE != WIN_ERR) {
         NhWindow *winToScroll = &theWindows[WIN_MESSAGE];
         mac_display_nhwindow(WIN_MESSAGE, FALSE);
         SetPortWindowPort(winToScroll->its_window);
@@ -1872,6 +1872,8 @@ mac_putstr(winid win, int attr, const char *str)
             aWin->save_lin = 0;
             aWin->y_curs = 0;
             aWin->y_size = 0;
+            in_putstr--;
+            return;
         }
     }
 
@@ -2073,7 +2075,10 @@ mac_select_menu(winid win, int how, menu_item **selected_list)
         if (c == CHAR_ESC) {
             /* deselect everything */
             aWin->miSelLen = 0;
-            break;
+            HideWindow(theWin);
+            *selected_list = 0;
+            inSelect = WIN_ERR;
+            return -1; /* cancelled */
         } else if (ClosingWindowChar(c)) {
             break;
         } else {
