@@ -2251,13 +2251,16 @@ try_key_queue(char *bufp)
 {
     if (keyQueueCount) {
         char ch;
+        int i = 0;
         for (ch = GetFromKeyQueue();; ch = GetFromKeyQueue()) {
             if (ch == CHAR_LF || ch == CHAR_CR)
                 ch = 0;
-            *bufp++ = ch;
+            if (i < QUEUE_LEN)
+                bufp[i++] = ch;
             if (ch == 0)
                 break;
         }
+        bufp[QUEUE_LEN] = 0;
         return 1;
     }
     return 0;
