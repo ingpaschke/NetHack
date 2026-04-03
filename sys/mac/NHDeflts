@@ -23,8 +23,8 @@ OPTIONS=color
 # Don't make dark corridors look like lit corridors
 OPTIONS=!lit_corridor
 
-# Enable sound and beeps
-OPTIONS=sound,!silent
+# Sound (handled separately in 3.7)
+#OPTIONS=soundlib:macsound
 
 
 ### Start-up and ending ###
@@ -59,10 +59,10 @@ OPTIONS=menustyle:full
 OPTIONS=number_pad
 
 # Pause for --more-- and make it boldface
-OPTIONS=page_wait,standout
+OPTIONS=standout
 
-# Ask for confirmation with the #pray command
-OPTIONS=prayconfirm
+# Paranoid confirmation for dangerous actions
+OPTIONS=paranoid_confirmation:pray quit die attack
 
 # Allow spacebar as rest command
 #OPTIONS=rest_on_space
