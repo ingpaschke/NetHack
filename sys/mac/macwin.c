@@ -704,6 +704,8 @@ SanePositions(void)
         }
     }
 #endif
+    /* Bring the map window to the front */
+    SelectWindow(_mt_window);
     return (0);
 }
 
@@ -3109,10 +3111,29 @@ GeneralKey(EventRecord *theEvent, WindowPtr theWindow)
 #if defined(__SC__) || defined(__MRC__)
 #pragma unused(theWindow)
 #endif
-#if 0
-	trans_num_keys (theEvent);
-#endif
-    AddToKeyQueue(topl_resp_key(theEvent->message & 0xff), TRUE);
+    unsigned char ch;
+
+    if (theEvent->modifiers & optionKey) {
+        /* Option acts as Meta/Alt: re-translate the key code without
+           the Option modifier to get the base character, then set
+           the high bit so the core sees it as M-<key>. */
+        unsigned short keyCode = (theEvent->message >> 8) & 0xff;
+        unsigned long state = 0;
+        Handle kchr = GetResource('KCHR', 0);
+        if (kchr) {
+            unsigned long result = KeyTranslate(*kchr, keyCode, &state);
+            ch = (result & 0xff);
+            if (ch)
+                ch |= 0x80;
+            else
+                ch = theEvent->message & 0xff;
+        } else {
+            ch = theEvent->message & 0xff;
+        }
+    } else {
+        ch = theEvent->message & 0xff;
+    }
+    AddToKeyQueue(topl_resp_key(ch), TRUE);
 }
 
 static void
