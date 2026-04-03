@@ -422,9 +422,30 @@ mac68kpkg: $(GAMEBIN)
 		$(TARGETPFX)NetHack.dsk \
 		"NetHack 3.7"
 	rm $(TARGETPFX)nethack_hfs.img
+	@echo "=== Creating StuffIt archive ==="
+	@rm -rf $(TARGETPFX)_sit_staging
+	@mkdir -p $(TARGETPFX)_sit_staging
+	cp $(TARGETPFX)NetHack $(TARGETPFX)_sit_staging/NetHack
+	cp $(TARGETPFX).rsrc/NetHack $(TARGETPFX)_sit_staging/NetHack.rsrc
+	python3 -c "import struct; name = bytes([7]) + b'NetHack' + b'\x00' * 56; info = b'\x00\x00' + name + b'APPL' + b'nh37' + b'\x00\x00' + b'\x00' * 8 + struct.pack('>I', 20) + struct.pack('>I', 0) + b'\x00' * 8; open('$(TARGETPFX)_sit_staging/NetHack.info', 'wb').write(info)"
+	cp ../dat/nhdat $(TARGETPFX)_sit_staging/nhdat
+	tr '\n' '\r' < ../doc/Guidebook.txt > $(TARGETPFX)_sit_staging/Guidebook
+	tr '\n' '\r' < ../sys/mac/NHDeflts > "$(TARGETPFX)_sit_staging/NetHack Defaults"
+	tr '\n' '\r' < ../dat/license > $(TARGETPFX)_sit_staging/license
+	tr '\n' '\r' < ../dat/symbols > $(TARGETPFX)_sit_staging/symbols
+	@rm -f $(TARGETPFX)NetHack.sit
+	sit -T TEXT -C ttxt -o $(TARGETPFX)NetHack.sit \
+		$(TARGETPFX)_sit_staging/NetHack \
+		$(TARGETPFX)_sit_staging/nhdat \
+		$(TARGETPFX)_sit_staging/Guidebook \
+		"$(TARGETPFX)_sit_staging/NetHack Defaults" \
+		$(TARGETPFX)_sit_staging/license \
+		$(TARGETPFX)_sit_staging/symbols
+	@rm -rf $(TARGETPFX)_sit_staging
 	@echo "=== Done ==="
 	@echo "SCSI image:     $(TARGETPFX)NetHack.img"
 	@echo "Disk Copy 4.2:  $(TARGETPFX)NetHack.dsk"
+	@echo "StuffIt:        $(TARGETPFX)NetHack.sit"
 	@echo "MacBinary:      $(TARGETPFX)NetHack.bin"
 endif  # CROSS_TO_MAC68K
 
