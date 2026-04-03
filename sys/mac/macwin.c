@@ -1824,7 +1824,12 @@ mac_putstr(winid win, int attr, const char *str)
     char *src, *sline, *dst, ch;
 
     if (win < 0 || win >= NUM_MACWINDOWS || !aWin->its_window) {
-        error("putstr: Invalid win %d (Max %d).", win, NUM_MACWINDOWS, attr);
+        /* During early init, WIN_MESSAGE is -1; use raw_print instead */
+        if (win < 0 && str) {
+            raw_print(str);
+            return;
+        }
+        error("putstr: Invalid win %d (Max %d).", win, NUM_MACWINDOWS);
         return;
     }
 
