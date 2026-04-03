@@ -370,8 +370,6 @@ mac68kpkg: $(GAMEBIN)
 	python3 ../sys/mac/tools/append_rsrc.py \
 		$(TARGETPFX).rsrc/NetHack \
 		$(TARGETPFX)resources/NetHack.rsrc.rsrc
-	python3 ../sys/mac/tools/fix_icon_ids.py \
-		$(TARGETPFX).rsrc/NetHack
 	@echo "=== Creating MacBinary ==="
 	python3 ../sys/mac/tools/make_macbin.py \
 		$(TARGETPFX)NetHack \
