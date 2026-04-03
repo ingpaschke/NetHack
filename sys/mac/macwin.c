@@ -1018,6 +1018,17 @@ enter_topl_mode(char *query)
     if (in_topl_mode())
         return;
 
+    /* Clear any leftover button state from a previous prompt */
+    if (topl_resp[0]) {
+        Rect frame;
+        int r_len = strlen(topl_resp);
+        topl_resp_rect(0, &frame);
+        frame.right = (BTN_IND + BTN_W) * r_len + BTN_IND;
+        InvalWindowRect(theWindows[WIN_MESSAGE].its_window, &frame);
+        memset(topl_resp, 0, sizeof topl_resp);
+        topl_def_idx = -1;
+    }
+
     putstr(WIN_MESSAGE, ATR_BOLD, query);
 
     topl_query_len = strlen(query);
