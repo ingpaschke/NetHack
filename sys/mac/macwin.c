@@ -931,15 +931,31 @@ mac_clear_nhwindow(winid win)
             == aWin->y_size - 1) /* if no change since last clear */
             return;              /* don't bother with redraw */
         r.bottom -= SBARHEIGHT;
-        for (l = 0; aWin->y_size > iflags.msg_history;) {
-            const char cr = CHAR_CR;
-            l = Munger(aWin->windowText, l, &cr, 1, nil, 0) + 1;
-            --aWin->y_size;
-        }
-        if (l) {
-            aWin->windowTextLen -= l;
-            BlockMove(*aWin->windowText + l, *aWin->windowText,
-                      aWin->windowTextLen);
+        /* Trim old messages to msg_history limit.  Find the
+           offset past the Nth CR from the start, then discard
+           everything before it with a single BlockMove. */
+        {
+            long off = 0;
+            int lines_to_trim = aWin->y_size - iflags.msg_history;
+            if (lines_to_trim > 0) {
+                long tlen = aWin->windowTextLen;
+                int trimmed = 0;
+                HLock(aWin->windowText);
+                {
+                    char *p = *aWin->windowText;
+                    while (trimmed < lines_to_trim && off < tlen) {
+                        if (p[off] == CHAR_CR)
+                            trimmed++;
+                        off++;
+                    }
+                    if (off > 0 && off <= tlen) {
+                        aWin->windowTextLen -= off;
+                        BlockMove(p + off, p, aWin->windowTextLen);
+                    }
+                }
+                HUnlock(aWin->windowText);
+                aWin->y_size -= trimmed;
+            }
         }
         aWin->last_more_lin = aWin->y_size;
         aWin->save_lin = aWin->y_size;
@@ -1060,6 +1076,7 @@ leave_topl_mode(char *answer)
         ans_len = BUFSZ - 1;
 
     /* remove unprintables from the answer */
+    HLock((*top_line)->hText);
     for (ap = *(*top_line)->hText + topl_query_len, bp = answer; ans_len > 0;
          ans_len--, ap++) {
         if (*ap >= ' ' && *ap < 128) {
@@ -1067,6 +1084,7 @@ leave_topl_mode(char *answer)
         }
     }
     *bp = 0;
+    HUnlock((*top_line)->hText);
 
     if (aWin->windowTextLen
         && (*aWin->windowText)[aWin->windowTextLen - 1] == CHAR_CR) {
@@ -1202,7 +1220,7 @@ topl_set_resp(char *resp, char def)
     if (r_len < r_len1)
         r_len = r_len1;
     topl_resp_rect(0, &frame);
-    frame.right = (BTN_IND + BTN_W) * r_len;
+    frame.right = (BTN_IND + BTN_W) * r_len + BTN_IND;
     InvalWindowRect(theWindows[WIN_MESSAGE].its_window, &frame);
 
     memset(topl_resp, 0, sizeof topl_resp);
@@ -1901,6 +1919,7 @@ mac_putstr(winid win, int attr, const char *str)
     }
 
     len = aWin->windowTextLen;
+    HLock(aWin->windowText);
     dst = *(aWin->windowText) + len;
     sline = src = (char *) str;
     maxWidth = newWidth = 0;
@@ -1936,6 +1955,7 @@ mac_putstr(winid win, int attr, const char *str)
         aWin->y_size++;
         aWin->x_curs = 0;
     }
+    HUnlock(aWin->windowText);
 
     if (win == WIN_MESSAGE) {
         short min = aWin->y_size - (r.bottom - r.top) / aWin->row_height;
@@ -2454,7 +2474,7 @@ MsgClick(NhWindow *wind, Point pt)
 {
     int r_idx = 0;
 
-    while (topl_resp[r_idx] && r_idx < 10) {
+    while (topl_resp[r_idx] && topl_resp[r_idx] != '\033' && r_idx < 10) {
         Rect frame;
         topl_resp_rect(r_idx, &frame);
         InsetRect(&frame, 1, 1);
@@ -2497,49 +2517,8 @@ MsgUpdate(NhWindow *wind)
     DrawControls(wind->its_window);
     DrawGrowIcon(wind->its_window);
 
-    for (l = 0; in_topl_mode() && topl_resp[l] && l < 10; l++) {
-        unsigned char namebuf[16];
-        StringPtr name;
-        FontInfo font;
-        Rect frame;
-        topl_resp_rect(l, &frame);
-        switch (topl_resp[l]) {
-        case 'y':
-            name = "\x03yes";
-            break;
-        case 'n':
-            name = "\x02no";
-            break;
-        case 'N':
-            name = "\x04None";
-            break;
-        case 'a':
-            name = "\x03all";
-            break;
-        case 'q':
-            name = "\x04quit";
-            break;
-        case CHAR_ANY:
-            name = "\x07any key";
-            break;
-        default:
-            namebuf[0] = 1;
-            namebuf[1] = topl_resp[l];
-            name = namebuf;
-            break;
-        }
-        TextFont(kFontIDGeneva);
-        TextSize(9);
-        GetFontInfo(&font);
-        MoveTo((frame.left + frame.right - StringWidth(name)) / 2,
-               (frame.top + frame.bottom + font.ascent - font.descent
-                - font.leading - 1) / 2);
-        DrawString(name);
-        PenNormal();
-        if (l == topl_def_idx)
-            PenSize(2, 2);
-        FrameRoundRect(&frame, 4, 4);
-    }
+    /* Buttons are drawn at the end of MsgUpdate, after TETextBox,
+       so they can't be overwritten by message text. */
 
     r.right -= SBARWIDTH;
     r.bottom -= SBARHEIGHT;
@@ -2568,6 +2547,7 @@ MsgUpdate(NhWindow *wind)
 	}
 #endif
 
+    SetClip(clip); /* install clip BEFORE any text drawing */
     if (in_topl_mode()) {
         RgnHandle topl_rgn = NewRgn();
         Rect topl_r = r;
@@ -2581,15 +2561,20 @@ MsgUpdate(NhWindow *wind)
         RectRgn(topl_rgn, &topl_r);
         DiffRgn(clip, topl_rgn, clip);
         DisposeRgn(topl_rgn);
-        SetClip(clip);
+        SetClip(clip); /* update clip to exclude topl area from TETextBox */
     }
-
     DisposeRgn(clip);
 
     TextFont(wind->font_number);
     TextSize(wind->font_size);
     HLock(wind->windowText);
-    TETextBox(*wind->windowText, wind->windowTextLen, &r, teJustLeft);
+    {
+        long hsize = GetHandleSize(wind->windowText);
+        long tlen = wind->windowTextLen;
+        if (tlen > hsize)
+            tlen = hsize;
+        TETextBox(*wind->windowText, tlen, &r, teJustLeft);
+    }
     HUnlock(wind->windowText);
 
 #if !TARGET_API_MAC_CARBON
@@ -2597,6 +2582,42 @@ MsgUpdate(NhWindow *wind)
     r.top = r.bottom - 1;
     FillRect(&r, (void *) &qd.gray);
 #endif
+
+    /* Draw buttons LAST so TETextBox can't overwrite them */
+    if (in_topl_mode() && topl_resp[0]) {
+        SetClip(org_clip); /* restore full clip for button area */
+        for (l = 0; topl_resp[l] && topl_resp[l] != '\033' && l < 10; l++) {
+            unsigned char namebuf[16];
+            StringPtr name;
+            FontInfo font;
+            Rect frame;
+            topl_resp_rect(l, &frame);
+            switch (topl_resp[l]) {
+            case 'y':  name = "\x03yes"; break;
+            case 'n':  name = "\x02no"; break;
+            case 'N':  name = "\x04None"; break;
+            case 'a':  name = "\x03all"; break;
+            case 'q':  name = "\x04quit"; break;
+            case CHAR_ANY: name = "\x07any key"; break;
+            default:
+                namebuf[0] = 1;
+                namebuf[1] = topl_resp[l];
+                name = namebuf;
+                break;
+            }
+            TextFont(kFontIDGeneva);
+            TextSize(9);
+            GetFontInfo(&font);
+            MoveTo((frame.left + frame.right - StringWidth(name)) / 2,
+                   (frame.top + frame.bottom + font.ascent - font.descent
+                    - font.leading - 1) / 2);
+            DrawString(name);
+            PenNormal();
+            if (l == topl_def_idx)
+                PenSize(2, 2);
+            FrameRoundRect(&frame, 4, 4);
+        }
+    }
 
     SetClip(org_clip);
     DisposeRgn(org_clip);
@@ -2809,6 +2830,8 @@ MenwUpdate(NhWindow *wind)
     MacMHMenuItem *mi;
 
     TextUpdate(wind);
+    if (!wind->menuInfo || !wind->menuSelected || wind->miSelLen <= 0)
+        return;
     HLock((Handle) wind->menuInfo);
     HLock((Handle) wind->menuSelected);
     for (i = 0; i < wind->miSelLen; i++) {
@@ -2985,7 +3008,13 @@ TextUpdate(NhWindow *wind)
     r.top -= wind->scrollPos * wind->row_height;
     r.right -= SBARWIDTH;
     HLock(wind->windowText);
-    TETextBox(*wind->windowText, wind->windowTextLen, &r, teJustLeft);
+    {
+        long hsize = GetHandleSize(wind->windowText);
+        long tlen = wind->windowTextLen;
+        if (tlen > hsize)
+            tlen = hsize;
+        TETextBox(*wind->windowText, tlen, &r, teJustLeft);
+    }
     HUnlock(wind->windowText);
     if (h) {
         SetClip(h);
@@ -3272,6 +3301,12 @@ HandleUpdate(EventRecord *theEvent)
     char existing_update_region = FALSE;
     Rect rect;
 
+    if (!aWin && theWindow != _mt_window) {
+        BeginUpdate(theWindow);
+        EndUpdate(theWindow);
+        return;
+    }
+
     if (theWindow == _mt_window) {
         existing_update_region =
             (get_invalid_region(theWindow, &rect) == noErr);
@@ -3309,7 +3344,8 @@ HandleUpdate(EventRecord *theEvent)
     if (theWindow == _mt_window && existing_update_region) {
         set_invalid_region(theWindow, &rect);
     }
-    aWin->drawn = TRUE;
+    if (aWin)
+        aWin->drawn = TRUE;
     EndUpdate(theWindow);
 }
 
