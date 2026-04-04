@@ -411,7 +411,6 @@ mac68kpkg: $(GAMEBIN)
 	tr '\n' '\r' < ../sys/mac/NHDeflts > "$(TARGETPFX)_sit_staging/NetHack Defaults"
 	tr '\n' '\r' < ../dat/license > $(TARGETPFX)_sit_staging/license
 	tr '\n' '\r' < ../dat/symbols > $(TARGETPFX)_sit_staging/symbols
-	touch $(TARGETPFX)_sit_staging/record
 	tr '\n' '\r' < ../sys/mac/ReadMe.txt > "$(TARGETPFX)_sit_staging/Read Me"
 	@rm -f $(TARGETPFX)NetHack.sit
 	sit -T TEXT -C ttxt -o $(TARGETPFX)NetHack.sit \
@@ -421,7 +420,6 @@ mac68kpkg: $(GAMEBIN)
 		"$(TARGETPFX)_sit_staging/NetHack Defaults" \
 		$(TARGETPFX)_sit_staging/license \
 		$(TARGETPFX)_sit_staging/symbols \
-		$(TARGETPFX)_sit_staging/record \
 		"$(TARGETPFX)_sit_staging/Read Me"
 	@rm -rf $(TARGETPFX)_sit_staging
 	@echo "=== Done ==="
