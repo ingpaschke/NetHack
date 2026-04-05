@@ -9,6 +9,7 @@
 #include "dlb.h"
 #include "macwin.h"
 #include "mactty.h"
+#include "maccompat.h"
 
 #if !defined(__GNUC__)
 #include <OSUtils.h>
@@ -38,16 +39,6 @@ main(void)
     NHFILE *nhfp;
     int argc = 1;
     boolean resuming = FALSE; /* assume new game */
-
-    /* Mark the DATA resource purgeable so it isn't cached between launches.
-       The Retro68 runtime has already copied it into the app's globals.
-       Without this, relaunching without rebooting reuses the dirty
-       DATA from the first run, causing a bus error. */
-    {
-        Handle h = Get1Resource('DATA', 0);
-        if (h)
-            HPurge(h);
-    }
 
     early_init(argc, (char **) 0);
     choose_windows("mac");
