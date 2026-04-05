@@ -11,7 +11,6 @@
 #include "mactty.h"
 #include "maccompat.h"
 
-#if !defined(__GNUC__)
 #include <OSUtils.h>
 #include <Files.h>
 #include <Types.h>
@@ -20,7 +19,6 @@
 #include <ToolUtils.h>
 #include <Resources.h>
 #include <Errors.h>
-#endif
 
 #ifndef O_RDONLY
 #include <fcntl.h>
