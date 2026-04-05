@@ -373,6 +373,16 @@ InitMac(void)
     for (i = 0; i < 5; i++)
         MoreMasters();
 
+    /* Zero the QD globals area below A5.  The Segment Loader does not
+       zero the A5 world between launches.  ROM Color QuickDraw may
+       read from the traditional A5-relative offsets (A5-4 to A5-206)
+       even though InitGraf is told to use our qd struct elsewhere.
+       Without this, relaunch crashes in _MakeRGBPat from NewDialog
+       due to stale pointers in the uninitialized A5-relative area. */
+    {
+        char *a5 = (char *) SetCurrentA5();
+        memset(a5 - 206, 0, 206);
+    }
     InitGraf(&qd.thePort);
     InitFonts();
     InitWindows();
@@ -2229,7 +2239,7 @@ mac_mark_synch(void)
 static void
 mac_raw_print(const char *str)
 {
-    if (str && *str) {
+    if (str && *str && _mt_window && iflags.window_inited) {
         add_tty_string(_mt_window, str);
         add_tty_char(_mt_window, CHAR_CR);
         update_tty(_mt_window);
@@ -2239,7 +2249,7 @@ mac_raw_print(const char *str)
 static void
 mac_raw_print_bold(const char *str)
 {
-    if (str && *str) {
+    if (str && *str && _mt_window && iflags.window_inited) {
         term_start_raw_bold();
         add_tty_string(_mt_window, str);
         add_tty_char(_mt_window, CHAR_CR);
