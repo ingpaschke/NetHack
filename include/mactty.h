@@ -45,7 +45,11 @@
 #undef green
 #undef blue
 #if 1 /*!TARGET_API_MAC_CARBON*/
-#include <windows.h>
+#include <Windows.h>
+#endif
+
+#ifdef CROSS_TO_MAC68K
+#include "maccompat.h"
 #endif
 
 /*

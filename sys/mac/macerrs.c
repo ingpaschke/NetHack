@@ -18,16 +18,33 @@
 void
 error(const char *format, ...)
 {
-    Str255 buf;
+    char cbuf[512];
+    int len;
     va_list ap;
 
     va_start(ap, format);
-    vsprintf((char *) buf, format, ap);
+    vsnprintf(cbuf, sizeof cbuf, format, ap);
     va_end(ap);
+    len = strlen(cbuf);
 
-    C2P((char *) buf, buf);
-    ParamText(buf, (StringPtr) "", (StringPtr) "", (StringPtr) "");
-    Alert(128, (ModalFilterUPP) NULL);
+    /* Show error and wait for click before exiting */
+    {
+        WindowPtr w;
+        Rect r = {80, 40, 200, 472};
+
+        w = NewWindow(NULL, &r, "\pNetHack Error", true,
+                      dBoxProc, (WindowPtr)-1, false, 0);
+        if (w) {
+            SetPortWindowPort(w);
+            MoveTo(10, 30);
+            if (len > 0)
+                DrawText(cbuf, 0, len);
+            MoveTo(10, 60);
+            DrawString("\pClick to exit.");
+            while (!Button())
+                ;
+        }
+    }
     ExitToShell();
 }
 

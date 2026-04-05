@@ -10,8 +10,12 @@
 #undef blue
 
 #ifndef __MACH__
-#include <windows.h>
-#include <dialogs.h>
+#include <Windows.h>
+#include <Dialogs.h>
+#endif
+
+#ifdef CROSS_TO_MAC68K
+#include "maccompat.h"
 #endif
 
 /* more headers */
@@ -159,7 +163,7 @@ extern winid BASE_WINDOW, WIN_MAP, WIN_MESSAGE, WIN_INVEN, WIN_STATUS;
 
 /* ### dprintf.c ### */
 
-extern void dprintf(char *, ...);
+extern void mac_dprintf(char *, ...);
 
 /* ### maccurs.c ### */
 
@@ -221,22 +225,22 @@ E void mac_get_nh_event(void);
 E void mac_exit_nhwindows(const char *);
 E winid mac_create_nhwindow(int);
 E void mac_clear_nhwindow(winid);
-E void mac_display_nhwindow(winid, BOOLEAN_P);
+E void mac_display_nhwindow(winid, boolean);
 E void mac_destroy_nhwindow(winid);
 E void mac_curs(winid, int, int);
 E void mac_putstr(winid, int, const char *);
-E void mac_start_menu(winid, unsigned long mbehavior);
-E void mac_add_menu(winid, int, const anything *, CHAR_P, CHAR_P, int,
-                    const char *, unsigned int);
+E void mac_start_menu(winid, unsigned long);
+E void mac_add_menu(winid, const glyph_info *, const anything *, char, char,
+                    int, int, const char *, unsigned int);
 E void mac_end_menu(winid, const char *);
 E int mac_select_menu(winid, int, menu_item **);
 #ifdef CLIPPING
 E void mac_cliparound(int, int);
 #endif
 E int mac_nhgetch(void);
-E int mac_nh_poskey(int *, int *, int *);
+E int mac_nh_poskey(coordxy *, coordxy *, int *);
 E int mac_doprev_message(void);
-E char mac_yn_function(const char *, const char *, CHAR_P);
+E char mac_yn_function(const char *, const char *, char);
 E void mac_getlin(const char *, char *);
 E int mac_get_ext_cmd(void);
 E void mac_number_pad(int);

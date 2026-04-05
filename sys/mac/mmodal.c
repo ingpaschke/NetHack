@@ -4,12 +4,18 @@
 
 #if 1 /*!TARGET_API_MAC_CARBON*/
 #include <Dialogs.h>
+#ifndef CROSS_TO_MAC68K
 #include <ControlDefinitions.h>
+#endif
 #else
 #include <Carbon/Carbon.h>
 #endif
 
 #include "macpopup.h"
+
+#ifndef kControlButtonPart
+#define kControlButtonPart 10
+#endif
 
 /* Flash a dialog button when its accelerator key is pressed */
 void
