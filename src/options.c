@@ -7156,8 +7156,13 @@ initoptions_init(void)
     }
 
     /* make any symbol parsing quicker */
+#ifndef MAC
+    /* Skip on classic Mac OS — fill_glyphid_cache iterates thousands of
+       glyphs with Sprintf + hash insertions, taking ~2 minutes on 68030.
+       The cache is only needed for glyph name lookups in config files. */
     if (!glyphid_cache_status())
         fill_glyphid_cache();
+#endif
 
     /* set up the command parsing */
     reset_commands(TRUE); /* init */
@@ -7309,8 +7314,8 @@ initoptions_finish(void)
 {
     nhsym sym = 0;
     char *opts = 0, *xtraopts = 0;
-#ifndef MAC
     const char *envname, *namesrc, *nameval;
+#ifndef MAC
 
     /* getenv() instead of nhgetenv(): let total length of options be long;
        parseoptions() will check each individually */

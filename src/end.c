@@ -1676,9 +1676,10 @@ nh_terminate(int status)
     program_state.in_moveloop = 0; /* won't be returning to normal play */
 
     l_nhcore_call(NHCORE_GAME_EXIT);
-#ifdef MAC
-    getreturn("to exit");
-#endif
+    /* Note: MAC formerly called getreturn("to exit") here, but that
+       runs an event loop after exit_nhwindows() has shut down the
+       windowing system, causing crashes from stale window state.
+       The tombstone display already provides a natural pause. */
     /* don't bother to try to release memory if we're in panic mode, to
        avoid trouble in case that happens to be due to memory problems */
     if (!program_state.panicking) {
