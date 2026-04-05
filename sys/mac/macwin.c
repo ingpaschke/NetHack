@@ -17,10 +17,7 @@
 #include <AppleEvents.h>
 #include <Gestalt.h>
 #include <TextUtils.h>
-#ifndef CROSS_TO_MAC68K
 #include <DiskInit.h>
-#include <ControlDefinitions.h>
-#endif
 #endif
 
 /**********************************************************************
