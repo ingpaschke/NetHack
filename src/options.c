@@ -7086,19 +7086,6 @@ initoptions(void)
      */
     if (go.opt_phase != builtin_opt)
          initoptions_init();
-
-    /*
-     * Call each option function with an init flag and give it a chance
-     * to make any preparations that it might require.  We do this
-     * whether or not the option itself is ever specified; that's
-     * irrelevant for the init call.  Doing this allows the prep code for
-     * option settings to remain adjacent to, and in the same function as,
-     * the code that processes those options.
-     */
-    for (i = 0; i < OPTCOUNT; ++i) {
-        if (allopt[i].optfn)
-            (*allopt[i].optfn)(i, do_init, FALSE, empty_optstr, empty_optstr);
-    }
 #ifdef SYSCF
 /* someday there may be other SYSCF alternatives besides text file */
 #ifdef SYSCF_FILE
@@ -7340,11 +7327,7 @@ initoptions_init(void)
  */
 void
 initoptions_finish(void)
-{
-    nhsym sym = 0;
-    char *opts = 0, *xtraopts = 0;
-    const char *envname, *namesrc, *nameval;
-#ifndef MAC
+{   nhsym sym = 0;
 
     rcfile();
 
