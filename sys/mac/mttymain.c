@@ -518,7 +518,7 @@ void
 msmsg(const char *str, ...)
 {
     va_list args;
-    char buf[1000];
+    char buf[BUFSZ];
 
     va_start(args, str);
     vsnprintf(buf, sizeof buf, str, args);

@@ -146,6 +146,7 @@ copy_file(short src_vol, long src_dir, short dst_vol, long dst_dir,
                 err = MemError();
                 if (err == noErr) {
                     long buf_size = count;
+                    HLock(buf);
                     while (file_len > 0) {
                         count = (file_len > buf_size) ? buf_size : file_len;
                         OSErr rd_err = FSRead(src_ref, &count, *buf);
@@ -162,6 +163,7 @@ copy_file(short src_vol, long src_dir, short dst_vol, long dst_dir,
                         }
                         file_len -= count;
                     }
+                    HUnlock(buf);
                     if (err == noErr && file_len == 0)
                         err = noErr;
 
@@ -191,8 +193,8 @@ process_openfile(short src_vol, long src_dir, Str255 fName, OSType ftype)
     if (ftype != SAVE_TYPE)
         return; /* only deal with save files */
 
-    if (src_vol != theDirs.dataRefNum
-        || src_dir != theDirs.dataDirID
+    if ((src_vol != theDirs.dataRefNum
+         || src_dir != theDirs.dataDirID)
                && CatMove(src_vol, src_dir, fName, theDirs.dataDirID, "\x01:")
                       != noErr) {
         HCreate(theDirs.dataRefNum, theDirs.dataDirID, fName, MAC_CREATOR,
@@ -251,27 +253,6 @@ finder_file_request(void)
             }
         }
     }
-#if 0
-#ifdef MAC68K
-	else {
-		short finder_msg, file_count;
-		CountAppFiles(&finder_msg, &file_count);
-		if (finder_msg == appOpen && file_count == 1) {
-			OSErr	err;
-			AppFile src;
-			FSSpec filespec;
-
-			GetAppFiles(1, &src);
-			err = FSMakeFSSpec(src.vRefNum, 0, src.fName, &filespec);
-			if (err == noErr && src.fType == SAVE_TYPE) {
-				process_openfile (filespec.vRefNum, filespec.parID, filespec.name, src.fType);
-				if (macFlags.gotOpen)
-					ClrAppFiles(1);
-			}
-		}
-	}
-#endif /* MAC68K */
-#endif /* 0 */
 }
 
 /* validate wizard mode if player has requested access to it */

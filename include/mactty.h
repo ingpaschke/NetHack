@@ -76,8 +76,7 @@
 #define CHAR_BLANK ((char) 32)
 #define CHAR_DELETE ((char) 127)
 
-extern char game_active; /* flag to window rendering routines
-                            not to use ppat */
+/* game_active replaced by iflags.window_inited */
 /*
  * If you want some fancy operations that not a normal TTY device normally
  * supports, use EXTENDED_SUPPORT. For frames, area erases and area scrolls,

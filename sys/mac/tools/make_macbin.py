@@ -90,7 +90,7 @@ def main():
     rsrc_path = sys.argv[2]
     out_path = sys.argv[3]
     ftype = sys.argv[4] if len(sys.argv) > 4 else 'APPL'
-    creator = sys.argv[5] if len(sys.argv) > 5 else 'nh31'
+    creator = sys.argv[5] if len(sys.argv) > 5 else 'nh37'
 
     with open(data_path, 'rb') as f:
         data_fork = f.read()
