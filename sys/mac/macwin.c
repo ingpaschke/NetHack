@@ -1582,7 +1582,7 @@ static pascal void
 MoveScrollBar(ControlHandle theBar, short part)
 {
 #if 1 //!TARGET_API_MAC_CARBON
-    EventRecord fake;
+    EventRecord fake = {0};
 #endif
     Rect r;
     RgnHandle rgn;
@@ -1624,8 +1624,10 @@ MoveScrollBar(ControlHandle theBar, short part)
     if (winToScroll == theWindows + WIN_MESSAGE)
         r.bottom -= SBARHEIGHT;
     rgn = NewRgn();
+    if (!rgn)
+        return;
     ScrollRect(&r, 0, -amtToScroll * winToScroll->row_height, rgn);
-    if (rgn) {
+    {
         InvalWindowRgn(theWin, rgn);
         BeginUpdate(theWin);
     }
@@ -1648,10 +1650,8 @@ MoveScrollBar(ControlHandle theBar, short part)
             winUpdateFuncs[kind](&fake, theWin);
     }
 #endif
-    if (rgn) {
-        EndUpdate(theWin);
-        DisposeRgn(rgn);
-    }
+    EndUpdate(theWin);
+    DisposeRgn(rgn);
 }
 
 #if 1 //!TARGET_API_MAC_CARBON
@@ -2039,6 +2039,8 @@ mac_add_menu(winid win, const glyph_info *glyphinfo UNUSED,
             aWin->menuSelected =
                 (short **) NewHandle(sizeof(short) * kMenuSizeBump);
             if (!aWin->menuSelected) {
+                DisposeHandle((Handle) aWin->menuInfo);
+                aWin->menuInfo = NULL;
                 error("Can't alloc menu select handle");
                 return;
             }
@@ -2171,8 +2173,10 @@ mac_display_file(const char *name, boolean complain)
     dlb *fp = dlb_fopen(name, "r");
 
     if (fp) {
-        long l = dlb_fseek(fp, 0, SEEK_END);
-        (void) dlb_fseek(fp, 0, 0L);
+        long l;
+        (void) dlb_fseek(fp, 0, SEEK_END);
+        l = dlb_ftell(fp);
+        (void) dlb_fseek(fp, 0, SEEK_SET);
         buf = NewPtr(l + 1);
         if (buf) {
             l = dlb_fread(buf, 1, l, fp);
@@ -2184,7 +2188,8 @@ mac_display_file(const char *name, boolean complain)
                         error("Cannot make window.");
                 } else {
                     putstr(win, 0, buf);
-                    display_nhwindow(win, FALSE);
+                    display_nhwindow(win, TRUE);
+                    destroy_nhwindow(win);
                 }
             }
             DisposePtr(buf);
@@ -2517,6 +2522,11 @@ MsgUpdate(NhWindow *wind)
     Rect r;
     int l;
 
+    if (!org_clip || !clip) {
+        if (org_clip) DisposeRgn(org_clip);
+        if (clip) DisposeRgn(clip);
+        return;
+    }
     GetClip(org_clip);
     GetWindowBounds(wind->its_window, kWindowContentRgn, &r);
     OffsetRect(&r, -r.left, -r.top);
@@ -3302,7 +3312,7 @@ HandleUpdate(EventRecord *theEvent)
     NhWindow *aWin = GetNhWin(theWindow);
     Rect r;
 #if 1 //!TARGET_API_MAC_CARBON
-    EventRecord fake;
+    EventRecord fake = {0};
 #endif
 
     char existing_update_region = FALSE;
@@ -3431,6 +3441,7 @@ HandleEvent(EventRecord *theEvent)
 #endif
     case kHighLevelEvent:
         AEProcessAppleEvent(theEvent);
+        break;
     default:
         break;
     }

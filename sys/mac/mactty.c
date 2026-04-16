@@ -1003,6 +1003,8 @@ scroll_tty(WindowPtr window, short delta_x, short delta_y)
     s_err = update_tty(window);
 
     rgn = NewRgn();
+    if (!rgn)
+        return general_failure;
 
     select_offscreen_port(record);
     ScrollRect(&(record->its_bits.bounds), -delta_x * record->char_width,
