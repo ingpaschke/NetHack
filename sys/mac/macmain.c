@@ -269,4 +269,19 @@ authorize_explore_mode(void)
     return TRUE;
 }
 
+void
+get_nhuuid(void)
+{
+    /* classic Mac OS 68k has no native UUID source; leave empty */
+}
+
+void
+free_nhuuid(void)
+{
+    int i;
+
+    for (i = 0; i < SIZE(svn.nhuuid); i++)
+        svn.nhuuid[i] = 0;
+}
+
 /*macmain.c*/
