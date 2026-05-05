@@ -1,4 +1,4 @@
-/* NetHack 3.6	mactty.h	$NHDT-Date: 1596498543 2020/08/03 23:49:03 $  $NHDT-Branch: NetHack-3.7 $:$NHDT-Revision: 1.14 $ */
+/* NetHack 3.7	mactty.h	$NHDT-Date: 1596498543 2020/08/03 23:49:03 $  $NHDT-Branch: NetHack-3.7 $:$NHDT-Revision: 1.14 $ */
 /* Copyright (c) Jon W{tte 1993.                                        */
 /* NetHack may be freely redistributed.  See license for details.       */
 
@@ -45,7 +45,11 @@
 #undef green
 #undef blue
 #if 1 /*!TARGET_API_MAC_CARBON*/
-#include <windows.h>
+#include <Windows.h>
+#endif
+
+#ifdef CROSS_TO_MAC68K
+#include "maccompat.h"
 #endif
 
 /*
@@ -72,8 +76,7 @@
 #define CHAR_BLANK ((char) 32)
 #define CHAR_DELETE ((char) 127)
 
-extern char game_active; /* flag to window rendering routines
-                            not to use ppat */
+/* game_active replaced by iflags.window_inited */
 /*
  * If you want some fancy operations that not a normal TTY device normally
  * supports, use EXTENDED_SUPPORT. For frames, area erases and area scrolls,

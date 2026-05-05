@@ -22,7 +22,8 @@ void
 getlock(void)
 {
     int fd;
-    int pid = getpid(); /* Process ID */
+    int pid = getpid(); /* always 1 on classic Mac OS — lock file
+                           only prevents concurrent opens, not crash detection */
 
     Sprintf(gl.lock, "%d%s", getuid(), svp.plname);
     set_levelfile_name(gl.lock, 0);
@@ -37,4 +38,14 @@ getlock(void)
         panic("Disk locked?");
     }
     close(fd);
+}
+
+unsigned long
+sys_random_seed(void)
+{
+    unsigned long seed;
+
+    seed = (unsigned long) getnow();
+    seed ^= (unsigned long) getpid() << 16;
+    return seed;
 }

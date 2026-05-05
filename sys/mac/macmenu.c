@@ -179,12 +179,12 @@ enum { bttnMenuAlertNo = 1, bttnMenuAlertYes };
 
 /******** Globals ********/
 static unsigned char *menuErrStr[err_Menu_total] = {
-    "\pAbort: Bad \'MNU#\' resource!", /* errGetMenuList */
-    "\pAbort: Bad \'MENU\' resource!", /* errGetMenu */
-    "\pAbort: Bad \'DLOG\' resource!", /* errGetANDlogTemplate */
-    "\pAbort: Bad \'DITL\' resource!", /* errGetANDlogItems */
-    "\pAbort: Bad Dialog Allocation!", /* errGetANDialog */
-    "\pAbort: Bad Menu Allocation!",   /* errANNewMenu */
+    "\x1dAbort: Bad \'MNU#\' resource!", /* errGetMenuList */
+    "\x1dAbort: Bad \'MENU\' resource!", /* errGetMenu */
+    "\x1dAbort: Bad \'DLOG\' resource!", /* errGetANDlogTemplate */
+    "\x1dAbort: Bad \'DITL\' resource!", /* errGetANDlogItems */
+    "\x1dAbort: Bad Dialog Allocation!", /* errGetANDialog */
+    "\x1bAbort: Bad Menu Allocation!",   /* errANNewMenu */
 };
 static menuListPtr pMenuList[2];
 static short theMenubar = mbarDA; /* force initial update */
@@ -538,8 +538,8 @@ mac_askname()
     SelectDialogItemText(askdialog, RSRC_ASK_NAME, 0, 32767);
 
     /* Initialize the role popup menu */
-    if (!(askmenu[RSRC_ASK_ROLE] = NewMenu(RSRC_ASK_ROLE, "\p")))
-        fatal("\pCannot create role menu");
+    if (!(askmenu[RSRC_ASK_ROLE] = NewMenu(RSRC_ASK_ROLE, "\x00")))
+        fatal("\x17Cannot create role menu");
     for (i = 0; roles[i].name.m; i++) {
         ask_restring(roles[i].name.m, str);
         AppendMenu(askmenu[RSRC_ASK_ROLE], str);
@@ -552,8 +552,8 @@ mac_askname()
         currrole = randrole(FALSE);
 
     /* Initialize the race popup menu */
-    if (!(askmenu[RSRC_ASK_RACE] = NewMenu(RSRC_ASK_RACE, "\p")))
-        fatal("\pCannot create race menu");
+    if (!(askmenu[RSRC_ASK_RACE] = NewMenu(RSRC_ASK_RACE, "\x00")))
+        fatal("\x17Cannot create race menu");
     for (i = 0; races[i].noun; i++) {
         ask_restring(races[i].noun, str);
         AppendMenu(askmenu[RSRC_ASK_RACE], str);
@@ -565,8 +565,8 @@ mac_askname()
         currrace = randrace(currrole);
 
     /* Initialize the gender popup menu */
-    if (!(askmenu[RSRC_ASK_GEND] = NewMenu(RSRC_ASK_GEND, "\p")))
-        fatal("\pCannot create gender menu");
+    if (!(askmenu[RSRC_ASK_GEND] = NewMenu(RSRC_ASK_GEND, "\x00")))
+        fatal("\x19Cannot create gender menu");
     for (i = 0; i < ROLE_GENDERS; i++) {
         ask_restring(genders[i].adj, str);
         AppendMenu(askmenu[RSRC_ASK_GEND], str);
@@ -580,8 +580,8 @@ mac_askname()
         currgend = randgend(currrole, currrace);
 
     /* Initialize the alignment popup menu */
-    if (!(askmenu[RSRC_ASK_ALIGN] = NewMenu(RSRC_ASK_ALIGN, "\p")))
-        fatal("\pCannot create alignment menu");
+    if (!(askmenu[RSRC_ASK_ALIGN] = NewMenu(RSRC_ASK_ALIGN, "\x00")))
+        fatal("\x1cCannot create alignment menu");
     for (i = 0; i < ROLE_ALIGNS; i++) {
         ask_restring(aligns[i].adj, str);
         AppendMenu(askmenu[RSRC_ASK_ALIGN], str);
@@ -593,11 +593,11 @@ mac_askname()
         curralign = randalign(currrole, currrace);
 
     /* Initialize the mode popup menu */
-    if (!(askmenu[RSRC_ASK_MODE] = NewMenu(RSRC_ASK_MODE, "\p")))
-        fatal("\pCannot create mode menu");
-    AppendMenu(askmenu[RSRC_ASK_MODE], "\pNormal");
-    AppendMenu(askmenu[RSRC_ASK_MODE], "\pExplore");
-    AppendMenu(askmenu[RSRC_ASK_MODE], "\pDebug");
+    if (!(askmenu[RSRC_ASK_MODE] = NewMenu(RSRC_ASK_MODE, "\x00")))
+        fatal("\x17Cannot create mode menu");
+    AppendMenu(askmenu[RSRC_ASK_MODE], "\x06Normal");
+    AppendMenu(askmenu[RSRC_ASK_MODE], "\x07Explore");
+    AppendMenu(askmenu[RSRC_ASK_MODE], "\x05Debug");
     InsertMenu(askmenu[RSRC_ASK_MODE], hierMenu);
     currmode = 0;
 
@@ -827,7 +827,7 @@ menuError(short menuErr)
     for (i = 0; i < beepMenuAlertErr; i++)
         SysBeep(3);
 
-    ParamText(menuErrStr[menuErr], "\p", "\p", "\p");
+    ParamText(menuErrStr[menuErr], "\x00", "\x00", "\x00");
     (void) Alert(alrtMenuNote, (ModalFilterUPP) 0L);
 
     ExitToShell();
@@ -907,7 +907,7 @@ AdjustMenus(short dimMenubar)
         if (kAdjustWizardMenu) {
             kAdjustWizardMenu = 0;
 
-            SetMenuItemText(MHND_FILE, menuFilePlayMode, "\pDebug");
+            SetMenuItemText(MHND_FILE, menuFilePlayMode, "\x05Debug");
         }
     }
 
@@ -917,7 +917,7 @@ AdjustMenus(short dimMenubar)
         if (kAdjustWizardMenu) {
             kAdjustWizardMenu = 0;
 
-            SetMenuItemText(MHND_FILE, menuFilePlayMode, "\pExplore");
+            SetMenuItemText(MHND_FILE, menuFilePlayMode, "\x07Explore");
 
             for (i = CountMenuItems(MHND_WIZ); i > menuWizardAttributes; i--)
                 DeleteMenuItem(MHND_WIZ, i);
@@ -1060,15 +1060,17 @@ aboutNetHack()
     if (theMenubar >= mbarRegular) {
         (void) doversion(); /* is this necessary? */
     } else {
-        unsigned char aboutStr[32] = "\pNetHack 3.4.";
+        unsigned char aboutStr[32];
+        char tmp[32];
+        int slen;
 
-        if (PATCHLEVEL > 10) {
-            aboutStr[++aboutStr[0]] = '0' + PATCHLEVEL / 10;
-        }
+        slen = snprintf(tmp, sizeof tmp, "NetHack %d.%d.%d",
+                        VERSION_MAJOR, VERSION_MINOR, PATCHLEVEL);
+        if (slen > 255) slen = 255;
+        aboutStr[0] = slen;
+        memcpy(&aboutStr[1], tmp, slen);
 
-        aboutStr[++aboutStr[0]] = '0' + (PATCHLEVEL % 10);
-
-        ParamText(aboutStr, "\p\rdevteam@www.nethack.org", "\p", "\p");
+        ParamText(aboutStr, "\x19\rdevteam@www.nethack.org", "\x00", "\x00");
         (void) Alert(alrtMenuNote, (ModalFilterUPP) 0L);
         ResetAlertStage();
     }
@@ -1083,7 +1085,7 @@ askSave()
     if (theMenubar < mbarRegular) {
         short itemHit;
 
-        ParamText("\pReally Save?", "\p", "\p", "\p");
+        ParamText("\x0cReally Save?", "\x00", "\x00", "\x00");
         itemHit = Alert(alrtMenu_NY, (ModalFilterUPP) 0L);
         ResetAlertStage();
 
@@ -1117,7 +1119,7 @@ askQuit()
     if (theMenubar < mbarRegular) {
         short itemHit;
 
-        ParamText("\pReally Quit?", "\p", "\p", "\p");
+        ParamText("\x0cReally Quit?", "\x00", "\x00", "\x00");
         itemHit = Alert(alrtMenu_NY, (ModalFilterUPP) 0L);
         ResetAlertStage();
 
