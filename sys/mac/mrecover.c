@@ -17,7 +17,7 @@
  * SIZE (-1) info: flags: 0x5880, size: 65536L/65536L (64k/64k)
  * libraries: MacTraps [yes], MacTraps2 (HFileStuff) [yes], ANSI [no]
  * compatibility: system 6 and system 7
- * misc: sizeof(int): 2, "\p": unsigned char, enum size varies,
+ * misc: sizeof(int): 2, "\x00": unsigned char, enum size varies,
  *   prototypes required, type checking enforced, no optimizers,
  *   FAR CODE [no], FAR DATA [no], SEPARATE STRS [no], single segment,
  *   short macsbug symbols
@@ -267,7 +267,7 @@ main()
     /* get system environment, notification requires 6.0 or better */
     (void) SysEnvirons(curSysEnvVers, &sysEnv);
     if (sysEnv.systemVersion < 0x0600) {
-        ParamText("\pAbort: System 6.0 is required", "\p", "\p", "\p");
+        ParamText("\x1dAbort: System 6.0 is required", "\x00", "\x00", "\x00");
         (void) Alert(alidNote, (ModalFilterUPP) 0L);
         ExitToShell();
     }
@@ -344,10 +344,10 @@ warmup()
     /* get notification icon */
     if (sysEnv.systemVersion < 0x0700) {
         if (!(nmt.nmr.nmIcon = GetResource('SICN', iconNotifyID)))
-            note(nilHandleErr, 0, "\pNil SICN Handle");
+            note(nilHandleErr, 0, "\x0fNil SICN Handle");
     } else {
         if (GetIconSuite(&nmt.nmr.nmIcon, iconNotifyID, ics_1_and_4))
-            note(nilHandleErr, 0, "\pBad Icon Family");
+            note(nilHandleErr, 0, "\x0fBad Icon Family");
     }
 
     /* load and align various dialog/alert templates */
@@ -364,7 +364,7 @@ warmup()
         CursHandle cHnd;
 
         if (!(cHnd = GetCursor(i + cursorOffset)))
-            note(nilHandleErr, 0, "\pNil CURS Handle");
+            note(nilHandleErr, 0, "\x0fNil CURS Handle");
 
         cPtr[i] = *cHnd;
     }
@@ -374,7 +374,7 @@ warmup()
         versXHandle vHnd;
 
         if (!(vHnd = (versXHandle) GetResource('vers', 1)))
-            note(nilHandleErr, 0, "\pNil vers Handle");
+            note(nilHandleErr, 0, "\x0fNil vers Handle");
 
         i = (**vHnd).versStr[0] + 1; /* offset to Get Info pascal string */
 
@@ -392,7 +392,7 @@ warmup()
     /* form the menubar */
     for (i = 0; i < menu_Total; i++) {
         if (!(mHnd[i] = GetMenu(i + muidApple)))
-            note(nilHandleErr, 0, "\pNil MENU Handle");
+            note(nilHandleErr, 0, "\x0fNil MENU Handle");
 
         /* expand the apple menu */
         if (i == menuApple)
@@ -407,19 +407,19 @@ warmup()
         Size grow;
 
         if (!(hBytes = (memBytesHandle) GetResource('memB', membID)))
-            note(nilHandleErr, 0, "\pNil Memory Handle");
+            note(nilHandleErr, 0, "\x11Nil Memory Handle");
 
         pBytes = *hBytes;
 
         if (MaxMem(&grow) < pBytes->memPreempt)
-            note(memFullErr, 0, "\pMore Memory Required\rTry adding 16k");
+            note(memFullErr, 0, "\x24More Memory Required\rTry adding 16k");
 
         memActivity = pBytes->memCleanup; /* force initial cleanup */
     }
 
     /* get the I/O buffer */
     if (!(pIOBuf = NewPtr(pBytes->memIOBuf)))
-        note(memFullErr, 0, "\pNil I/O Pointer");
+        note(memFullErr, 0, "\x0fNil I/O Pointer");
 }
 
 /* align a window-related template to the main screen */
@@ -433,7 +433,7 @@ alignTemplate(ResType rezType, short rezID, short vOff, short vDenom,
     vOff += GetMBarHeight();
 
     if (!(rtnHnd = GetResource(rezType, rezID)))
-        note(nilHandleErr, 0, "\pNil Template Handle");
+        note(nilHandleErr, 0, "\x13Nil Template Handle");
 
     pRct = (Rect *) *rtnHnd;
 
@@ -490,7 +490,7 @@ note(short errorSignal, short alertID, unsigned char *msg)
         Size grow;
 
         if (MaxMem(&grow) < pBytes->memAbort)
-            noteErrorMessage(msg, "\pOut of Memory");
+            noteErrorMessage(msg, "\x0dOut of Memory");
     }
 
     if (errorSignal || !in.Front) {
@@ -508,7 +508,7 @@ note(short errorSignal, short alertID, unsigned char *msg)
         } else /* allocate a notification record */
         {
             if (!(pNMR = (notifPtr) NewPtr(sizeof(notifRec))))
-                noteErrorMessage(msg, "\pNil New Pointer");
+                noteErrorMessage(msg, "\x0fNil New Pointer");
 
             /* initialize it */
             *pNMR = nmt;
@@ -543,7 +543,7 @@ note(short errorSignal, short alertID, unsigned char *msg)
     }
 
     /* in front and no error so use an alert */
-    ParamText(msg, "\p", "\p", "\p");
+    ParamText(msg, "\x00", "\x00", "\x00");
     (void) Alert(alertID, (ModalFilterUPP) 0L);
     ResetAlrtStage();
 
@@ -622,7 +622,7 @@ adjustMemory()
     memActivity = 0;
 
     if (MaxMem(&grow) < pBytes->memWarning)
-        note(noErr, alidNote, "\pWarning: Memory is running low");
+        note(noErr, alidNote, "\x1eWarning: Memory is running low");
 
     (void) ResrvMem((Size) FreeMem()); /* move all handles high */
 }
@@ -631,7 +631,7 @@ adjustMemory()
 static void
 optionMemStats()
 {
-    unsigned char *pFormat = "\pFree:#k  Max:#k  Purge:#k  Stack:#k";
+    unsigned char *pFormat = "\x23Free:#k  Max:#k  Purge:#k  Stack:#k";
     char *pSub = "#"; /* not a pascal string */
     unsigned char nBuf[16];
     long nStat, contig;
@@ -643,7 +643,7 @@ optionMemStats()
         adjustMemory();
 
     if (!(strHnd = NewHandle((Size) 128))) {
-        note(noErr, alidNote, "\pOops: Memory stats unavailable!");
+        note(noErr, alidNote, "\x1fOops: Memory stats unavailable!");
         return;
     }
 
@@ -821,7 +821,7 @@ eventLoop()
                 if (key == '.') {
                     if (in.Recover) {
                         endRecover();
-                        note(noErr, alidNote, "\pSorry: Recovery aborted");
+                        note(noErr, alidNote, "\x17Sorry: Recovery aborted");
                     }
                 } else
                     RecoverMenuEvent(MenuKey(key));
@@ -937,7 +937,7 @@ beginRecover()
     SFTypeList levlType = { 'LEVL' };
     SFReply sfGetReply;
 
-    SFGetFile(sfGetWhere, "\p", basenameFileFilterUPP, 1, levlType,
+    SFGetFile(sfGetWhere, "\x00", basenameFileFilterUPP, 1, levlType,
               (DlgHookUPP) 0L, &sfGetReply);
 
     memActivity++;
@@ -956,7 +956,7 @@ beginRecover()
         catInfo.hFileInfo.ioDirID = 0L;
 
         if (PBGetCatInfoSync(&catInfo)) {
-            note(noErr, alidNote, "\pSorry: Bad File Info");
+            note(noErr, alidNote, "\x14Sorry: Bad File Info");
             return;
         }
 
@@ -966,7 +966,7 @@ beginRecover()
     /* open the progress thermometer dialog */
     (void) GetNewDialog(dlogProgress, (Ptr) &dlgThermo, (WindowPtr) -1L);
     if (ResError() || MemError())
-        note(noErr, alidNote, "\pOops: Progress thermometer unavailable");
+        note(noErr, alidNote, "\x26Oops: Progress thermometer unavailable");
     else {
         in.Dialog = 1;
         memActivity++;
@@ -998,7 +998,7 @@ continueRecover()
     if (saveRezStrings())
         return;
 
-    note(noErr, alidNote, "\pOK: Recovery succeeded");
+    note(noErr, alidNote, "\x16OK: Recovery succeeded");
 }
 
 /* no messages from here (since we might be quitting) */
@@ -1046,7 +1046,7 @@ saveRezStrings()
 
     sRefNum = HOpenResFile(vRefNum, dirID, savename, fsRdWrPerm);
     if (sRefNum <= 0) {
-        note(noErr, alidNote, "\pOK: Minor resource map error");
+        note(noErr, alidNote, "\x1cOK: Minor resource map error");
         return 1;
     }
 
@@ -1069,18 +1069,18 @@ saveRezStrings()
 
         case 2:
             rezID = APP_NAME_RES_ID;
-            strHnd = NewString(*(Str255 *) "\pNetHack");
+            strHnd = NewString(*(Str255 *) "\x07NetHack");
             break;
         }
 
         if (!strHnd) {
-            note(noErr, alidNote, "\pOK: Minor \'STR \' resource error");
+            note(noErr, alidNote, "\x21OK: Minor \'STR \' resource error");
             CloseResFile(sRefNum);
             return 1;
         }
 
         /* should check for errors... */
-        AddResource((Handle) strHnd, 'STR ', rezID, *(Str255 *) "\p");
+        AddResource((Handle) strHnd, 'STR ', rezID, *(Str255 *) "\x00");
     }
 
     memActivity++;
@@ -1107,7 +1107,7 @@ set_levelfile_name(long lev)
     } else /* huh??? */
     {
         endRecover();
-        note(noErr, alidNote, "\pSorry: File Name Error");
+        note(noErr, alidNote, "\x16Sorry: File Name Error");
     }
 }
 
@@ -1124,7 +1124,7 @@ open_levelfile(long lev)
     if ((openErr = HOpen(vRefNum, dirID, lock, fsRdWrPerm, &fRefNum))
         && (openErr != fnfErr)) {
         endRecover();
-        note(noErr, alidNote, "\pSorry: File Open Error");
+        note(noErr, alidNote, "\x16Sorry: File Open Error");
         return (-1);
     }
 
@@ -1155,7 +1155,7 @@ create_savefile(unsigned char *savename)
     if (HCreate(vRefNum, dirID, savename, MAC_CREATOR, SAVE_TYPE)
         || HOpen(vRefNum, dirID, savename, fsRdWrPerm, &fRefNum)) {
         endRecover();
-        note(noErr, alidNote, "\pSorry: File Create Error");
+        note(noErr, alidNote, "\x18Sorry: File Create Error");
         return (-1);
     }
 
@@ -1181,7 +1181,7 @@ copy_bytes(short inRefNum, short outRefNum)
 
         if (nto != nfrom) {
             endRecover();
-            note(noErr, alidNote, "\pSorry: File Copy Error");
+            note(noErr, alidNote, "\x16Sorry: File Copy Error");
             return;
         }
     } while (nfrom == bufSiz);
@@ -1215,7 +1215,7 @@ restore_savefile()
 
         if (in.Recover && (saveTemp != sizeof(savelev))) {
             endRecover();
-            note(noErr, alidNote, "\pSorry: \"checkpoint\" was not enabled");
+            note(noErr, alidNote, "\x08Sorry: \"checkpoint\" was not enabled");
             return;
         }
 
@@ -1294,7 +1294,7 @@ read_levelfile(short rdRefNum, Ptr bufPtr, long count)
 
     if ((rdErr = FSRead(rdRefNum, &rdCount, bufPtr)) && (rdErr != eofErr)) {
         endRecover();
-        note(noErr, alidNote, "\pSorry: File Read Error");
+        note(noErr, alidNote, "\x16Sorry: File Read Error");
         return (-1L);
     }
 
@@ -1308,7 +1308,7 @@ write_savefile(short wrRefNum, Ptr bufPtr, long count)
 
     if (FSWrite(wrRefNum, &wrCount, bufPtr)) {
         endRecover();
-        note(noErr, alidNote, "\pSorry: File Write Error");
+        note(noErr, alidNote, "\x17Sorry: File Write Error");
         return (-1L);
     }
 
@@ -1320,7 +1320,7 @@ close_file(short *pFRefNum)
 {
     if (FSClose(*pFRefNum) || FlushVol((StringPtr) 0L, vRefNum)) {
         endRecover();
-        note(noErr, alidNote, "\pSorry: File Close Error");
+        note(noErr, alidNote, "\x17Sorry: File Close Error");
         return;
     }
 
@@ -1332,7 +1332,7 @@ unlink_file(unsigned char *filename)
 {
     if (HDelete(vRefNum, dirID, filename)) {
         endRecover();
-        note(noErr, alidNote, "\pSorry: File Delete Error");
+        note(noErr, alidNote, "\x18Sorry: File Delete Error");
         return;
     }
 }

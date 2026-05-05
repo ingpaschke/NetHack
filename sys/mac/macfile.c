@@ -10,13 +10,16 @@
 #include "macwin.h"
 
 #ifndef __MACH__
-#include <files.h>
-#include <errors.h>
-#include <resources.h>
-#include <memory.h>
+#include <Files.h>
+#include <Errors.h>
+#include <Resources.h>
+#include <Memory.h>
 #include <TextUtils.h>
 #include <ToolUtils.h>
 #endif
+
+/* With Apple Universal Interfaces + libInterface.a, HRstFLock, CatMove,
+   etc. are provided by the library. */
 
 #include "dlb.h"
 
@@ -232,14 +235,14 @@ macopen(const char *name, int flags, long fileType)
 				name = (Handle)NewString(plnamep);
 				if (name)
 					replace_resource(name, 'STR ', PLAYER_NAME_RES_ID,
-									"\pPlayer Name");
+									"\x0bPlayer Name");
 
 				/* The application name resource.  See IM VI, page 9-21. */
 				name = (Handle)GetString(APP_NAME_RES_ID);
 				if (name) {
 					DetachResource(name);
 					replace_resource(name, 'STR ', APP_NAME_RES_ID,
-									 "\pApplication Name");
+									 "\x10Application Name");
 				}
 
 				CloseResFile(resRef);
@@ -252,14 +255,12 @@ macopen(const char *name, int flags, long fileType)
      * we fail with default, etc. etc. Besides, we should use HOpen
      * and permissions.
      */
-    if ((flags & O_RDONLY) == O_RDONLY) {
-        perm = fsRdPerm;
-    }
-    if ((flags & O_WRONLY) == O_WRONLY) {
-        perm = fsWrPerm;
-    }
     if ((flags & O_RDWR) == O_RDWR) {
         perm = fsRdWrPerm;
+    } else if ((flags & O_WRONLY) == O_WRONLY) {
+        perm = fsWrPerm;
+    } else {
+        perm = fsRdPerm;
     }
     if (HOpen(theDirs.dataRefNum, theDirs.dataDirID, s, perm, &refNum)) {
         return OpenHandleFile(s, fileType);
@@ -375,6 +376,10 @@ macunlink(const char *name)
 
 /* ---------------------------------------------------------------------- */
 
+#ifdef DLBRSRC
+/* Resource-fork-based DLB functions; not used when cross-compiling
+   with DLBLIB (MAC_CROSS) */
+
 boolean
 rsrc_dlb_init(void)
 {
@@ -478,3 +483,5 @@ rsrc_dlb_ftell(dlb *dp)
         return 0;
     return hfp->mark;
 }
+
+#endif /* DLBRSRC */
