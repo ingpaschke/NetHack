@@ -66,12 +66,13 @@ load_tile_pict(short pict_id, short depth)
     SetGWorld(gTileSheet, NULL);
     EraseRect(&frame);
     DrawPicture(ph, &frame);
+    QDErr draw_err = QDError();           /* capture while gTileSheet is current */
     SetGWorld(saveW, saveD);
     UnlockPixels(pm);
     ReleaseResource((Handle) ph);
 
-    if (QDError() != noErr) {
-        mac_dprintf("mactile: DrawPicture err=%d\n", (int) QDError());
+    if (draw_err != noErr) {
+        mac_dprintf("mactile: DrawPicture err=%d\n", (int) draw_err);
         DisposeGWorld(gTileSheet);
         gTileSheet = NULL;
         return false;
@@ -150,6 +151,10 @@ mactile_set_mode(NhWindow *map, Boolean on)
                 ActivatePalette(map->its_window);
             }
         }
+        /* If a game is in progress, center on the hero so the first frame doesn't
+         * flash the upper-left of the map before the next print_glyph cycle. */
+        if (u.ux || u.uy)
+            mactile_center_on(map, (int) u.ux, (int) u.uy);
         mactile_redraw_viewport(map);
     } else {
         /* Caller (macwin) is responsible for re-rendering the map via mactty. */
@@ -176,7 +181,11 @@ mactile_draw_cell(NhWindow *map, int col, int row, int tileidx)
     cell_to_dst_rect(col, row, &dst);
 
     PixMapHandle pm = GetGWorldPixMap(gTileSheet);
-    LockPixels(pm);
+    if (!LockPixels(pm)) {
+        UnlockPixels(pm);                  /* pair per IM */
+        if (!LockPixels(pm))
+            return;                        /* drop this cell; cache holds the index */
+    }
     GrafPtr saveP; GetPort(&saveP);
     SetPort(map->its_window);
     CopyBits((BitMap *) *pm,
