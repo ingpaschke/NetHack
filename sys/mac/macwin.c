@@ -11,6 +11,7 @@
 #include "macwin.h"
 #include "mactty.h"
 #include "wintty.h"
+#include "mactile.h"
 
 #if 1 /*!TARGET_API_MAC_CARBON*/
 #include <LowMem.h>
@@ -2275,8 +2276,19 @@ mac_print_glyph(winid win, coordxy x, coordxy y,
                 const glyph_info *glyphinfo,
                 const glyph_info *bkglyphinfo UNUSED)
 {
-    int ch;
+    NhWindow *w = (win >= 0 && win < NUM_MACWINDOWS) ? &theWindows[win] : NULL;
 
+    if (w && win == WIN_MAP && w->tile_mode) {
+        int idx = (glyphinfo) ? glyphinfo->gm.tileidx : 0;
+        mactile_draw_cell(w, (int) x, (int) y, idx);
+        /* Auto-follow uses canonical hero coords. */
+        if ((int) x == (int) u.ux && (int) y == (int) u.uy)
+            mactile_set_player(w, (int) x, (int) y);
+        return;
+    }
+
+    /* Existing tty path (unchanged). */
+    int ch;
     tty_curs(win, x, y);
     ch = (glyphinfo && glyphinfo->ttychar) ? glyphinfo->ttychar : ' ';
     term_start_color(glyphinfo ? glyphinfo->gm.sym.color : NO_COLOR);
