@@ -190,6 +190,7 @@ extern void InitMenuRes(void);
 extern void AdjustMenus(short);
 #define DimMenuBar() AdjustMenus(1)
 #define UndimMenuBar() AdjustMenus(0)
+extern void mactile_menu_refresh(void);
 
 /* ### macmain.c ### */
 

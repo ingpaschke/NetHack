@@ -3498,6 +3498,8 @@ HandleEvent(EventRecord *theEvent)
         AEProcessAppleEvent(theEvent);
         break;
     default:
+        /* Idle: refresh menu state if mactile signals an update. */
+        mactile_menu_refresh();
         break;
     }
 }
