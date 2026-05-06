@@ -19,6 +19,29 @@ static const char *const tilefilenames[3] = {
 
 static pixel tilepixels[TILE_Y][TILE_X];
 
+static int sheet_w, sheet_h;
+static unsigned char *sheet;     /* 8bpp pixels, row-major top-down */
+
+static void
+paste_tile(int tile_index)
+{
+    int sx = (tile_index % TILES_PER_ROW) * TILE_X;
+    int sy = (tile_index / TILES_PER_ROW) * TILE_Y;
+    int x, y, c;
+    for (y = 0; y < TILE_Y; ++y) {
+        for (x = 0; x < TILE_X; ++x) {
+            for (c = 0; c < colorsinmap; ++c) {
+                if (ColorMap[CM_RED][c] == tilepixels[y][x].r
+                    && ColorMap[CM_GREEN][c] == tilepixels[y][x].g
+                    && ColorMap[CM_BLUE][c] == tilepixels[y][x].b)
+                    break;
+            }
+            if (c >= colorsinmap) c = 0; /* fallback */
+            sheet[(sy + y) * sheet_w + (sx + x)] = (unsigned char) c;
+        }
+    }
+}
+
 int
 main(int argc, char *argv[])
 {
@@ -44,5 +67,27 @@ main(int argc, char *argv[])
         fclose_text_file();
     }
     fprintf(stderr, "tile2pict: %d tiles total\n", total_tiles);
+
+    /* Pass 2: allocate sheet and paste tiles. */
+    sheet_w = TILES_PER_ROW * TILE_X;
+    sheet_h = ((total_tiles + TILES_PER_ROW - 1) / TILES_PER_ROW) * TILE_Y;
+    sheet = calloc((size_t) sheet_w * sheet_h, 1);
+    if (!sheet) { fprintf(stderr, "out of memory\n"); return 1; }
+
+    {
+        int placed = 0;
+        for (i = 0; i < 3; ++i) {
+            snprintf(path, sizeof path, "%s%s", relative_tiledir, tilefilenames[i]);
+            if (!fopen_text_file(path, RDTMODE)) {
+                fprintf(stderr, "cannot open %s on second pass\n", path);
+                return 1;
+            }
+            while (read_text_tile(tilepixels))
+                paste_tile(placed++);
+            fclose_text_file();
+        }
+    }
+    fprintf(stderr, "tile2pict: built %dx%d 8bpp sheet (%d colors)\n",
+            sheet_w, sheet_h, colorsinmap);
     return 0;
 }
