@@ -3456,6 +3456,7 @@ DoOsEvt(EventRecord *theEvent)
             NhWindow *map = (WIN_MAP != WIN_ERR) ? &theWindows[WIN_MAP] : NULL;
             if (map && map->tile_mode && !mactile_available()) {
                 mactile_set_mode(map, false);
+                iflags.wc_tiled_map = FALSE;          /* keep NHDeflts in sync */
                 InvalWindowRect(map->its_window, &map->its_window->portRect);
                 gTileMenuNeedsUpdate = 1;
             }
