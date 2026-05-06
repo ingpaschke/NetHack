@@ -13,6 +13,7 @@
 #include "hack.h" /* to get flags */
 #include "mttypriv.h"
 #include "macwin.h" /* tile_mode field on NhWindow */
+#include "mactile.h" /* mactile_redraw_viewport */
 #if !TARGET_API_MAC_CARBON
 #include <Sound.h>
 #include <Resources.h>
@@ -706,20 +707,23 @@ update_tty(WindowPtr window)
     Rect r;
     RECORD_EXISTS(record);
 
-    /* When the map window is rendering tiles, suppress the tty repaint
-       and the tty cursor invert; otherwise the offscreen text buffer
-       gets blitted on top of our tiles and a blinking caret is drawn
-       over them. The offscreen buffer keeps accumulating so a future
-       toggle back to text mode lands on the same content. */
-    if (WIN_MAP != WIN_ERR
-        && theWindows[WIN_MAP].its_window == window
-        && theWindows[WIN_MAP].tile_mode) {
-        return noErr;
-    }
+    /* _mt_window hosts MAP, BASE, and STATUS sharing a single Mac window.
+       In tile mode we still need update_tty to paint the status portion;
+       blanket-suppressing it would also kill the status display.
+       Instead: let the copy_bits run normally, but skip the cursor
+       invert when the caret would land on the tile map, and repaint
+       the tiles afterward so any overlap with the map area is repaired. */
+    Boolean is_tile_map_window =
+        (WIN_MAP != WIN_ERR
+         && theWindows[WIN_MAP].its_window == window
+         && theWindows[WIN_MAP].tile_mode);
 
 #if CLIP_RECT_ONLY
     if (record->invalid_rect.right <= record->invalid_rect.left
         || record->invalid_rect.bottom <= record->invalid_rect.top) {
+        if (is_tile_map_window && record->curs_state) {
+            /* Cursor moved within the map; suppress caret to keep tiles clean. */
+        }
         return noErr;
     }
     r = record->invalid_rect;
@@ -737,9 +741,22 @@ update_tty(WindowPtr window)
     SetEmptyRgn(record->invalid_part);
 #endif
     if (record->curs_state) {
-        pos_rect(record, &r, record->x_curs, record->y_curs, record->x_curs,
-                 record->y_curs);
-        InvertRect(&r);
+        /* In tile mode, suppress the caret if it falls inside the map's
+           row range — otherwise it would draw a blinking inverted cell
+           over a tile. Status caret (y_curs >= ROWNO) is fine. */
+        if (!is_tile_map_window || record->y_curs >= ROWNO) {
+            pos_rect(record, &r, record->x_curs, record->y_curs, record->x_curs,
+                     record->y_curs);
+            InvertRect(&r);
+        }
+    }
+
+    /* If we just painted into the same Mac window the tile map lives in,
+       repaint the tiles so they survive whatever copy_bits did above.
+       Cheap on a Quadra; status updates are infrequent enough that the
+       extra blits don't hurt. */
+    if (is_tile_map_window) {
+        mactile_redraw_viewport(&theWindows[WIN_MAP]);
     }
 
     return noErr;
