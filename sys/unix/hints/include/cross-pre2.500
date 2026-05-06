@@ -602,6 +602,7 @@ override SYSOBJ = $(TARGETPFX)macmain.o $(TARGETPFX)macwin.o \
 		$(TARGETPFX)mgetline.o $(TARGETPFX)mmodal.o \
 		$(TARGETPFX)dprintf.o \
 		$(TARGETPFX)mactile.o \
+		$(TARGETPFX)tile.o \
 		$(TARGETPFX)wintty.o $(TARGETPFX)topl.o \
 		$(TARGETPFX)getline.o
 override WINLIB =
