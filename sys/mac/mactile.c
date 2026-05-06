@@ -104,12 +104,17 @@ mactile_init(void)
 
     if (!load_tile_pict(pict_id, depth)) return false;
 
-    /* On 8bpp screens, the Palette is attached later via mactile_set_mode. */
+    /* Pre-fill the cache with the "unexplored" tile (defined in the
+       generated tile.c) so a damage redraw of cells NetHack hasn't yet
+       called print_glyph for shows the unexplored stone pattern, not
+       the giant-ant fallback (tile index 0). */
     {
+        extern int Tile_unexplored;
+        short fill = (short) Tile_unexplored;
         int x, y;
         for (y = 0; y < ROWNO; ++y)
             for (x = 0; x < COLNO; ++x)
-                gTileCache[y][x] = 0;
+                gTileCache[y][x] = fill;
     }
     return true;
 }
@@ -195,10 +200,27 @@ mactile_draw_cell(NhWindow *map, int col, int row, int tileidx)
     UnlockPixels(pm);
 }
 
+/* Sync the viewport's visible-cell counts to the window's current content
+   size. Cheap; called on every redraw so a window that grew after
+   set_mode (e.g. from saved layout or any post-creation SizeWindow) ends
+   up rendering its full visible area, not a stale subset. */
+static void
+recompute_vis(NhWindow *map)
+{
+    Rect cr;
+    GetWindowPortBounds(map->its_window, &cr);
+    gVisCols = (cr.right - cr.left) / MT_TILE_SIZE;
+    gVisRows = (cr.bottom - cr.top) / MT_TILE_SIZE;
+    if (gVisCols < 1) gVisCols = 1;
+    if (gVisRows < 1) gVisRows = 1;
+}
+
 void
 mactile_redraw_viewport(NhWindow *map)
 {
     if (!map || !map->tile_mode || !gTileSheet) return;
+
+    recompute_vis(map);
 
     Rect content;
     GetWindowPortBounds(map->its_window, &content);
@@ -254,11 +276,8 @@ void
 mactile_resize(NhWindow *map)
 {
     if (!map || !map->tile_mode) return;
-    Rect cr;
-    GetWindowPortBounds(map->its_window, &cr);
-    gVisCols = (cr.right - cr.left) / MT_TILE_SIZE;
-    gVisRows = (cr.bottom - cr.top) / MT_TILE_SIZE;
-    if (gVisCols < 1) gVisCols = 1;
-    if (gVisRows < 1) gVisRows = 1;
+    /* recompute_vis() is also called inside mactile_redraw_viewport, so
+       this just funnels through. Kept for callers wanting an explicit
+       resize hook. */
     mactile_redraw_viewport(map);
 }
