@@ -13,6 +13,30 @@ static PaletteHandle gTilePalette   = NULL;
 static short         gSheetDepth    = 0;
 static short         gSheetCols     = 0;   /* tiles across in the sheet */
 
+#define MT_TILE_SIZE 16
+#define MT_EDGE_MARGIN 3
+
+static short        gScrollCol = 0, gScrollRow = 0;
+static short        gVisCols   = 0, gVisRows   = 0;
+static short        gTileCache[ROWNO][COLNO];
+
+/* --- internal coord helpers --- */
+static void
+tileidx_to_src_rect(int idx, Rect *r)
+{
+    short sx = (idx % gSheetCols) * MT_TILE_SIZE;
+    short sy = (idx / gSheetCols) * MT_TILE_SIZE;
+    SetRect(r, sx, sy, sx + MT_TILE_SIZE, sy + MT_TILE_SIZE);
+}
+
+static void
+cell_to_dst_rect(int col, int row, Rect *r)
+{
+    short dx = (col - gScrollCol) * MT_TILE_SIZE;
+    short dy = (row - gScrollRow) * MT_TILE_SIZE;
+    SetRect(r, dx, dy, dx + MT_TILE_SIZE, dy + MT_TILE_SIZE);
+}
+
 /* --- helper: load a PICT resource into an offscreen GWorld --- */
 static Boolean
 load_tile_pict(short pict_id, short depth)
@@ -78,6 +102,12 @@ mactile_init(void)
     if (!load_tile_pict(pict_id, depth)) return false;
 
     /* On 8bpp screens, the Palette is attached later via mactile_set_mode. */
+    {
+        int x, y;
+        for (y = 0; y < ROWNO; ++y)
+            for (x = 0; x < COLNO; ++x)
+                gTileCache[y][x] = 0;
+    }
     return true;
 }
 
@@ -89,8 +119,34 @@ mactile_shutdown(void)
 }
 void    mactile_set_mode(NhWindow *m, Boolean on)
                                             { (void) m; (void) on; }
-void    mactile_draw_cell(NhWindow *m, int c, int r, int t)
-                                            { (void) m; (void) c; (void) r; (void) t; }
+
+void
+mactile_draw_cell(NhWindow *map, int col, int row, int tileidx)
+{
+    if (!map || !map->tile_mode || !gTileSheet) return;
+    if (col < 0 || col >= COLNO || row < 0 || row >= ROWNO) return;
+
+    gTileCache[row][col] = (short) tileidx;
+
+    if (col < gScrollCol || col >= gScrollCol + gVisCols
+        || row < gScrollRow || row >= gScrollRow + gVisRows)
+        return;   /* off-screen, cache only */
+
+    Rect src, dst;
+    tileidx_to_src_rect(tileidx, &src);
+    cell_to_dst_rect(col, row, &dst);
+
+    PixMapHandle pm = GetGWorldPixMap(gTileSheet);
+    LockPixels(pm);
+    GrafPtr saveP; GetPort(&saveP);
+    SetPort(map->its_window);
+    CopyBits((BitMap *) *pm,
+             GetPortBitMapForCopyBits(GetWindowPort(map->its_window)),
+             &src, &dst, srcCopy, NULL);
+    SetPort(saveP);
+    UnlockPixels(pm);
+}
+
 void    mactile_redraw_viewport(NhWindow *m){ (void) m; }
 void    mactile_center_on(NhWindow *m, int c, int r)
                                             { (void) m; (void) c; (void) r; }
