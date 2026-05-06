@@ -139,6 +139,8 @@ typedef struct NhWindow {
     long windowTextLen;
     short scrollPos;
     ControlHandle scrollBar;
+
+    Boolean tile_mode;        /* tile rendering enabled (map window only) */
 } NhWindow;
 
 extern Boolean CheckNhWin(WindowPtr mac_win);
