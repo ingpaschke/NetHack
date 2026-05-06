@@ -26,6 +26,7 @@
 #include "macwin.h"
 #include "macpopup.h"
 #include "patchlevel.h"
+#include "mactile.h"
 
 /******** Toolbox Defines ********/
 #if !TARGET_API_MAC_CARBON
@@ -91,6 +92,8 @@ enum {
     menuFileSave,
     ____File___3,
     menuFileQuit,
+    /* appended dynamically by InitMenuRes: */
+    menuFileTileMode,   /* item 11 — "Tile Mode" toggle */
 
     /* standard minimum Edit menu items */
 
@@ -873,6 +876,13 @@ InitMenuRes()
             InsertMenu(menu, ((i == listSubmenu) ? hierMenu : 0));
         }
     }
+
+    /* Append the "Tile Mode" toggle to the File menu (item menuFileTileMode).
+       The MENU resource only has items 1-10; this adds item 11 at runtime. */
+    AppendMenu(MHND_FILE, "\x09Tile Mode");
+    /* Start disabled; mactile_menu_refresh() will enable when available. */
+    DisableMenuItem(MHND_FILE, menuFileTileMode);
+
     DrawMenuBar();
     return;
 }
@@ -943,6 +953,9 @@ AdjustMenus(short dimMenubar)
             for (i = menuFileRedraw; i <= menuFileEnterExplore; i++)
                 DisableMenuItem(MHND_FILE, i);
 
+            /* ... also disable Tile Mode (no map window yet) */
+            DisableMenuItem(MHND_FILE, menuFileTileMode);
+
             /* ... and disable the rest of the menus */
             for (i = menuEdit; i < NUM_MBAR; i++)
                 DisableMenuItem(MBARHND(i), 0);
@@ -969,6 +982,12 @@ AdjustMenus(short dimMenubar)
                 DisableMenuItem(MHND_FILE, menuFilePlayMode);
             else
                 DisableMenuItem(MHND_FILE, menuFileEnterExplore);
+
+            /* ... enable Tile Mode only if tiles are available */
+            if (mactile_available())
+                EnableMenuItem(MHND_FILE, menuFileTileMode);
+            else
+                DisableMenuItem(MHND_FILE, menuFileTileMode);
 
             break;
         }
@@ -1028,6 +1047,24 @@ DoMenuEvt(long menuEntry)
         case menuFileQuit:
             askQuit();
             break;
+
+        case menuFileTileMode: {
+            NhWindow *map = (WIN_MAP != WIN_ERR) ? &theWindows[WIN_MAP] : NULL;
+            Boolean newOn;
+            if (!map) break;
+            newOn = !map->tile_mode;
+            if (newOn && !mactile_init()) {
+                SysBeep(1);
+                break;
+            }
+            mactile_set_mode(map, newOn);
+            if (!newOn) {
+                InvalWindowRect(map->its_window, &map->its_window->portRect);
+            }
+            CheckMenuItem(MHND_FILE, menuFileTileMode, newOn);
+            iflags.wc_tiled_map = newOn; /* persist via NHDeflts on next save */
+            break;
+        }
         }
         break;
 
@@ -1151,4 +1188,30 @@ askQuit()
                 AddToKeyQueue(*quitinput++, 1);
         }
     }
+}
+
+/*
+ * Called from the idle path (HandleEvent default / mac_get_nh_event) to
+ * keep the Tile Mode item's enable/check state in sync with the current
+ * tile-mode availability and window state.
+ */
+void
+mactile_menu_refresh(void)
+{
+    NhWindow *map;
+
+    if (!gTileMenuNeedsUpdate)
+        return;
+    gTileMenuNeedsUpdate = 0;
+
+    map = (WIN_MAP != WIN_ERR) ? &theWindows[WIN_MAP] : NULL;
+    if (!map)
+        return;
+
+    if (mactile_available())
+        EnableMenuItem(MHND_FILE, menuFileTileMode);
+    else
+        DisableMenuItem(MHND_FILE, menuFileTileMode);
+
+    CheckMenuItem(MHND_FILE, menuFileTileMode, map->tile_mode);
 }
