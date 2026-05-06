@@ -830,6 +830,13 @@ got1:
 			sizeof(baseevents)/sizeof(EventTypeSpec), baseevents,
 			(void *)aWin, NULL);
 #endif
+        /* Apply tiled_map option if set in NHDeflts.  WIN_MAP has not yet
+           been assigned by the caller, so use aWin directly. */
+        if (kind == NHW_MAP && iflags.wc_tiled_map && mactile_available()) {
+            if (mactile_init()) {
+                mactile_set_mode(aWin, true);
+            }
+        }
         return i;
     }
 
