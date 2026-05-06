@@ -12,6 +12,7 @@
 
 #include "hack.h" /* to get flags */
 #include "mttypriv.h"
+#include "macwin.h" /* tile_mode field on NhWindow */
 #if !TARGET_API_MAC_CARBON
 #include <Sound.h>
 #include <Resources.h>
@@ -704,6 +705,17 @@ update_tty(WindowPtr window)
 {
     Rect r;
     RECORD_EXISTS(record);
+
+    /* When the map window is rendering tiles, suppress the tty repaint
+       and the tty cursor invert; otherwise the offscreen text buffer
+       gets blitted on top of our tiles and a blinking caret is drawn
+       over them. The offscreen buffer keeps accumulating so a future
+       toggle back to text mode lands on the same content. */
+    if (WIN_MAP != WIN_ERR
+        && theWindows[WIN_MAP].its_window == window
+        && theWindows[WIN_MAP].tile_mode) {
+        return noErr;
+    }
 
 #if CLIP_RECT_ONLY
     if (record->invalid_rect.right <= record->invalid_rect.left
