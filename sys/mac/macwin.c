@@ -3298,6 +3298,10 @@ HandleClick(EventRecord *theEvent)
             if (aWin->scrollBar) {
                 DrawScrollbar(aWin);
             }
+            if (theWindow == _mt_window && WIN_MAP != WIN_ERR
+                    && theWindows[WIN_MAP].tile_mode) {
+                mactile_resize(&theWindows[WIN_MAP]);
+            }
         } else {
             nhbell();
         }
