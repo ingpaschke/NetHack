@@ -54,8 +54,14 @@ static size_t gPicLen = 0, gPicCap = 0;
 
 static void put_byte(unsigned v) {
     if (gPicLen + 1 > gPicCap) {
-        gPicCap = gPicCap ? gPicCap * 2 : 4096;
-        gPicBuf = realloc(gPicBuf, gPicCap);
+        size_t newcap = gPicCap ? gPicCap * 2 : 4096;
+        unsigned char *tmp = realloc(gPicBuf, newcap);
+        if (!tmp) {
+            fprintf(stderr, "tile2pict: out of memory growing pic buffer\n");
+            exit(1);
+        }
+        gPicBuf = tmp;
+        gPicCap = newcap;
     }
     gPicBuf[gPicLen++] = (unsigned char) v;
 }
@@ -178,6 +184,10 @@ build_pict_8bpp(unsigned char **out_buf, size_t *out_len)
     /* PackBits-compressed pixel rows. rowBytes >= 250 -> 2-byte length prefix. */
     {
         unsigned char *rowtmp = malloc((size_t) sheet_w * 2 + 16);
+        if (!rowtmp) {
+            fprintf(stderr, "tile2pict: out of memory for row buffer\n");
+            exit(1);
+        }
         int y;
         for (y = 0; y < sheet_h; ++y) {
             int packed_n = 0;
