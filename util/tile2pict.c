@@ -1,6 +1,7 @@
 /* NetHack 5.0 tile2pict.c
  * Host tool: emit a Rez source file containing PICT v2 resources for the
  * Mac 68k port. Sibling of tile2bmp.c, sharing tiletext.c.
+ * Emits PICT 1001 (8bpp/256-color) and PICT 1000 (4bpp/16-color).
  */
 
 #include "config.h"
@@ -9,6 +10,8 @@
 
 #include <stdlib.h>
 #include <string.h>
+
+#include "tile2pict_quant.h"
 
 extern void monst_globals_init(void);
 extern void objects_globals_init(void);
@@ -214,6 +217,131 @@ build_pict_8bpp(unsigned char **out_buf, size_t *out_len)
 }
 
 /* -----------------------------------------------------------------------
+ * Step 3b: PICT v2 emitter for the 4bpp sheet
+ *
+ * For sheet_w=480: packed rowBytes = 480/2 = 240, which is <= 250, so we use
+ * a 1-byte PackBits row-length prefix (IM:QD rule: rowBytes <= 250 -> 1 byte).
+ * This differs from the 8bpp emitter where raw rowBytes=480 > 250 -> 2 bytes.
+ * ----------------------------------------------------------------------- */
+
+static void
+build_pict_4bpp(const unsigned char *sheet4,
+                const unsigned char *dst_pal, int dst_n,
+                unsigned char **out_buf, size_t *out_len)
+{
+    int packed_row_bytes = (sheet_w + 1) / 2;  /* raw rowBytes, no high bit */
+    int c;
+
+    gPicBuf = NULL; gPicLen = 0; gPicCap = 0;
+
+    /* picSize placeholder. */
+    size_t size_off = gPicLen;
+    put_be16(0);
+
+    /* picFrame. */
+    put_rect(0, 0, sheet_h, sheet_w);
+
+    /* version-2 preamble. */
+    put_be16(0x0011);
+    put_be16(0x02FF);
+    put_be16(0x0C00);
+    put_be16(0xFFFE);
+    put_be16(0);
+    put_be32(0x00480000);
+    put_be32(0x00480000);
+    put_rect(0, 0, sheet_h, sheet_w);
+    put_be32(0);
+
+    put_be16(0x001E);   /* DefHilite */
+    put_be16(0x0001);   /* Clip */
+    put_be16(0x000A);
+    put_rect(0, 0, sheet_h, sheet_w);
+
+    /* PackBitsRect for a 4bpp PixMap. */
+    put_be16(0x0098);
+
+    /* PixMap: rowBytes has high bit set to flag PixMap. */
+    put_be16((unsigned) packed_row_bytes | 0x8000);
+    put_rect(0, 0, sheet_h, sheet_w);
+    put_be16(0);                /* pmVersion */
+    put_be16(0);                /* packType */
+    put_be32(0);                /* packSize */
+    put_be32(0x00480000);       /* hRes */
+    put_be32(0x00480000);       /* vRes */
+    put_be16(0);                /* pixelType (chunky) */
+    put_be16(4);                /* pixelSize = 4 */
+    put_be16(1);                /* cmpCount */
+    put_be16(4);                /* cmpSize = 4 */
+    put_be32(0);                /* planeBytes */
+    put_be32(0);                /* pmTable */
+    put_be32(0);                /* pmReserved */
+
+    /* ColorTable: 16 entries (ctSize = 15). */
+    put_be32(0);                /* ctSeed */
+    put_be16(0);                /* ctFlags */
+    put_be16(15);               /* ctSize = entries - 1 */
+    for (c = 0; c < 16; ++c) {
+        put_be16(c);
+        if (c < dst_n) {
+            put_be16(dst_pal[3*c+0] * 257);
+            put_be16(dst_pal[3*c+1] * 257);
+            put_be16(dst_pal[3*c+2] * 257);
+        } else {
+            put_be16(0); put_be16(0); put_be16(0);
+        }
+    }
+
+    /* srcRect, dstRect, mode. */
+    put_rect(0, 0, sheet_h, sheet_w);
+    put_rect(0, 0, sheet_h, sheet_w);
+    put_be16(0);    /* srcCopy */
+
+    /* PackBits-compressed pixel rows.
+     * raw rowBytes = 240 <= 250 -> 1-byte length prefix per row. */
+    {
+        /* packed_row_bytes bytes per row (2 pixels/byte, high nibble first).
+         * Worst-case PackBits: ceil(n/128)*129 control+literal bytes. */
+        int pack_buf_size = ((packed_row_bytes + 127) / 128) * 129 + 1;
+        unsigned char *rowpacked = malloc((size_t) packed_row_bytes);
+        unsigned char *rowcomp   = malloc((size_t) pack_buf_size);
+        if (!rowpacked || !rowcomp) {
+            fprintf(stderr, "tile2pict: out of memory for 4bpp row buffers\n");
+            exit(1);
+        }
+
+        int y;
+        for (y = 0; y < sheet_h; ++y) {
+            const unsigned char *src_row = sheet4 + (size_t) y * sheet_w;
+            int x;
+            /* Pack two 4-bit indices per byte, high nibble first. */
+            for (x = 0; x < packed_row_bytes; ++x) {
+                int p0 = src_row[x * 2];
+                int p1 = (x * 2 + 1 < sheet_w) ? src_row[x * 2 + 1] : 0;
+                rowpacked[x] = (unsigned char) ((p0 << 4) | (p1 & 0x0F));
+            }
+            int comp_n = 0;
+            packbits_row(rowpacked, packed_row_bytes, rowcomp, &comp_n);
+            /* 1-byte prefix (packed_row_bytes = 240 <= 250). */
+            put_byte((unsigned) comp_n);
+            int k;
+            for (k = 0; k < comp_n; ++k) put_byte(rowcomp[k]);
+        }
+        free(rowpacked);
+        free(rowcomp);
+    }
+
+    put_be16(0x00FF);           /* endPic */
+    if (gPicLen & 1) put_byte(0);
+
+    unsigned short shortsize = (gPicLen <= 0xFFFF) ? (unsigned short) gPicLen : 0;
+    gPicBuf[size_off]     = (unsigned char) (shortsize >> 8);
+    gPicBuf[size_off + 1] = (unsigned char) (shortsize & 0xFF);
+
+    *out_buf = gPicBuf;
+    *out_len = gPicLen;
+}
+
+/* -----------------------------------------------------------------------
  * Step 4: Rez emitter
  * ----------------------------------------------------------------------- */
 
@@ -283,23 +411,72 @@ main(int argc, char *argv[])
     fprintf(stderr, "tile2pict: built %dx%d 8bpp sheet (%d colors)\n",
             sheet_w, sheet_h, colorsinmap);
 
-    /* Step 5: Serialize PICT v2, emit Rez source. */
-    unsigned char *picbuf = NULL;
-    size_t piclen = 0;
-    build_pict_8bpp(&picbuf, &piclen);
-    /* Note: picSize (the 16-bit field at byte 0) is saturated to 0 when the
-       PICT binary exceeds 32767 bytes.  QuickDraw ignores picSize when reading
-       a PICT from a resource handle, so a large resource is fine.  A 480x816
-       8bpp sheet compresses to ~190KB — well within Mac resource limits. */
-    fprintf(stderr, "tile2pict: PICT binary size %zu bytes\n", piclen);
+    /* Open output file. */
     FILE *out = fopen(argv[1], "w");
     if (!out) {
         fprintf(stderr, "cannot open %s for writing\n", argv[1]);
         return 1;
     }
     fprintf(out, "/* Auto-generated by tile2pict. Do not edit. */\n\n");
-    emit_rez(out, 1001, picbuf, piclen);
-    fclose(out);
 
+    /* Step 5a: Build and emit PICT 1001 (8bpp, 256-color palette). */
+    {
+        unsigned char *picbuf = NULL;
+        size_t piclen = 0;
+        build_pict_8bpp(&picbuf, &piclen);
+        /* Note: picSize (the 16-bit field at byte 0) is saturated to 0 when the
+           PICT binary exceeds 32767 bytes.  QuickDraw ignores picSize when reading
+           a PICT from a resource handle, so a large resource is fine.  A 480x816
+           8bpp sheet compresses to ~190KB — well within Mac resource limits. */
+        fprintf(stderr, "tile2pict: PICT 1001 (8bpp) %zu bytes (%d colors)\n",
+                piclen, colorsinmap);
+        emit_rez(out, 1001, picbuf, piclen);
+        free(picbuf);
+    }
+
+    /* Step 5b: Build and emit PICT 1000 (4bpp, 16-color quantized + dithered). */
+    {
+        unsigned long hist[256];
+        unsigned char src_pal[3 * 256];
+        unsigned char dst_pal[3 * 16];
+        int remap[256];
+        int dst_n;
+        size_t px;
+        int j;
+
+        memset(hist, 0, sizeof hist);
+        for (px = 0; px < (size_t) sheet_w * (size_t) sheet_h; ++px)
+            hist[sheet[px]]++;
+
+        for (j = 0; j < colorsinmap; ++j) {
+            src_pal[3*j+0] = ColorMap[CM_RED][j];
+            src_pal[3*j+1] = ColorMap[CM_GREEN][j];
+            src_pal[3*j+2] = ColorMap[CM_BLUE][j];
+        }
+
+        dst_n = median_cut(src_pal, hist, colorsinmap, 16, dst_pal, remap);
+
+        unsigned char *sheet4 = malloc((size_t) sheet_w * (size_t) sheet_h);
+        if (!sheet4) {
+            fprintf(stderr, "tile2pict: out of memory for sheet4\n");
+            fclose(out);
+            return 1;
+        }
+        dither_fs(sheet, sheet_w, sheet_h,
+                  src_pal, colorsinmap,
+                  dst_pal, dst_n, sheet4);
+
+        unsigned char *picbuf4 = NULL;
+        size_t piclen4 = 0;
+        build_pict_4bpp(sheet4, dst_pal, dst_n, &picbuf4, &piclen4);
+        fprintf(stderr, "tile2pict: PICT 1000 (4bpp) %zu bytes (%d colors)\n",
+                piclen4, dst_n);
+        emit_rez(out, 1000, picbuf4, piclen4);
+
+        free(sheet4);
+        free(picbuf4);
+    }
+
+    fclose(out);
     return 0;
 }
