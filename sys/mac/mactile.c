@@ -13,6 +13,8 @@ static PaletteHandle gTilePalette   = NULL;
 static short         gSheetDepth    = 0;
 static short         gSheetCols     = 0;   /* tiles across in the sheet */
 
+short gTileMenuNeedsUpdate = 0;
+
 #define MT_TILE_SIZE 16
 #define MT_EDGE_MARGIN 3
 

@@ -3422,8 +3422,9 @@ DoOsEvt(EventRecord *theEvent)
 {
     WindowRef win;
     short code;
+    unsigned long msgClass = (theEvent->message >> 24) & 0xFF;
 
-    if ((theEvent->message & 0xff000000) == 0xfa000000) {
+    if (msgClass == 0xFA) {
         /* Mouse Moved */
 
         code = FindWindow(theEvent->where, &win);
@@ -3440,6 +3441,17 @@ DoOsEvt(EventRecord *theEvent)
                 winCursorFuncs[kind](theEvent, win, gMouseRgn);
             }
 #endif
+        }
+    } else if (msgClass == suspendResumeMessage) {
+        /* Suspend / Resume */
+        if (theEvent->message & resumeFlag) {
+            /* Resuming: re-check if tile mode is still available */
+            NhWindow *map = (WIN_MAP != WIN_ERR) ? &theWindows[WIN_MAP] : NULL;
+            if (map && map->tile_mode && !mactile_available()) {
+                mactile_set_mode(map, false);
+                InvalWindowRect(map->its_window, &map->its_window->portRect);
+                gTileMenuNeedsUpdate = 1;
+            }
         }
     }
 }
