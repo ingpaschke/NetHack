@@ -17,4 +17,9 @@ extern void    mactile_pixel_to_cell(NhWindow *map, Point pt,
 extern void    mactile_set_player(NhWindow *map, int col, int row);
 extern void    mactile_resize(NhWindow *map);
 
+/* Set by macwin's resume handler when tile-mode availability changed
+ * (e.g. screen depth dropped below 4bpp). The menu code clears this when
+ * it refreshes the Tile Mode item's enable / check state. */
+extern short gTileMenuNeedsUpdate;
+
 #endif /* MACTILE_H */
