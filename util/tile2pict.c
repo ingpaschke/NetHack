@@ -71,7 +71,7 @@ main(int argc, char *argv[])
     /* Pass 2: allocate sheet and paste tiles. */
     sheet_w = TILES_PER_ROW * TILE_X;
     sheet_h = ((total_tiles + TILES_PER_ROW - 1) / TILES_PER_ROW) * TILE_Y;
-    sheet = calloc((size_t) sheet_w * sheet_h, 1);
+    sheet = calloc((size_t) sheet_w * (size_t) sheet_h, 1);
     if (!sheet) { fprintf(stderr, "out of memory\n"); return 1; }
 
     {
