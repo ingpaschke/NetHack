@@ -591,6 +591,7 @@ override SYSSRC = ../sys/mac/macmain.c ../sys/mac/macwin.c \
 		../sys/mac/mactopl.c ../sys/mac/macunix.c \
 		../sys/mac/mgetline.c ../sys/mac/mmodal.c \
 		../sys/mac/dprintf.c \
+		../sys/mac/mactile.c \
 		../win/tty/wintty.c ../win/tty/topl.c \
 		../win/tty/getline.c
 override SYSOBJ = $(TARGETPFX)macmain.o $(TARGETPFX)macwin.o \
@@ -600,6 +601,7 @@ override SYSOBJ = $(TARGETPFX)macmain.o $(TARGETPFX)macwin.o \
 		$(TARGETPFX)mactopl.o $(TARGETPFX)macunix.o \
 		$(TARGETPFX)mgetline.o $(TARGETPFX)mmodal.o \
 		$(TARGETPFX)dprintf.o \
+		$(TARGETPFX)mactile.o \
 		$(TARGETPFX)wintty.o $(TARGETPFX)topl.o \
 		$(TARGETPFX)getline.o
 override WINLIB =
