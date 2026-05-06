@@ -368,6 +368,16 @@ mac68kpkg: $(GAMEBIN)
 		../sys/mac/NHrsrc.hqx $(TARGETPFX)resources
 	@echo "=== Compiling SIZE resource ==="
 	$(RETRO68)/bin/Rez ../sys/mac/nhsize.r -o $(TARGETPFX)nhsize.rsrc
+	@echo "=== Generating tile PICT resources ==="
+	cd ../util && ./tile2pict $(abspath $(TARGETPFX)nhtiles_data.r)
+	@echo "=== Compiling tile resource ==="
+	$(RETRO68)/bin/Rez ../sys/mac/nhtiles_template.r \
+		-I $(abspath $(TARGETPFX)) \
+		-o $(TARGETPFX)nhtiles.rsrc
+	@echo "=== Merging tile resource ==="
+	python3 ../sys/mac/tools/append_rsrc.py \
+		$(TARGETPFX).rsrc/NetHack \
+		$(TARGETPFX).rsrc/nhtiles.rsrc
 	@echo "=== Merging resources ==="
 	python3 ../sys/mac/tools/append_rsrc.py \
 		$(TARGETPFX).rsrc/NetHack \
