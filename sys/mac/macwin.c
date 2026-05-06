@@ -2350,10 +2350,16 @@ try_key_queue(char *bufp)
 static void
 BaseClick(NhWindow *wind, Point pt, UInt32 modifiers)
 {
-    pt.h = pt.h / wind->char_width + 1;
-    pt.v = pt.v / wind->row_height;
+    int col, row;
+    if (wind == &theWindows[WIN_MAP] && wind->tile_mode) {
+        mactile_pixel_to_cell(wind, pt, &col, &row);
+    } else {
+        col = pt.h / wind->char_width + 1;
+        row = pt.v / wind->row_height;
+    }
     clicked_mod = (modifiers & shiftKey) ? CLICK_2 : CLICK_1;
-    clicked_pos = pt;
+    clicked_pos.h = (short) col;
+    clicked_pos.v = (short) row;
     /* Signal a click event. mac_nhgetch checks gClickedToMove to
        exit its event loop and return 0. The core's readchar() then
        calls click_to_cmd() with coordinates from mac_nh_poskey(). */
