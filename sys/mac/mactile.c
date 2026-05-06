@@ -117,8 +117,45 @@ mactile_shutdown(void)
     if (gTileSheet)   { DisposeGWorld(gTileSheet);    gTileSheet   = NULL; }
     if (gTilePalette) { DisposePalette(gTilePalette); gTilePalette = NULL; }
 }
-void    mactile_set_mode(NhWindow *m, Boolean on)
-                                            { (void) m; (void) on; }
+void
+mactile_set_mode(NhWindow *map, Boolean on)
+{
+    if (!map) return;
+
+    if (on && !gTileSheet) {
+        if (!mactile_init()) return;   /* silent fallback */
+    }
+    map->tile_mode = on;
+
+    if (on) {
+        Rect content;
+        GetWindowPortBounds(map->its_window, &content);
+        gVisCols = (content.right - content.left) / MT_TILE_SIZE;
+        gVisRows = (content.bottom - content.top) / MT_TILE_SIZE;
+        if (gVisCols < 1) gVisCols = 1;
+        if (gVisRows < 1) gVisRows = 1;
+        gScrollCol = 0;
+        gScrollRow = 0;
+
+        /* On 8bpp screens, attach a 32-entry pmTolerant Palette so the
+           system tries to allocate close colors without trashing
+           the reserved system slots. */
+        if (gSheetDepth == 8 && !gTilePalette) {
+            CTabHandle ct = (**GetGWorldPixMap(gTileSheet)).pmTable;
+            gTilePalette = NewPalette(32, ct, pmTolerant, 0x0000);
+            if (gTilePalette) {
+                SetPalette(map->its_window, gTilePalette, true);
+                ActivatePalette(map->its_window);
+            }
+        }
+        mactile_redraw_viewport(map);
+    } else {
+        /* Caller (macwin) is responsible for re-rendering the map via mactty. */
+        if (gTilePalette) {
+            SetPalette(map->its_window, NULL, false);
+        }
+    }
+}
 
 void
 mactile_draw_cell(NhWindow *map, int col, int row, int tileidx)
