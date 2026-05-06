@@ -439,7 +439,6 @@ main(int argc, char *argv[])
         unsigned long hist[256];
         unsigned char src_pal[3 * 256];
         unsigned char dst_pal[3 * 16];
-        int remap[256];
         int dst_n;
         size_t px;
         int j;
@@ -454,7 +453,7 @@ main(int argc, char *argv[])
             src_pal[3*j+2] = ColorMap[CM_BLUE][j];
         }
 
-        dst_n = median_cut(src_pal, hist, colorsinmap, 16, dst_pal, remap);
+        dst_n = median_cut(src_pal, hist, colorsinmap, 16, dst_pal);
 
         unsigned char *sheet4 = malloc((size_t) sheet_w * (size_t) sheet_h);
         if (!sheet4) {
