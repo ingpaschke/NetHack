@@ -3381,8 +3381,12 @@ HandleUpdate(EventRecord *theEvent)
 #else
     {
         int kind = GetWindowKind(theWindow) - WIN_BASE_KIND;
-        if (kind >= 0 && kind < NUM_FUNCS)
+        if (kind == NHW_MAP && WIN_MAP != WIN_ERR
+                && theWindows[WIN_MAP].tile_mode) {
+            mactile_redraw_viewport(&theWindows[WIN_MAP]);
+        } else if (kind >= 0 && kind < NUM_FUNCS) {
             winUpdateFuncs[kind](&fake, theWindow);
+        }
     }
 #endif
 
