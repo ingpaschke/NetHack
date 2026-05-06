@@ -541,6 +541,15 @@ tile2bmp.o: ../win/share/tile2bmp.c $(HACK_H) ../win/share/tile.h
 tile2pict.o: ../util/tile2pict.c $(HACK_H) ../win/share/tile.h
 	$(CC) $(CFLAGS) $(CSTD) -I../win/share -c ../util/tile2pict.c -o $@
 
+test_tile2pict: test_tile2pict.o
+	$(CLINK) -o test_tile2pict test_tile2pict.o
+
+test_tile2pict.o: ../util/test_tile2pict.c
+	$(CC) $(CFLAGS) -c ../util/test_tile2pict.c -o $@
+
+check-tile2pict: tile2pict test_tile2pict
+	@./test_tile2pict
+
 tile2x11.o: ../win/X11/tile2x11.c $(HACK_H) ../win/share/tile.h \
 						../include/tile2x11.h
 	$(CC) $(CFLAGS) $(CSTD) -I../win/share -c ../win/X11/tile2x11.c -o $@
@@ -627,12 +636,12 @@ clean-fixup:
 	-rm -f ../include/tile.h
 
 clean: clean-fixup
-	-rm -f *.o
+	-rm -f *.o test_tile2pict.o
 
 # obsolete dgn_comp and lev_comp could be left around from 3.6.x
 spotless: clean
 	-rm -f makedefs recover dlb $(HACKLIB)
 	-rm -f gif2txt txt2ppm tile2x11 tile2img.ttp xpm2img.ttp \
-		tilemap tileedit tile2bmp tile2pict uudecode
+		tilemap tileedit tile2bmp tile2pict uudecode test_tile2pict
 	-rm -f dgn_comp* dgn_lex.c dgn_yacc.c ../include/dgn_comp.h \
 		lev_comp* lev_lex.c lev_yacc.c ../include/lev_comp.h

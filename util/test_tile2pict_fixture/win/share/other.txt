@@ -1,0 +1,24 @@
+# other.txt - synthetic fixture for test_tile2pict
+#  Note: lines beginning with '# tile ' are not comments; other
+#  lines beginning with '#' are.
+. = (0, 0, 0)
+A = (255, 255, 255)
+# tile 0 (test other)
+{
+  AAAAAAAAAAAAAAAA
+  AAAAAAAAAAAAAAAA
+  AA............AA
+  AA............AA
+  AA............AA
+  AA............AA
+  AA............AA
+  AA............AA
+  AA............AA
+  AA............AA
+  AA............AA
+  AA............AA
+  AA............AA
+  AA............AA
+  AAAAAAAAAAAAAAAA
+  AAAAAAAAAAAAAAAA
+}
