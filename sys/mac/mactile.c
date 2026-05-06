@@ -147,11 +147,70 @@ mactile_draw_cell(NhWindow *map, int col, int row, int tileidx)
     UnlockPixels(pm);
 }
 
-void    mactile_redraw_viewport(NhWindow *m){ (void) m; }
-void    mactile_center_on(NhWindow *m, int c, int r)
-                                            { (void) m; (void) c; (void) r; }
-void    mactile_pixel_to_cell(NhWindow *m, Point p, int *c, int *r)
-                                            { (void) m; (void) p; (void) c; (void) r; }
-void    mactile_set_player(NhWindow *m, int c, int r)
-                                            { (void) m; (void) c; (void) r; }
-void    mactile_resize(NhWindow *m)         { (void) m; }
+void
+mactile_redraw_viewport(NhWindow *map)
+{
+    if (!map || !map->tile_mode || !gTileSheet) return;
+
+    Rect content;
+    GetWindowPortBounds(map->its_window, &content);
+    GrafPtr saveP; GetPort(&saveP);
+    SetPort(map->its_window);
+    EraseRect(&content);
+    SetPort(saveP);
+
+    int r, c;
+    for (r = gScrollRow; r < gScrollRow + gVisRows && r < ROWNO; ++r)
+        for (c = gScrollCol; c < gScrollCol + gVisCols && c < COLNO; ++c)
+            mactile_draw_cell(map, c, r, gTileCache[r][c]);
+}
+
+void
+mactile_center_on(NhWindow *map, int col, int row)
+{
+    if (!map) return;
+    short new_col = col - gVisCols / 2;
+    short new_row = row - gVisRows / 2;
+    if (new_col < 0) new_col = 0;
+    if (new_row < 0) new_row = 0;
+    if (new_col + gVisCols > COLNO) new_col = COLNO - gVisCols;
+    if (new_row + gVisRows > ROWNO) new_row = ROWNO - gVisRows;
+    if (new_col < 0) new_col = 0;   /* clamp again if window > map */
+    if (new_row < 0) new_row = 0;
+    if (new_col == gScrollCol && new_row == gScrollRow) return;
+    gScrollCol = new_col;
+    gScrollRow = new_row;
+    mactile_redraw_viewport(map);
+}
+
+void
+mactile_set_player(NhWindow *map, int col, int row)
+{
+    if (!map || !map->tile_mode) return;
+    if (col < gScrollCol + MT_EDGE_MARGIN
+        || col >= gScrollCol + gVisCols - MT_EDGE_MARGIN
+        || row < gScrollRow + MT_EDGE_MARGIN
+        || row >= gScrollRow + gVisRows - MT_EDGE_MARGIN)
+        mactile_center_on(map, col, row);
+}
+
+void
+mactile_pixel_to_cell(NhWindow *map, Point pt, int *col, int *row)
+{
+    (void) map;
+    if (col) *col = (pt.h / MT_TILE_SIZE) + gScrollCol + 1;
+    if (row) *row = (pt.v / MT_TILE_SIZE) + gScrollRow;
+}
+
+void
+mactile_resize(NhWindow *map)
+{
+    if (!map || !map->tile_mode) return;
+    Rect cr;
+    GetWindowPortBounds(map->its_window, &cr);
+    gVisCols = (cr.right - cr.left) / MT_TILE_SIZE;
+    gVisRows = (cr.bottom - cr.top) / MT_TILE_SIZE;
+    if (gVisCols < 1) gVisCols = 1;
+    if (gVisRows < 1) gVisRows = 1;
+    mactile_redraw_viewport(map);
+}
