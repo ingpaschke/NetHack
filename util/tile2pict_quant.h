@@ -10,14 +10,13 @@
 
 /* Reduce a palette of n RGB triples (src[3*n]) to at most max_out triples
  * via median-cut. usage_hist[i] gives the pixel-count using src color i.
- * On output: out[3*max_out] holds representative RGB triples;
- * remap[i] (i in 0..n-1) is the destination bucket index for source i.
+ * On output: out[3*max_out] holds representative RGB triples.
  * Returns the number of out colors actually used (<= max_out).
  */
 static int median_cut(const unsigned char *src,
                       const unsigned long *usage_hist,
                       int n, int max_out,
-                      unsigned char *out, int *remap);
+                      unsigned char *out);
 
 /* Re-color an 8bpp image (palette indices) into 4bpp using Floyd-Steinberg
  * error diffusion against a 16-color target palette.
@@ -58,7 +57,7 @@ static int mc_cmp(const void *a, const void *b)
 static int median_cut(const unsigned char *src,
                       const unsigned long *usage_hist,
                       int n, int max_out,
-                      unsigned char *out, int *remap)
+                      unsigned char *out)
 {
     MC_Bucket buckets[16];
     int nb = 0; /* number of buckets in use */
@@ -143,17 +142,6 @@ static int median_cut(const unsigned char *src,
         out[3 * k + 0] = (unsigned char) (sr / total_w);
         out[3 * k + 1] = (unsigned char) (sg / total_w);
         out[3 * k + 2] = (unsigned char) (sb2 / total_w);
-    }
-
-    /* Fill remap[]: for each source color i, which bucket contains it? */
-    for (k = 0; k < nb; ++k) {
-        int m;
-        for (m = 0; m < buckets[k].count; ++m)
-            remap[buckets[k].members[m]] = k;
-    }
-    /* Any source colors not placed (shouldn't happen, but be safe). */
-    for (i = 0; i < n; ++i) {
-        /* remap[i] already set; just in case: leave as-is */
     }
 
     return nb;
