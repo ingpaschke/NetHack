@@ -6,7 +6,14 @@
 #include <QDOffscreen.h>
 #include <Palettes.h>
 
-Boolean mactile_available(void)             { return false; }
+Boolean
+mactile_available(void)
+{
+    GDHandle gd = GetMainDevice();
+    if (!gd) return false;
+    short depth = (*(*gd)->gdPMap)->pixelSize;
+    return depth >= 4;
+}
 Boolean mactile_init(void)                  { return false; }
 void    mactile_shutdown(void)              { }
 void    mactile_set_mode(NhWindow *m, Boolean on)
