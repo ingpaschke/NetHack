@@ -3288,6 +3288,15 @@ HandleClick(EventRecord *theEvent)
             SetCursor(&qdarrow);
             DragWindow(theWindow, theEvent->where, &r);
             SaveWindowPos(theWindow);
+            /* For the dedicated map window, capture position into iflags
+               so it can be written to NHDeflts via #saveoptions. */
+            if (GetWRefCon(theWindow) == MACMAP_REFCON) {
+                Point p; SetPt(&p, 0, 0);
+                SetPort(theWindow);
+                LocalToGlobal(&p);
+                iflags.mac_map_pos_x = p.h;
+                iflags.mac_map_pos_y = p.v;
+            }
         } else {
             nhbell();
         }
