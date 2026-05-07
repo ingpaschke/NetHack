@@ -383,7 +383,77 @@ macmap_clear(NhWindow *map)
     }
 }
 
-void    macmap_cliparound(NhWindow *m UNUSED, int x UNUSED, int y UNUSED) { }
+#define MT_EDGE_MARGIN 3
+
+static void
+recompute_scroll_for_center(int x, int y, short *new_col, short *new_row)
+{
+    short c = (short) x - gMap.vis_cols / 2;
+    short r = (short) y - gMap.vis_rows / 2;
+    if (c < 0) c = 0;
+    if (r < 0) r = 0;
+    if (c + gMap.vis_cols > COLNO) c = COLNO - gMap.vis_cols;
+    if (r + gMap.vis_rows > ROWNO) r = ROWNO - gMap.vis_rows;
+    if (c < 0) c = 0;
+    if (r < 0) r = 0;
+    *new_col = c;
+    *new_row = r;
+}
+
+static void
+repaint_full_viewport(void)
+{
+    if (!gMap.owner) return;
+    if (gMap.backing) {
+        Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
+        GWorldPtr saveW; GDHandle saveD;
+        GetGWorld(&saveW, &saveD);
+        SetGWorld(gMap.backing, NULL);
+        EraseRect(&bbox);
+        SetGWorld(saveW, saveD);
+    }
+    int r, c;
+    for (r = gMap.scroll_row; r < gMap.scroll_row + gMap.vis_rows && r < ROWNO; ++r)
+        for (c = gMap.scroll_col; c < gMap.scroll_col + gMap.vis_cols && c < COLNO; ++c) {
+            if (gMap.tile_mode) {
+                short idx = gMap.tile_cache[r][c];
+                if (idx) draw_cell_tile(c, r, (int) idx);
+            } else {
+                char ch  = (char) gMap.text_cache[r][c];
+                int  col = (int)  gMap.text_color[r][c];
+                if (ch != 0) draw_cell_text(c, r, ch, col);
+            }
+        }
+    /* Final viewport blit if we're using backing. */
+    if (gMap.backing && gMap.owner->its_window) {
+        Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
+        blit_backing_to_window(&bbox, &bbox);
+    }
+}
+
+void
+macmap_cliparound(NhWindow *map, int x, int y)
+{
+    if (!map || gMap.owner != map) return;
+
+    /* Don't scroll unless hero is within edge margin. */
+    short hero_in_view_x = (short) x - gMap.scroll_col;
+    short hero_in_view_y = (short) y - gMap.scroll_row;
+    if (hero_in_view_x >= MT_EDGE_MARGIN
+        && hero_in_view_x <  gMap.vis_cols - MT_EDGE_MARGIN
+        && hero_in_view_y >= MT_EDGE_MARGIN
+        && hero_in_view_y <  gMap.vis_rows - MT_EDGE_MARGIN) {
+        return;
+    }
+
+    short new_col, new_row;
+    recompute_scroll_for_center(x, y, &new_col, &new_row);
+    if (new_col == gMap.scroll_col && new_row == gMap.scroll_row) return;
+
+    gMap.scroll_col = new_col;
+    gMap.scroll_row = new_row;
+    repaint_full_viewport();
+}
 
 void
 macmap_grow_event(NhWindow *map, long newSize)
