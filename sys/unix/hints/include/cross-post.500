@@ -357,6 +357,7 @@ $(TARGETPFX)mgetline.o : ../sys/mac/mgetline.c $(MAC_H)
 $(TARGETPFX)mmodal.o : ../sys/mac/mmodal.c
 $(TARGETPFX)dprintf.o : ../sys/mac/dprintf.c $(MAC_H)
 $(TARGETPFX)mactile.o : ../sys/mac/mactile.c $(MAC_H) ../sys/mac/mactile.h
+$(TARGETPFX)macmap.o : ../sys/mac/macmap.c $(MAC_H) ../sys/mac/macmap.h ../sys/mac/mactile.h
 # tile.c is the generated glyph-to-tileidx lookup table; tilemap is built
 # by util/Makefile and writes to ../src/tile.c.
 $(TARGETPFX)tile.o : tile.c
@@ -376,6 +377,14 @@ mac68kpkg: $(GAMEBIN)
 		../sys/mac/NHrsrc.hqx $(TARGETPFX)resources
 	@echo "=== Compiling SIZE resource ==="
 	$(RETRO68)/bin/Rez ../sys/mac/nhsize.r -o $(TARGETPFX)nhsize.rsrc
+	@echo "=== Compiling map WIND resources ==="
+	$(RETRO68)/bin/Rez ../sys/mac/nhmapwind.r \
+		-I $(RETRO68)/multiversal/RIncludes \
+		-o $(TARGETPFX)nhmapwind.rsrc
+	@echo "=== Merging map WIND resources ==="
+	python3 ../sys/mac/tools/append_rsrc.py \
+		$(TARGETPFX).rsrc/NetHack \
+		$(TARGETPFX).rsrc/nhmapwind.rsrc
 	@echo "=== Generating tile PICT resources ==="
 	cd ../util && ./tile2pict $(abspath $(TARGETPFX)nhtiles_data.r)
 	@echo "=== Compiling tile resource ==="
