@@ -94,12 +94,31 @@ allocate_backing(void)
         PixMapHandle pm = GetGWorldPixMap(gMap.backing);
         NoPurgePixels(pm);   /* backing stays resident; reallocated on grow */
     }
-    /* Erase the backing to its background. */
+    /* Initialize the backing port: deterministic white background, black
+       foreground, and the SAME font/size the map window uses, so DrawChar
+       in draw_cell_text produces actual glyphs (not "missing-glyph"
+       rectangles from the system default font). */
     GWorldPtr saveW; GDHandle saveD;
     GetGWorld(&saveW, &saveD);
     SetGWorld(gMap.backing, NULL);
     PixMapHandle pm = GetGWorldPixMap(gMap.backing);
     LockPixels(pm);
+    {
+        RGBColor white = {0xFFFF, 0xFFFF, 0xFFFF};
+        RGBColor black = {0, 0, 0};
+        RGBBackColor(&white);
+        RGBForeColor(&black);
+        {
+            short fn = (gMap.owner && gMap.owner->font_number > 0)
+                       ? gMap.owner->font_number : kFontIDMonaco;
+            short fs = (gMap.owner && gMap.owner->font_size > 0)
+                       ? gMap.owner->font_size : 9;
+            TextFont(fn);
+            TextSize(fs);
+            TextFace(0);
+            TextMode(srcCopy);
+        }
+    }
     EraseRect(&r);
     UnlockPixels(pm);
     SetGWorld(saveW, saveD);
@@ -124,6 +143,7 @@ blit_backing_to_window(const Rect *src_rect, const Rect *dst_rect)
 Boolean
 macmap_create(NhWindow *map)
 {
+    extern WindowPtr _mt_window;
     if (!map) return false;
     if (gMap.owner) return true;   /* idempotent */
 
@@ -139,6 +159,8 @@ macmap_create(NhWindow *map)
     SetWRefCon(w, MACMAP_REFCON);
     SetWindowKind(w, WIN_BASE_KIND + NHW_MAP);
     map->its_window = w;
+    ShowWindow(w);
+    (void) _mt_window;   /* leave shown so status remains visible (Round 1) */
 
     /* Apply saved position and text-mode size from NHDeflts (iflags). */
     {
@@ -161,14 +183,42 @@ macmap_create(NhWindow *map)
     gMap.tile_mode   = false;
     gMap.backing     = NULL;
     gMap.palette     = NULL;
+    /* Cell metrics fall back to safe defaults; macmap_finalize re-derives
+       them from the NhWindow after get_tty_metrics has populated it. */
     gMap.cell_w      = 6;
     gMap.cell_h      = 14;
     gMap.vis_cols    = 80;
     gMap.vis_rows    = 21;
     gMap.scroll_col  = 0;
     gMap.scroll_row  = 0;
+    /* Backing + tile-mode init deferred to macmap_finalize. */
 
     return true;
+}
+
+/* Called from mac_create_nhwindow AFTER get_tty_metrics has populated
+   aWin->char_width / row_height / font_number. Re-derive cell metrics,
+   recompute the viewport from actual window size, allocate the backing
+   GWorld, and apply tile mode if NHDeflts asks. */
+void
+macmap_finalize(NhWindow *map)
+{
+    if (!map || gMap.owner != map || !map->its_window) return;
+    if (map->char_width  > 0) gMap.cell_w = map->char_width;
+    if (map->row_height  > 0) gMap.cell_h = map->row_height;
+    {
+        Rect cr; GetWindowPortBounds(map->its_window, &cr);
+        gMap.vis_cols = (cr.right - cr.left) / gMap.cell_w;
+        gMap.vis_rows = (cr.bottom - cr.top) / gMap.cell_h;
+        if (gMap.vis_cols < 1) gMap.vis_cols = 1;
+        if (gMap.vis_rows < 1) gMap.vis_rows = 1;
+    }
+    if (!allocate_backing()) {
+        mac_dprintf("macmap: backing alloc failed at finalize\n");
+    }
+    if (iflags.wc_tiled_map && mactile_available()) {
+        macmap_set_mode(map, true);
+    }
 }
 
 void
@@ -468,11 +518,16 @@ repaint_full_viewport(void)
         for (c = gMap.scroll_col; c < gMap.scroll_col + gMap.vis_cols && c < COLNO; ++c) {
             if (gMap.tile_mode) {
                 short idx = gMap.tile_cache[r][c];
-                if (idx) draw_cell_tile(c, r, (int) idx);
+                /* Always blit — idx==0 falls back to the first sheet cell
+                   (acts as the "empty/unexplored" tile). */
+                draw_cell_tile(c, r, (int) idx);
             } else {
                 char ch  = (char) gMap.text_cache[r][c];
                 int  col = (int)  gMap.text_color[r][c];
-                if (ch != 0) draw_cell_text(c, r, ch, col);
+                /* Treat 0 as a blank cell so the backing isn't left
+                   transparent on cells NetHack hasn't printed yet. */
+                if (ch == 0) ch = ' ';
+                draw_cell_text(c, r, ch, col);
             }
         }
     /* Final viewport blit if we're using backing. */
