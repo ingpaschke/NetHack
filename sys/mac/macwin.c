@@ -3466,8 +3466,8 @@ DoOsEvt(EventRecord *theEvent)
             /* Resuming: re-check if tile mode is still available */
             NhWindow *map = (WIN_MAP != WIN_ERR) ? &theWindows[WIN_MAP] : NULL;
             if (map && map->tile_mode && !mactile_available()) {
-                /* TODO Phase 4/5: macmap_set_mode(map, false); */
-                map->tile_mode = false;
+                /* Route through macmap_set_mode so palette cleanup runs. */
+                macmap_set_mode(map, false);
                 iflags.wc_tiled_map = FALSE;          /* keep NHDeflts in sync */
                 InvalWindowRect(map->its_window, &map->its_window->portRect);
                 gTileMenuNeedsUpdate = 1;
