@@ -983,11 +983,18 @@ AdjustMenus(short dimMenubar)
             else
                 DisableMenuItem(MHND_FILE, menuFileEnterExplore);
 
-            /* ... enable Tile Mode only if tiles are available */
+            /* Enable Tile Mode only if tiles are available, and sync the
+               check mark to the live tile_mode state. AdjustMenus runs
+               before menu pulldown, so this closes the gap where a
+               resume event forced tile mode off but the idle-driven
+               mactile_menu_refresh hasn't fired yet. */
             if (mactile_available())
                 EnableMenuItem(MHND_FILE, menuFileTileMode);
             else
                 DisableMenuItem(MHND_FILE, menuFileTileMode);
+            CheckMenuItem(MHND_FILE, menuFileTileMode,
+                          (WIN_MAP != WIN_ERR
+                           && theWindows[WIN_MAP].tile_mode));
 
             break;
         }

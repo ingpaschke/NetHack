@@ -146,11 +146,16 @@ mactile_set_mode(NhWindow *map, Boolean on)
         gScrollRow = 0;
 
         /* On 8bpp screens, attach a 32-entry pmTolerant Palette so the
-           system tries to allocate close colors without trashing
-           the reserved system slots. */
-        if (gSheetDepth == 8 && !gTilePalette) {
-            CTabHandle ct = (**GetGWorldPixMap(gTileSheet)).pmTable;
-            gTilePalette = NewPalette(32, ct, pmTolerant, 0x0000);
+           system tries to allocate close colors without trashing the
+           reserved system slots. The 4th arg is the color-distance
+           tolerance: 0 means "match exactly" which collapses pmTolerant
+           to pmCourteous; 0x1000 (~12.5% RGB radius) is the typical
+           game-palette value. */
+        if (gSheetDepth == 8) {
+            if (!gTilePalette) {
+                CTabHandle ct = (**GetGWorldPixMap(gTileSheet)).pmTable;
+                gTilePalette = NewPalette(32, ct, pmTolerant, 0x1000);
+            }
             if (gTilePalette) {
                 SetPalette(map->its_window, gTilePalette, true);
                 ActivatePalette(map->its_window);
@@ -162,9 +167,14 @@ mactile_set_mode(NhWindow *map, Boolean on)
             mactile_center_on(map, (int) u.ux, (int) u.uy);
         mactile_redraw_viewport(map);
     } else {
-        /* Caller (macwin) is responsible for re-rendering the map via mactty. */
+        /* Detach and dispose the palette so a future re-enable creates a
+           fresh one against the live window. Without DisposePalette here,
+           re-enable would see a non-NULL gTilePalette, skip NewPalette,
+           and never call SetPalette → window left without a palette. */
         if (gTilePalette) {
             SetPalette(map->its_window, NULL, false);
+            DisposePalette(gTilePalette);
+            gTilePalette = NULL;
         }
     }
 }
@@ -256,6 +266,16 @@ mactile_center_on(NhWindow *map, int col, int row)
 void
 mactile_set_player(NhWindow *map, int col, int row)
 {
+    /* Skip when the hero hasn't actually moved. Without this, every full
+       map redraw (which always paints the hero cell) re-enters the
+       edge-margin check; if the hero is parked within MT_EDGE_MARGIN of
+       an edge, set_player → center_on → redraw_viewport → set_player
+       fires an extra round of work each frame. */
+    static short gLastPlayerCol = -1, gLastPlayerRow = -1;
+    if (col == gLastPlayerCol && row == gLastPlayerRow) return;
+    gLastPlayerCol = (short) col;
+    gLastPlayerRow = (short) row;
+
     if (!map || !map->tile_mode) return;
     if (col < gScrollCol + MT_EDGE_MARGIN
         || col >= gScrollCol + gVisCols - MT_EDGE_MARGIN

@@ -753,10 +753,15 @@ update_tty(WindowPtr window)
 
     /* If we just painted into the same Mac window the tile map lives in,
        repaint the tiles so they survive whatever copy_bits did above.
-       Cheap on a Quadra; status updates are infrequent enough that the
-       extra blits don't hurt. */
+       Skip the redraw entirely when the dirty rect is purely below the
+       map row range — that's the common case for status-line updates,
+       and a full viewport repaint would burn ~600 CopyBits calls per
+       turn on a 68030. */
     if (is_tile_map_window) {
-        mactile_redraw_viewport(&theWindows[WIN_MAP]);
+        short map_bottom_y = ROWNO * record->row_height;
+        if (r.top < map_bottom_y) {
+            mactile_redraw_viewport(&theWindows[WIN_MAP]);
+        }
     }
 
     return noErr;
