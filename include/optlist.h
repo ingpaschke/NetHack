@@ -421,6 +421,17 @@ static int optfn_##a(int, int, boolean, char *, char *);
            "enable the mail daemon")
     NHOPTC(map_mode, Advanced, 20, opt_in, set_gameview,
                 Yes, Yes, No, No, NoAlias, "map display mode under Windows")
+#ifdef MAC
+    NHOPTC(map_window_pos, Advanced, 16, opt_in, set_in_config,
+                No, Yes, No, No, NoAlias,
+                "position of map window (XxY pixels from top-left)")
+    NHOPTC(map_window_text_size, Advanced, 16, opt_in, set_in_config,
+                No, Yes, No, No, NoAlias,
+                "size of map window in text mode (WxH pixels)")
+    NHOPTC(map_window_tile_size, Advanced, 16, opt_in, set_in_config,
+                No, Yes, No, No, NoAlias,
+                "size of map window in tile mode (WxH pixels)")
+#endif /* MAC */
     NHOPTB(mention_decor, Advanced, 0, opt_in, set_in_game,
            Off, Yes, No, No, NoAlias, &flags.mention_decor, Term_False,
            "give feedback when walking over interesting features")
