@@ -12,6 +12,7 @@
 #include "mactty.h"
 #include "wintty.h"
 #include "mactile.h"
+#include "macmap.h"
 
 #if 1 /*!TARGET_API_MAC_CARBON*/
 #include <LowMem.h>
@@ -810,33 +811,37 @@ got1:
 
     mac_dprintf("cre_win: New kind %d", kind);
 
-    if (kind == NHW_BASE || kind == NHW_MAP || kind == NHW_STATUS) {
+    if (kind == NHW_MAP) {
+        /* Map gets its own window. */
+        /* Still populate wintty's wins[i] slot so tty internals
+           (e.g. docorner's unchecked wins[WIN_MAP] dereference) remain safe. */
+        if (i != tty_create_nhwindow(kind)) {
+            mac_dprintf("cre_win: error creating kind %d", kind);
+        }
+        wins[i]->offy = 0; /* message box is in a separate window */
+        if (!macmap_create(aWin)) {
+            mac_dprintf("cre_win: macmap_create failed for NHW_MAP\n");
+            /* Fall back to legacy _mt_window sharing for safety. */
+            aWin->its_window = _mt_window;
+        }
+        {
+            short x_sz, x_sz_p, y_sz, y_sz_p;
+            get_tty_metrics(_mt_window, &x_sz, &y_sz, &x_sz_p, &y_sz_p,
+                            &aWin->font_number, &aWin->font_size,
+                            &aWin->char_width, &aWin->row_height);
+        }
+        return i;
+    } else if (kind == NHW_BASE || kind == NHW_STATUS) {
         short x_sz, x_sz_p, y_sz, y_sz_p;
         if (kind != NHW_BASE) {
             if (i != tty_create_nhwindow(kind)) {
                 mac_dprintf("cre_win: error creating kind %d", kind);
-            }
-            if (kind == NHW_MAP) {
-                wins[i]->offy =
-                    0; /* the message box is in a separate window */
             }
         }
         aWin->its_window = _mt_window;
         get_tty_metrics(aWin->its_window, &x_sz, &y_sz, &x_sz_p, &y_sz_p,
                         &aWin->font_number, &aWin->font_size,
                         &aWin->char_width, &aWin->row_height);
-#if 0 // TARGET_API_MAC_CARBON
-		InstallWindowEventHandler(aWin->its_window, baseupp,
-			sizeof(baseevents)/sizeof(EventTypeSpec), baseevents,
-			(void *)aWin, NULL);
-#endif
-        /* Apply tiled_map option if set in NHDeflts.  WIN_MAP has not yet
-           been assigned by the caller, so use aWin directly. */
-        if (kind == NHW_MAP && iflags.wc_tiled_map && mactile_available()) {
-            if (mactile_init()) {
-                mactile_set_mode(aWin, true);
-            }
-        }
         return i;
     }
 
