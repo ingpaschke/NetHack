@@ -2363,10 +2363,8 @@ static void
 BaseClick(NhWindow *wind, Point pt, UInt32 modifiers)
 {
     int col, row;
-    if (wind == &theWindows[WIN_MAP] && wind->tile_mode) {
-        /* TODO Phase 4/5: macmap_pixel_to_cell(wind, pt, &col, &row); */
-        col = pt.h / 16 + 1;
-        row = pt.v / 16;
+    if (wind == &theWindows[WIN_MAP]) {
+        macmap_pixel_to_cell(wind, pt, &col, &row);
     } else {
         col = pt.h / wind->char_width + 1;
         row = pt.v / wind->row_height;
