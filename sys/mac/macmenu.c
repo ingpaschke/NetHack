@@ -27,6 +27,11 @@
 #include "macpopup.h"
 #include "patchlevel.h"
 #include "mactile.h"
+#include "macmap.h"
+
+/* Set to 1 by macwin's resume handler when tile-mode availability changes;
+   cleared by mactile_menu_refresh() on the next idle pass. */
+short gTileMenuNeedsUpdate = 0;
 
 /******** Toolbox Defines ********/
 #if !TARGET_API_MAC_CARBON
@@ -1057,19 +1062,17 @@ DoMenuEvt(long menuEntry)
 
         case menuFileTileMode: {
             NhWindow *map = (WIN_MAP != WIN_ERR) ? &theWindows[WIN_MAP] : NULL;
-            Boolean newOn;
             if (!map) break;
-            newOn = !map->tile_mode;
-            if (newOn && !mactile_init()) {
+            Boolean newOn = !macmap_get_mode(map);
+            if (newOn && !macmap_set_mode(map, true)) {
                 SysBeep(1);
                 break;
+            } else if (!newOn) {
+                macmap_set_mode(map, false);
             }
-            mactile_set_mode(map, newOn);
-            if (!newOn) {
-                InvalWindowRect(map->its_window, &map->its_window->portRect);
-            }
-            CheckMenuItem(MHND_FILE, menuFileTileMode, newOn);
-            iflags.wc_tiled_map = newOn; /* persist via NHDeflts on next save */
+            SetItemMark(MHND_FILE, menuFileTileMode,
+                        newOn ? checkMark : noMark);
+            iflags.wc_tiled_map = newOn;
             break;
         }
         }
@@ -1205,20 +1208,14 @@ askQuit()
 void
 mactile_menu_refresh(void)
 {
-    NhWindow *map;
-
-    if (!gTileMenuNeedsUpdate)
-        return;
+    if (!gTileMenuNeedsUpdate) return;
     gTileMenuNeedsUpdate = 0;
-
-    map = (WIN_MAP != WIN_ERR) ? &theWindows[WIN_MAP] : NULL;
-    if (!map)
-        return;
-
+    NhWindow *map = (WIN_MAP != WIN_ERR) ? &theWindows[WIN_MAP] : NULL;
+    if (!map) return;
     if (mactile_available())
         EnableMenuItem(MHND_FILE, menuFileTileMode);
     else
         DisableMenuItem(MHND_FILE, menuFileTileMode);
-
-    CheckMenuItem(MHND_FILE, menuFileTileMode, map->tile_mode);
+    SetItemMark(MHND_FILE, menuFileTileMode,
+                macmap_get_mode(map) ? checkMark : noMark);
 }

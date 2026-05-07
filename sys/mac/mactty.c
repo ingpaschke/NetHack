@@ -13,7 +13,8 @@
 #include "hack.h" /* to get flags */
 #include "mttypriv.h"
 #include "macwin.h" /* tile_mode field on NhWindow */
-#include "mactile.h" /* mactile_redraw_viewport */
+#include "mactile.h"
+#include "macmap.h"  /* macmap_update_event — repaint map after tty blit */
 #if !TARGET_API_MAC_CARBON
 #include <Sound.h>
 #include <Resources.h>
@@ -757,10 +758,15 @@ update_tty(WindowPtr window)
        map row range — that's the common case for status-line updates,
        and a full viewport repaint would burn ~600 CopyBits calls per
        turn on a 68030. */
+    /* Since Phase 2 the map lives in its own window; tty update no longer
+       shares a window with the tile map, so this branch is always false.
+       Kept as a safety net: if somehow the same window is reused later,
+       trigger a full macmap repaint instead of the old viewport call. */
     if (is_tile_map_window) {
         short map_bottom_y = ROWNO * record->row_height;
         if (r.top < map_bottom_y) {
-            mactile_redraw_viewport(&theWindows[WIN_MAP]);
+            /* TODO Phase 4/5: route through macmap_update_event if needed */
+            macmap_update_event(&theWindows[WIN_MAP]);
         }
     }
 
