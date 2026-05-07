@@ -156,9 +156,54 @@ macmap_print_glyph(NhWindow *map, int x, int y,
     draw_cell_text(x, y, ch, color);
 }
 
-void    macmap_clear(NhWindow *m UNUSED)                { }
+void
+macmap_update_event(NhWindow *map)
+{
+    if (!map || gMap.owner != map || !map->its_window) return;
+
+    GrafPtr saveP; GetPort(&saveP);
+    SetPort(map->its_window);
+    BeginUpdate(map->its_window);
+
+    Rect content;
+    GetWindowPortBounds(map->its_window, &content);
+    EraseRect(&content);
+
+    /* Re-blit every visible cell from cache. */
+    int r, c;
+    for (r = gMap.scroll_row; r < gMap.scroll_row + gMap.vis_rows && r < ROWNO; ++r)
+        for (c = gMap.scroll_col; c < gMap.scroll_col + gMap.vis_cols && c < COLNO; ++c) {
+            char ch  = (char) gMap.text_cache[r][c];
+            int  col = (int)  gMap.text_color[r][c];
+            if (ch != 0)
+                draw_cell_text(c, r, ch, col);
+        }
+
+    EndUpdate(map->its_window);
+    SetPort(saveP);
+}
+
+void
+macmap_clear(NhWindow *map)
+{
+    if (!map || gMap.owner != map) return;
+    int r, c;
+    for (r = 0; r < ROWNO; ++r)
+        for (c = 0; c < COLNO; ++c) {
+            gMap.text_cache[r][c] = ' ';
+            gMap.text_color[r][c] = 8; /* NO_COLOR */
+            gMap.tile_cache[r][c] = 0;
+        }
+    if (map->its_window) {
+        GrafPtr saveP; GetPort(&saveP);
+        SetPort(map->its_window);
+        Rect content; GetWindowPortBounds(map->its_window, &content);
+        EraseRect(&content);
+        SetPort(saveP);
+    }
+}
+
 void    macmap_cliparound(NhWindow *m UNUSED, int x UNUSED, int y UNUSED) { }
-void    macmap_update_event(NhWindow *m UNUSED)         { }
 void    macmap_grow_event(NhWindow *m UNUSED, long s UNUSED) { }
 void    macmap_click(NhWindow *m UNUSED, Point p UNUSED, UInt32 mod UNUSED) { }
 void    macmap_pixel_to_cell(NhWindow *m UNUSED, Point p UNUSED,
