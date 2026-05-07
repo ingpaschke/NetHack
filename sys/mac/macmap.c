@@ -219,6 +219,13 @@ macmap_finalize(NhWindow *map)
     if (iflags.wc_tiled_map && mactile_available()) {
         macmap_set_mode(map, true);
     }
+    /* Ask NetHack core to populate the cache via docrt() so the first
+       frame isn't blank. Has no effect before the moveloop starts; in
+       that case the next print_glyph batch will populate naturally. */
+    {
+        extern void docrt(void);
+        if (program_state.in_moveloop) docrt();
+    }
 }
 
 void
@@ -658,6 +665,13 @@ macmap_grow_event(NhWindow *map, long newSize)
     }
     /* Repaint cache → backing → window so the new backing isn't left blank. */
     repaint_full_viewport();
+    /* Then ask NetHack core to re-emit print_glyph for every visible cell.
+       The cache only contains data NetHack has previously drawn; cells in
+       the newly-exposed viewport area need fresh glyphs. */
+    {
+        extern void docrt(void);
+        if (program_state.in_moveloop) docrt();
+    }
 }
 
 void    macmap_click(NhWindow *m UNUSED, Point p UNUSED, UInt32 mod UNUSED) { }
