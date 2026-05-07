@@ -98,6 +98,21 @@ allocate_backing(void)
     return true;
 }
 
+static void
+blit_backing_to_window(const Rect *src_rect, const Rect *dst_rect)
+{
+    if (!gMap.backing || !gMap.owner || !gMap.owner->its_window) return;
+    PixMapHandle pm = GetGWorldPixMap(gMap.backing);
+    LockPixels(pm);
+    GrafPtr saveP; GetPort(&saveP);
+    SetPort(gMap.owner->its_window);
+    CopyBits((BitMap *) *pm,
+             GetPortBitMapForCopyBits(GetWindowPort(gMap.owner->its_window)),
+             src_rect, dst_rect, srcCopy, NULL);
+    SetPort(saveP);
+    UnlockPixels(pm);
+}
+
 Boolean
 macmap_create(NhWindow *map)
 {
@@ -221,18 +236,37 @@ draw_cell_text(int col, int row, char ch, int color)
         return;   /* off-viewport, cache only */
     }
 
-    GrafPtr saveP; GetPort(&saveP);
-    SetPort(gMap.owner->its_window);
-    /* Clear the cell with background color before drawing. */
-    Rect cell = { dy, dx, dy + gMap.cell_h, dx + gMap.cell_w };
-    EraseRect(&cell);
-    set_nh_color(color);
-    /* Baseline = top + (cell_h - descent). For typical Monaco 9 (cell_h=14,
-       descent ~3), this puts the baseline at cell_h - 4 = 10, which leaves
-       a 1-pixel descender room below the cell. */
-    MoveTo(dx, dy + gMap.cell_h - 4);
-    DrawChar(ch);
-    SetPort(saveP);
+    if (gMap.backing) {
+        /* Paint into backing first, then blit cell to window. */
+        PixMapHandle pm = GetGWorldPixMap(gMap.backing);
+        LockPixels(pm);
+        GWorldPtr saveW; GDHandle saveD;
+        GetGWorld(&saveW, &saveD);
+        SetGWorld(gMap.backing, NULL);
+
+        Rect cell = { dy, dx, dy + gMap.cell_h, dx + gMap.cell_w };
+        EraseRect(&cell);
+        set_nh_color(color);
+        MoveTo(dx, dy + gMap.cell_h - 4);
+        DrawChar(ch);
+
+        SetGWorld(saveW, saveD);
+        UnlockPixels(pm);
+        blit_backing_to_window(&cell, &cell);
+    } else {
+        /* Fallback: direct to window (slower). */
+        GrafPtr saveP; GetPort(&saveP);
+        SetPort(gMap.owner->its_window);
+        Rect cell = { dy, dx, dy + gMap.cell_h, dx + gMap.cell_w };
+        EraseRect(&cell);
+        set_nh_color(color);
+        /* Baseline = top + (cell_h - descent). For typical Monaco 9 (cell_h=14,
+           descent ~3), this puts the baseline at cell_h - 4 = 10, which leaves
+           a 1-pixel descender room below the cell. */
+        MoveTo(dx, dy + gMap.cell_h - 4);
+        DrawChar(ch);
+        SetPort(saveP);
+    }
 }
 
 static void
@@ -249,9 +283,13 @@ draw_cell_tile(int col, int row, int tile_idx)
         return;   /* off-viewport, cached only */
     }
 
-    /* Phase 3 paints directly to the window. Phase 4 introduces a backing
-       GWorld and routes paints through it. */
-    mactile_blit_to_window(gMap.owner->its_window, tile_idx, dx, dy);
+    if (gMap.backing) {
+        mactile_blit_to(gMap.backing, tile_idx, dx, dy);
+        Rect cell = { dy, dx, dy + 16, dx + 16 };
+        blit_backing_to_window(&cell, &cell);
+    } else {
+        mactile_blit_to_window(gMap.owner->its_window, tile_idx, dx, dy);
+    }
 }
 
 void
@@ -285,22 +323,28 @@ macmap_update_event(NhWindow *map)
     SetPort(map->its_window);
     BeginUpdate(map->its_window);
 
-    Rect content;
-    GetWindowPortBounds(map->its_window, &content);
-    EraseRect(&content);
-
-    int r, c;
-    for (r = gMap.scroll_row; r < gMap.scroll_row + gMap.vis_rows && r < ROWNO; ++r)
-        for (c = gMap.scroll_col; c < gMap.scroll_col + gMap.vis_cols && c < COLNO; ++c) {
-            if (gMap.tile_mode) {
-                short idx = gMap.tile_cache[r][c];
-                if (idx) draw_cell_tile(c, r, (int) idx);
-            } else {
-                char ch  = (char) gMap.text_cache[r][c];
-                int  col = (int)  gMap.text_color[r][c];
-                if (ch != 0) draw_cell_text(c, r, ch, col);
+    if (gMap.backing) {
+        Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
+        /* Source = backing bbox. Dest = same dims at window content top-left. */
+        Rect dst = bbox;
+        blit_backing_to_window(&bbox, &dst);
+    } else {
+        /* Fallback: cache-replay redraw. */
+        Rect content; GetWindowPortBounds(map->its_window, &content);
+        EraseRect(&content);
+        int r, c;
+        for (r = gMap.scroll_row; r < gMap.scroll_row + gMap.vis_rows && r < ROWNO; ++r)
+            for (c = gMap.scroll_col; c < gMap.scroll_col + gMap.vis_cols && c < COLNO; ++c) {
+                if (gMap.tile_mode) {
+                    short idx = gMap.tile_cache[r][c];
+                    if (idx) draw_cell_tile(c, r, (int) idx);
+                } else {
+                    char ch  = (char) gMap.text_cache[r][c];
+                    int  col = (int)  gMap.text_color[r][c];
+                    if (ch != 0) draw_cell_text(c, r, ch, col);
+                }
             }
-        }
+    }
 
     EndUpdate(map->its_window);
     SetPort(saveP);
