@@ -25,6 +25,36 @@ typedef struct {
 
 static MacMapState gMap = {0};
 
+/* NetHack color indices to RGB. Values are 16-bit per channel (Mac
+   QuickDraw convention; 8-bit values multiplied by 257 for full range). */
+#define R16(v) ((unsigned short)((v) * 257))
+static const RGBColor gNhColorRGB[16] = {
+    {R16(0x00), R16(0x00), R16(0x00)},   /* 0  CLR_BLACK   */
+    {R16(0xC0), R16(0x00), R16(0x00)},   /* 1  CLR_RED     */
+    {R16(0x00), R16(0x80), R16(0x00)},   /* 2  CLR_GREEN   */
+    {R16(0x80), R16(0x80), R16(0x00)},   /* 3  CLR_BROWN   */
+    {R16(0x00), R16(0x00), R16(0xC0)},   /* 4  CLR_BLUE    */
+    {R16(0x80), R16(0x00), R16(0x80)},   /* 5  CLR_MAGENTA */
+    {R16(0x00), R16(0x80), R16(0x80)},   /* 6  CLR_CYAN    */
+    {R16(0xC0), R16(0xC0), R16(0xC0)},   /* 7  CLR_GRAY    */
+    {R16(0x80), R16(0x80), R16(0x80)},   /* 8  NO_COLOR    */
+    {R16(0xFF), R16(0x80), R16(0x00)},   /* 9  CLR_ORANGE  */
+    {R16(0x00), R16(0xFF), R16(0x00)},   /* 10 CLR_BRIGHT_GREEN */
+    {R16(0xFF), R16(0xFF), R16(0x00)},   /* 11 CLR_YELLOW  */
+    {R16(0x00), R16(0x80), R16(0xFF)},   /* 12 CLR_BRIGHT_BLUE */
+    {R16(0xFF), R16(0x00), R16(0xFF)},   /* 13 CLR_BRIGHT_MAGENTA */
+    {R16(0x00), R16(0xFF), R16(0xFF)},   /* 14 CLR_BRIGHT_CYAN */
+    {R16(0xFF), R16(0xFF), R16(0xFF)}    /* 15 CLR_WHITE   */
+};
+
+static void
+set_nh_color(int color)
+{
+    if (color < 0 || color >= 16) color = 8;   /* NO_COLOR */
+    RGBColor c = gNhColorRGB[color];
+    RGBForeColor(&c);
+}
+
 Boolean
 macmap_create(NhWindow *map)
 {
