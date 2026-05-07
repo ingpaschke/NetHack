@@ -219,13 +219,8 @@ macmap_finalize(NhWindow *map)
     if (iflags.wc_tiled_map && mactile_available()) {
         macmap_set_mode(map, true);
     }
-    /* Ask NetHack core to populate the cache via docrt() so the first
-       frame isn't blank. Has no effect before the moveloop starts; in
-       that case the next print_glyph batch will populate naturally. */
-    {
-        extern void docrt(void);
-        if (program_state.in_moveloop) docrt();
-    }
+    /* Centering happens lazily inside macmap_print_glyph when the player
+       glyph is drawn — at finalize time u.ux/u.uy may not be set yet. */
 }
 
 void
@@ -406,6 +401,15 @@ macmap_print_glyph(NhWindow *map, int x, int y,
     if (!map || gMap.owner != map) return;
     if (!gi) return;
     if (x < 0 || x >= COLNO || y < 0 || y >= ROWNO) return;
+
+    /* Auto-center the viewport on the hero. NetHack core only calls
+       cliparound() between turns from moveloop; the very first frame
+       (and the frame after a resize) doesn't get one, so without this
+       the viewport stays at (0,0) and the visible area is unexplored
+       stone tiles — looks like a black window. */
+    if ((int) x == (int) u.ux && (int) y == (int) u.uy) {
+        macmap_cliparound(map, x, y);
+    }
 
     char ch = gi->ttychar;
     int  color = gi->gm.sym.color;
@@ -663,14 +667,13 @@ macmap_grow_event(NhWindow *map, long newSize)
     if (!allocate_backing()) {
         mac_dprintf("macmap: backing realloc failed on grow\n");
     }
-    /* Repaint cache → backing → window so the new backing isn't left blank. */
-    repaint_full_viewport();
-    /* Then ask NetHack core to re-emit print_glyph for every visible cell.
-       The cache only contains data NetHack has previously drawn; cells in
-       the newly-exposed viewport area need fresh glyphs. */
-    {
-        extern void docrt(void);
-        if (program_state.in_moveloop) docrt();
+    /* Recenter on the hero, then repaint from cache. */
+    if (u.ux > 0 || u.uy > 0) {
+        gMap.scroll_col = 0;
+        gMap.scroll_row = 0;
+        macmap_cliparound(map, (int) u.ux, (int) u.uy);
+    } else {
+        repaint_full_viewport();
     }
 }
 
