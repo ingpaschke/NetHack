@@ -1873,10 +1873,9 @@ mac_delay_output(void)
 static void
 mac_cliparound(int x, int y)
 {
-#if defined(__SC__) || defined(__MRC__)
-#pragma unused(x, y)
-#endif
-    /* TODO */
+    if (WIN_MAP != WIN_ERR) {
+        macmap_cliparound(&theWindows[WIN_MAP], x, y);
+    }
 }
 #endif
 
