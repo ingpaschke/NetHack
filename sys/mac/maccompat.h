@@ -60,6 +60,11 @@
 #undef DisableMenuItem
 #define DisableMenuItem(menu, item)  DisableItem(menu, item)
 
+/* GetPortBounds — portRect field, same layout in CGrafPort and GrafPort */
+#undef GetPortBounds
+#define GetPortBounds(port, rect) \
+    (*(rect) = ((CGrafPtr)(port))->portRect, (rect))
+
 /* --- HasDepth: in Palette Manager (Palettes.h), available System 7+ --- */
 #include <Palettes.h>
 
