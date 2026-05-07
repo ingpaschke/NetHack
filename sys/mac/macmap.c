@@ -55,6 +55,49 @@ set_nh_color(int color)
     RGBForeColor(&c);
 }
 
+static Boolean
+allocate_backing(void)
+{
+    if (gMap.backing) {
+        DisposeGWorld(gMap.backing);
+        gMap.backing = NULL;
+    }
+    Rect r;
+    SetRect(&r, 0, 0,
+            gMap.vis_cols * gMap.cell_w,
+            gMap.vis_rows * gMap.cell_h);
+
+    short depth;
+    if (gMap.tile_mode) {
+        depth = mactile_sheet_depth();
+        if (depth < 4) depth = 8;
+    } else {
+        GDHandle gd = GetMainDevice();
+        depth = (*(*gd)->gdPMap)->pixelSize;
+        if (depth > 8) depth = 8;
+        if (depth < 1) depth = 1;
+    }
+
+    QDErr err = NewGWorld(&gMap.backing, depth, &r, NULL, NULL, 0);
+    if (err != noErr || !gMap.backing) {
+        mac_dprintf("macmap: NewGWorld failed err=%d (depth=%d)\n",
+                    (int) err, (int) depth);
+        gMap.backing = NULL;
+        return false;
+    }
+
+    /* Erase the backing to its background. */
+    GWorldPtr saveW; GDHandle saveD;
+    GetGWorld(&saveW, &saveD);
+    SetGWorld(gMap.backing, NULL);
+    PixMapHandle pm = GetGWorldPixMap(gMap.backing);
+    LockPixels(pm);
+    EraseRect(&r);
+    UnlockPixels(pm);
+    SetGWorld(saveW, saveD);
+    return true;
+}
+
 Boolean
 macmap_create(NhWindow *map)
 {
@@ -118,7 +161,9 @@ macmap_set_mode(NhWindow *map, Boolean tile_mode)
         gMap.cell_h = 16;
         gMap.vis_cols = 30;   /* default; resize event will refine */
         gMap.vis_rows = 21;
-
+        if (!allocate_backing()) {
+            mac_dprintf("macmap: backing alloc failed in tile mode; using fallback\n");
+        }
         /* On 8bpp screens, attach a 32-entry pmTolerant Palette so the
            Palette Manager can allocate close colors without trashing
            reserved system slots. */
@@ -146,6 +191,9 @@ macmap_set_mode(NhWindow *map, Boolean tile_mode)
             SetPalette(map->its_window, NULL, false);
             DisposePalette(gMap.palette);
             gMap.palette = NULL;
+        }
+        if (!allocate_backing()) {
+            mac_dprintf("macmap: backing alloc failed in text mode; using fallback\n");
         }
     }
     /* Force a full redraw via update event. */
