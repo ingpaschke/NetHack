@@ -942,6 +942,10 @@ mac_clear_nhwindow(winid win)
         error("clr_win: Invalid win %d.", win);
         return;
     }
+    if (win == WIN_MAP) {
+        macmap_clear(aWin);
+        return;
+    }
     if (theWindow == _mt_window) {
         tty_clear_nhwindow(win);
         return;
@@ -2288,26 +2292,18 @@ mac_print_glyph(winid win, coordxy x, coordxy y,
                 const glyph_info *glyphinfo,
                 const glyph_info *bkglyphinfo UNUSED)
 {
-    NhWindow *w = (win >= 0 && win < NUM_MACWINDOWS) ? &theWindows[win] : NULL;
-
-    if (w && win == WIN_MAP && w->tile_mode) {
-        int idx = (glyphinfo) ? glyphinfo->gm.tileidx : 0;
-        mactile_draw_cell(w, (int) x, (int) y, idx);
-        /* Auto-follow uses canonical hero coords. */
-        if ((int) x == (int) u.ux && (int) y == (int) u.uy)
-            mactile_set_player(w, (int) x, (int) y);
+    if (win == WIN_MAP && win >= 0 && win < NUM_MACWINDOWS) {
+        macmap_print_glyph(&theWindows[win], (int) x, (int) y, glyphinfo);
         return;
     }
 
-    /* Existing tty path (unchanged). */
+    /* Existing tty path for non-map windows (unchanged). */
     int ch;
     tty_curs(win, x, y);
     ch = (glyphinfo && glyphinfo->ttychar) ? glyphinfo->ttychar : ' ';
     term_start_color(glyphinfo ? glyphinfo->gm.sym.color : NO_COLOR);
     add_tty_char(_mt_window, (short) ch);
     term_end_color();
-    /* Keep ttyDisplay cursor in sync — tty_curs skips move if it
-       thinks cursor is already at the right position */
     wins[win]->curx++;
     ttyDisplay->curx++;
     update_tty(_mt_window);
@@ -3363,6 +3359,11 @@ HandleUpdate(EventRecord *theEvent)
     Rect rect;
 
     if (!aWin && theWindow != _mt_window) {
+        /* Check if this is the dedicated map window. */
+        if (WIN_MAP != WIN_ERR && theWindows[WIN_MAP].its_window == theWindow) {
+            macmap_update_event(&theWindows[WIN_MAP]);
+            return;
+        }
         BeginUpdate(theWindow);
         EndUpdate(theWindow);
         return;
@@ -3397,9 +3398,8 @@ HandleUpdate(EventRecord *theEvent)
 #else
     {
         int kind = GetWindowKind(theWindow) - WIN_BASE_KIND;
-        if (kind == NHW_MAP && WIN_MAP != WIN_ERR
-                && theWindows[WIN_MAP].tile_mode) {
-            mactile_redraw_viewport(&theWindows[WIN_MAP]);
+        if (kind == NHW_MAP && WIN_MAP != WIN_ERR) {
+            macmap_update_event(&theWindows[WIN_MAP]);
         } else if (kind >= 0 && kind < NUM_FUNCS) {
             winUpdateFuncs[kind](&fake, theWindow);
         }
