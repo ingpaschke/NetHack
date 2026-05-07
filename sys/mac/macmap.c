@@ -107,8 +107,55 @@ macmap_show(NhWindow *map)
 }
 Boolean macmap_set_mode(NhWindow *m UNUSED, Boolean t UNUSED) { return false; }
 Boolean macmap_get_mode(NhWindow *m UNUSED)             { return false; }
-void    macmap_print_glyph(NhWindow *m UNUSED, int x UNUSED, int y UNUSED,
-                            const struct glyph_info *gi UNUSED) { }
+
+static void
+draw_cell_text(int col, int row, char ch, int color)
+{
+    if (!gMap.owner || !gMap.owner->its_window) return;
+    if (col < 0 || col >= COLNO || row < 0 || row >= ROWNO) return;
+
+    short dx = (col - gMap.scroll_col) * gMap.cell_w;
+    short dy = (row - gMap.scroll_row) * gMap.cell_h;
+    if (dx < 0 || dy < 0
+        || dx >= gMap.vis_cols * gMap.cell_w
+        || dy >= gMap.vis_rows * gMap.cell_h) {
+        return;   /* off-viewport, cache only */
+    }
+
+    GrafPtr saveP; GetPort(&saveP);
+    SetPort(gMap.owner->its_window);
+    /* Clear the cell with background color before drawing. */
+    Rect cell = { dy, dx, dy + gMap.cell_h, dx + gMap.cell_w };
+    EraseRect(&cell);
+    set_nh_color(color);
+    /* Baseline = top + (cell_h - descent). For typical Monaco 9 (cell_h=14,
+       descent ~3), this puts the baseline at cell_h - 4 = 10, which leaves
+       a 1-pixel descender room below the cell. */
+    MoveTo(dx, dy + gMap.cell_h - 4);
+    DrawChar(ch);
+    SetPort(saveP);
+}
+
+void
+macmap_print_glyph(NhWindow *map, int x, int y,
+                    const glyph_info *gi)
+{
+    if (!map || gMap.owner != map) return;
+    if (!gi) return;
+    if (x < 0 || x >= COLNO || y < 0 || y >= ROWNO) return;
+
+    if (gMap.tile_mode) {
+        /* Tile mode wired in Phase 4; for now, no-op. */
+        return;
+    }
+
+    char ch = gi->ttychar;
+    int  color = gi->gm.sym.color;
+    gMap.text_cache[y][x] = (unsigned char) ch;
+    gMap.text_color[y][x] = (unsigned char) color;
+    draw_cell_text(x, y, ch, color);
+}
+
 void    macmap_clear(NhWindow *m UNUSED)                { }
 void    macmap_cliparound(NhWindow *m UNUSED, int x UNUSED, int y UNUSED) { }
 void    macmap_update_event(NhWindow *m UNUSED)         { }
