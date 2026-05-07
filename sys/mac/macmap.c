@@ -1,6 +1,7 @@
 /* macmap.c — separate map window for the Mac 68k port. See macmap.h. */
 #include "hack.h"
 #include "macwin.h"
+#include "mactty.h"
 #include "macmap.h"
 #include "mactile.h"
 #include <Resources.h>
@@ -24,6 +25,8 @@ typedef struct {
 } MacMapState;
 
 static MacMapState gMap = {0};
+
+static void repaint_full_viewport(void);   /* forward declaration */
 
 /* NetHack color indices to RGB. Values are 16-bit per channel (Mac
    QuickDraw convention; 8-bit values multiplied by 257 for full range). */
@@ -86,6 +89,11 @@ allocate_backing(void)
         return false;
     }
 
+    /* Pin the backing so the Memory Manager can't purge it from under CopyBits. */
+    {
+        PixMapHandle pm = GetGWorldPixMap(gMap.backing);
+        NoPurgePixels(pm);   /* backing stays resident; reallocated on grow */
+    }
     /* Erase the backing to its background. */
     GWorldPtr saveW; GDHandle saveD;
     GetGWorld(&saveW, &saveD);
@@ -129,6 +137,7 @@ macmap_create(NhWindow *map)
         return false;
     }
     SetWRefCon(w, MACMAP_REFCON);
+    SetWindowKind(w, WIN_BASE_KIND + NHW_MAP);
     map->its_window = w;
 
     /* Apply saved position and text-mode size from NHDeflts (iflags). */
@@ -250,6 +259,8 @@ macmap_set_mode(NhWindow *map, Boolean tile_mode)
             mac_dprintf("macmap: backing alloc failed in text mode; using fallback\n");
         }
     }
+    /* Repaint cache → backing so the update event blits populated pixels. */
+    repaint_full_viewport();
     /* Force a full redraw via update event. */
     if (map->its_window) InvalRect(&(*map->its_window).portRect);
     return true;
@@ -339,18 +350,19 @@ macmap_print_glyph(NhWindow *map, int x, int y,
     if (!gi) return;
     if (x < 0 || x >= COLNO || y < 0 || y >= ROWNO) return;
 
-    if (gMap.tile_mode) {
-        int idx = gi->gm.tileidx;
-        gMap.tile_cache[y][x] = (short) idx;
-        draw_cell_tile(x, y, idx);
-        return;
-    }
-
     char ch = gi->ttychar;
     int  color = gi->gm.sym.color;
+    int  idx = gi->gm.tileidx;
+
+    /* Update both caches so a mode toggle has data to repaint with. */
     gMap.text_cache[y][x] = (unsigned char) ch;
     gMap.text_color[y][x] = (unsigned char) color;
-    draw_cell_text(x, y, ch, color);
+    gMap.tile_cache[y][x] = (short) idx;
+
+    if (gMap.tile_mode)
+        draw_cell_tile(x, y, idx);
+    else
+        draw_cell_text(x, y, ch, color);
 }
 
 void
@@ -589,9 +601,8 @@ macmap_grow_event(NhWindow *map, long newSize)
     if (!allocate_backing()) {
         mac_dprintf("macmap: backing realloc failed on grow\n");
     }
-    /* Repaint everything from cache. */
-    InvalRect(&(*map->its_window).portRect);
-    macmap_update_event(map);
+    /* Repaint cache → backing → window so the new backing isn't left blank. */
+    repaint_full_viewport();
 }
 
 void    macmap_click(NhWindow *m UNUSED, Point p UNUSED, UInt32 mod UNUSED) { }
