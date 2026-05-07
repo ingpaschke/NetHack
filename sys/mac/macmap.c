@@ -429,15 +429,17 @@ macmap_print_glyph(NhWindow *map, int x, int y,
 void
 macmap_update_event(NhWindow *map)
 {
+    /* Caller (HandleUpdate) is responsible for BeginUpdate/EndUpdate.
+       Calling BeginUpdate twice consumes the invalid region on the first
+       call, leaving an empty visRgn for the second — every subsequent
+       draw gets clipped out. */
     if (!map || gMap.owner != map || !map->its_window) return;
 
     GrafPtr saveP; GetPort(&saveP);
     SetPort(map->its_window);
-    BeginUpdate(map->its_window);
 
     if (gMap.backing) {
         Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
-        /* Source = backing bbox. Dest = same dims at window content top-left. */
         Rect dst = bbox;
         blit_backing_to_window(&bbox, &dst);
     } else {
@@ -458,7 +460,6 @@ macmap_update_event(NhWindow *map)
             }
     }
 
-    EndUpdate(map->its_window);
     SetPort(saveP);
 }
 

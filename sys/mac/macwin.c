@@ -3409,7 +3409,9 @@ HandleUpdate(EventRecord *theEvent)
     if (!aWin && theWindow != _mt_window) {
         /* Check if this is the dedicated map window. */
         if (WIN_MAP != WIN_ERR && theWindows[WIN_MAP].its_window == theWindow) {
+            BeginUpdate(theWindow);
             macmap_update_event(&theWindows[WIN_MAP]);
+            EndUpdate(theWindow);
             return;
         }
         BeginUpdate(theWindow);
