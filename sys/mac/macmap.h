@@ -14,9 +14,8 @@ extern Boolean macmap_set_mode(NhWindow *map, Boolean tile_mode);
 extern Boolean macmap_get_mode(NhWindow *map);
 
 /* NetHack windowprocs entry points. */
-struct glyph_info;
 extern void    macmap_print_glyph(NhWindow *map, int x, int y,
-                                  const struct glyph_info *gi);
+                                  const glyph_info *gi);
 extern void    macmap_clear(NhWindow *map);
 extern void    macmap_cliparound(NhWindow *map, int x, int y);
 
