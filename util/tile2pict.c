@@ -117,8 +117,10 @@ build_pict_8bpp(unsigned char **out_buf, size_t *out_len)
 {
     gPicBuf = NULL; gPicLen = 0; gPicCap = 0;
 
-    /* picSize placeholder (Mac ignores when reading by rsrc ID > 32K, but
-       we keep PICT < 32K so we patch it at the end). */
+    /* picSize placeholder. QuickDraw reads PICTs from a Resource Manager
+       handle by handle size, not by picSize, so this 16-bit field is
+       informational. We patch it at the end and saturate to 0 when the
+       PICT exceeds 32767 bytes — which it always does for our data. */
     size_t size_off = gPicLen;
     put_be16(0);
 
@@ -206,8 +208,9 @@ build_pict_8bpp(unsigned char **out_buf, size_t *out_len)
     put_be16(0x00FF);            /* endPic */
     if (gPicLen & 1) put_byte(0); /* word-align */
 
-    /* Patch picSize at offset 0 (Mac uses lower 16 bits; ignored if > 32767
-       but we already enforce 32 KB cap downstream). */
+    /* Patch picSize at offset 0. QuickDraw uses the resource handle's
+       size, not picSize, so this is informational; saturate to 0 when
+       the PICT exceeds 32767 bytes. */
     unsigned short shortsize = (gPicLen <= 0xFFFF) ? (unsigned short) gPicLen : 0;
     gPicBuf[size_off]     = (unsigned char) (shortsize >> 8);
     gPicBuf[size_off + 1] = (unsigned char) (shortsize & 0xFF);
