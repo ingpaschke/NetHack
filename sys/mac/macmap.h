@@ -6,6 +6,7 @@
 
 /* Lifecycle. */
 extern Boolean macmap_create(NhWindow *map);
+extern void    macmap_finalize(NhWindow *map);
 extern void    macmap_destroy(NhWindow *map);
 extern void    macmap_show(NhWindow *map);
 

@@ -839,6 +839,10 @@ got1:
                             &aWin->font_number, &aWin->font_size,
                             &aWin->char_width, &aWin->row_height);
         }
+        /* Now that font + cell metrics are populated, do the deferred
+           backing/tile-mode initialization with correct values. */
+        if (aWin->its_window != _mt_window)
+            macmap_finalize(aWin);
         return i;
     } else if (kind == NHW_BASE || kind == NHW_STATUS) {
         short x_sz, x_sz_p, y_sz, y_sz_p;
@@ -1479,6 +1483,13 @@ mac_destroy_nhwindow(winid win)
      * nhwindows.
      */
     if (theWindow == _mt_window) {
+        return;
+    }
+    /* The dedicated map window has its own backing GWorld, palette, and
+       gMap.owner state; route destruction through macmap_destroy so all
+       three get cleaned up. */
+    if (win == WIN_MAP) {
+        macmap_destroy(aWin);
         return;
     }
     if (win == WIN_INVEN || win == WIN_MESSAGE) {
