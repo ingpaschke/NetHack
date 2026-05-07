@@ -105,8 +105,58 @@ macmap_show(NhWindow *map)
 {
     if (map && map->its_window) ShowWindow(map->its_window);
 }
-Boolean macmap_set_mode(NhWindow *m UNUSED, Boolean t UNUSED) { return false; }
-Boolean macmap_get_mode(NhWindow *m UNUSED)             { return false; }
+Boolean
+macmap_set_mode(NhWindow *map, Boolean tile_mode)
+{
+    if (!map || gMap.owner != map) return false;
+
+    if (tile_mode && !mactile_init()) return false;
+    gMap.tile_mode = tile_mode;
+    if (tile_mode) {
+        gMap.cell_w = 16;
+        gMap.cell_h = 16;
+        gMap.vis_cols = 30;   /* default; resize event will refine */
+        gMap.vis_rows = 21;
+
+        /* On 8bpp screens, attach a 32-entry pmTolerant Palette so the
+           Palette Manager can allocate close colors without trashing
+           reserved system slots. */
+        if (mactile_sheet_depth() == 8) {
+            if (!gMap.palette) {
+                CTabHandle ct = mactile_sheet_ctable();
+                if (ct) gMap.palette = NewPalette(32, ct, pmTolerant, 0x1000);
+            }
+            if (gMap.palette) {
+                SetPalette(map->its_window, gMap.palette, true);
+                ActivatePalette(map->its_window);
+            }
+        }
+    } else {
+        if (gMap.owner) {
+            gMap.cell_w = gMap.owner->char_width;
+            gMap.cell_h = gMap.owner->row_height;
+            if (gMap.cell_w < 1) gMap.cell_w = 6;
+            if (gMap.cell_h < 1) gMap.cell_h = 14;
+        }
+        gMap.vis_cols = 80;
+        gMap.vis_rows = 21;
+        /* Detach + dispose the palette so a future re-enable rebuilds it. */
+        if (gMap.palette) {
+            SetPalette(map->its_window, NULL, false);
+            DisposePalette(gMap.palette);
+            gMap.palette = NULL;
+        }
+    }
+    /* Force a full redraw via update event. */
+    if (map->its_window) InvalRect(&(*map->its_window).portRect);
+    return true;
+}
+
+Boolean
+macmap_get_mode(NhWindow *map)
+{
+    return (map && gMap.owner == map) ? gMap.tile_mode : false;
+}
 
 static void
 draw_cell_text(int col, int row, char ch, int color)
@@ -136,6 +186,25 @@ draw_cell_text(int col, int row, char ch, int color)
     SetPort(saveP);
 }
 
+static void
+draw_cell_tile(int col, int row, int tile_idx)
+{
+    if (!gMap.owner || !gMap.owner->its_window) return;
+    if (col < 0 || col >= COLNO || row < 0 || row >= ROWNO) return;
+
+    short dx = (col - gMap.scroll_col) * gMap.cell_w;
+    short dy = (row - gMap.scroll_row) * gMap.cell_h;
+    if (dx < 0 || dy < 0
+        || dx >= gMap.vis_cols * gMap.cell_w
+        || dy >= gMap.vis_rows * gMap.cell_h) {
+        return;   /* off-viewport, cached only */
+    }
+
+    /* Phase 3 paints directly to the window. Phase 4 introduces a backing
+       GWorld and routes paints through it. */
+    mactile_blit_to_window(gMap.owner->its_window, tile_idx, dx, dy);
+}
+
 void
 macmap_print_glyph(NhWindow *map, int x, int y,
                     const glyph_info *gi)
@@ -145,7 +214,9 @@ macmap_print_glyph(NhWindow *map, int x, int y,
     if (x < 0 || x >= COLNO || y < 0 || y >= ROWNO) return;
 
     if (gMap.tile_mode) {
-        /* Tile mode wired in Phase 4; for now, no-op. */
+        int idx = gi->gm.tileidx;
+        gMap.tile_cache[y][x] = (short) idx;
+        draw_cell_tile(x, y, idx);
         return;
     }
 
@@ -169,14 +240,17 @@ macmap_update_event(NhWindow *map)
     GetWindowPortBounds(map->its_window, &content);
     EraseRect(&content);
 
-    /* Re-blit every visible cell from cache. */
     int r, c;
     for (r = gMap.scroll_row; r < gMap.scroll_row + gMap.vis_rows && r < ROWNO; ++r)
         for (c = gMap.scroll_col; c < gMap.scroll_col + gMap.vis_cols && c < COLNO; ++c) {
-            char ch  = (char) gMap.text_cache[r][c];
-            int  col = (int)  gMap.text_color[r][c];
-            if (ch != 0)
-                draw_cell_text(c, r, ch, col);
+            if (gMap.tile_mode) {
+                short idx = gMap.tile_cache[r][c];
+                if (idx) draw_cell_tile(c, r, (int) idx);
+            } else {
+                char ch  = (char) gMap.text_cache[r][c];
+                int  col = (int)  gMap.text_color[r][c];
+                if (ch != 0) draw_cell_text(c, r, ch, col);
+            }
         }
 
     EndUpdate(map->its_window);
