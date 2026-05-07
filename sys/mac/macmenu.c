@@ -997,9 +997,12 @@ AdjustMenus(short dimMenubar)
                 EnableMenuItem(MHND_FILE, menuFileTileMode);
             else
                 DisableMenuItem(MHND_FILE, menuFileTileMode);
-            CheckMenuItem(MHND_FILE, menuFileTileMode,
-                          (WIN_MAP != WIN_ERR
-                           && theWindows[WIN_MAP].tile_mode));
+            {
+                NhWindow *_am_map = (WIN_MAP != WIN_ERR)
+                                    ? &theWindows[WIN_MAP] : NULL;
+                SetItemMark(MHND_FILE, menuFileTileMode,
+                            macmap_get_mode(_am_map) ? checkMark : noMark);
+            }
 
             break;
         }
