@@ -368,6 +368,19 @@ macmap_clear(NhWindow *map)
         EraseRect(&content);
         SetPort(saveP);
     }
+    /* Clear the backing too — otherwise the next damage event blits stale
+       pixels back onto the window. */
+    if (gMap.backing) {
+        PixMapHandle pm = GetGWorldPixMap(gMap.backing);
+        LockPixels(pm);
+        GWorldPtr saveW; GDHandle saveD;
+        GetGWorld(&saveW, &saveD);
+        SetGWorld(gMap.backing, NULL);
+        Rect bb; GetPortBounds((CGrafPtr) gMap.backing, &bb);
+        EraseRect(&bb);
+        SetGWorld(saveW, saveD);
+        UnlockPixels(pm);
+    }
 }
 
 void    macmap_cliparound(NhWindow *m UNUSED, int x UNUSED, int y UNUSED) { }
