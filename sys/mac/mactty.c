@@ -12,9 +12,6 @@
 
 #include "hack.h" /* to get flags */
 #include "mttypriv.h"
-#include "macwin.h" /* tile_mode field on NhWindow */
-#include "mactile.h"
-#include "macmap.h"  /* macmap_update_event — repaint map after tty blit */
 #if !TARGET_API_MAC_CARBON
 #include <Sound.h>
 #include <Resources.h>
@@ -708,23 +705,9 @@ update_tty(WindowPtr window)
     Rect r;
     RECORD_EXISTS(record);
 
-    /* _mt_window hosts MAP, BASE, and STATUS sharing a single Mac window.
-       In tile mode we still need update_tty to paint the status portion;
-       blanket-suppressing it would also kill the status display.
-       Instead: let the copy_bits run normally, but skip the cursor
-       invert when the caret would land on the tile map, and repaint
-       the tiles afterward so any overlap with the map area is repaired. */
-    Boolean is_tile_map_window =
-        (WIN_MAP != WIN_ERR
-         && theWindows[WIN_MAP].its_window == window
-         && theWindows[WIN_MAP].tile_mode);
-
 #if CLIP_RECT_ONLY
     if (record->invalid_rect.right <= record->invalid_rect.left
         || record->invalid_rect.bottom <= record->invalid_rect.top) {
-        if (is_tile_map_window && record->curs_state) {
-            /* Cursor moved within the map; suppress caret to keep tiles clean. */
-        }
         return noErr;
     }
     r = record->invalid_rect;
@@ -742,32 +725,9 @@ update_tty(WindowPtr window)
     SetEmptyRgn(record->invalid_part);
 #endif
     if (record->curs_state) {
-        /* In tile mode, suppress the caret if it falls inside the map's
-           row range — otherwise it would draw a blinking inverted cell
-           over a tile. Status caret (y_curs >= ROWNO) is fine. */
-        if (!is_tile_map_window || record->y_curs >= ROWNO) {
-            pos_rect(record, &r, record->x_curs, record->y_curs, record->x_curs,
-                     record->y_curs);
-            InvertRect(&r);
-        }
-    }
-
-    /* If we just painted into the same Mac window the tile map lives in,
-       repaint the tiles so they survive whatever copy_bits did above.
-       Skip the redraw entirely when the dirty rect is purely below the
-       map row range — that's the common case for status-line updates,
-       and a full viewport repaint would burn ~600 CopyBits calls per
-       turn on a 68030. */
-    /* Since Phase 2 the map lives in its own window; tty update no longer
-       shares a window with the tile map, so this branch is always false.
-       Kept as a safety net: if somehow the same window is reused later,
-       trigger a full macmap repaint instead of the old viewport call. */
-    if (is_tile_map_window) {
-        short map_bottom_y = ROWNO * record->row_height;
-        if (r.top < map_bottom_y) {
-            /* TODO Phase 4/5: route through macmap_update_event if needed */
-            macmap_update_event(&theWindows[WIN_MAP]);
-        }
+        pos_rect(record, &r, record->x_curs, record->y_curs, record->x_curs,
+                 record->y_curs);
+        InvertRect(&r);
     }
 
     return noErr;
