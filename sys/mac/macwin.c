@@ -3299,22 +3299,30 @@ HandleClick(EventRecord *theEvent)
     case inGrow:
         if (not_inSelect) {
             SetCursor(&qdarrow);
-            SetRect(&r, 80, 2 * aWin->row_height + 1, r.right, r.bottom);
-            if (aWin == theWindows + WIN_MESSAGE)
-                r.top += SBARHEIGHT;
-            l = GrowWindow(theWindow, theEvent->where, &r);
-            SizeWindow(theWindow, l & 0xffff, l >> 16, FALSE);
-            SaveWindowSize(theWindow);
-            SetPortWindowPort(theWindow);
-            GetWindowBounds(theWindow, kWindowContentRgn, &r);
-            OffsetRect(&r, -r.left, -r.top);
-            InvalWindowRect(theWindow, &r);
-            if (aWin->scrollBar) {
-                DrawScrollbar(aWin);
-            }
-            if (theWindow == _mt_window && WIN_MAP != WIN_ERR
-                    && theWindows[WIN_MAP].tile_mode) {
-                /* TODO Phase 4/5: macmap_grow_event(&theWindows[WIN_MAP], 0); */
+            if (GetWRefCon(theWindow) == MACMAP_REFCON) {
+                Rect growLimits;
+                SetRect(&growLimits, 200, 80, 1280, 768);
+                l = GrowWindow(theWindow, theEvent->where, &growLimits);
+                if (l)
+                    macmap_grow_event(&theWindows[WIN_MAP], l);
+            } else {
+                SetRect(&r, 80, 2 * aWin->row_height + 1, r.right, r.bottom);
+                if (aWin == theWindows + WIN_MESSAGE)
+                    r.top += SBARHEIGHT;
+                l = GrowWindow(theWindow, theEvent->where, &r);
+                SizeWindow(theWindow, l & 0xffff, l >> 16, FALSE);
+                SaveWindowSize(theWindow);
+                SetPortWindowPort(theWindow);
+                GetWindowBounds(theWindow, kWindowContentRgn, &r);
+                OffsetRect(&r, -r.left, -r.top);
+                InvalWindowRect(theWindow, &r);
+                if (aWin->scrollBar) {
+                    DrawScrollbar(aWin);
+                }
+                if (theWindow == _mt_window && WIN_MAP != WIN_ERR
+                        && theWindows[WIN_MAP].tile_mode) {
+                    /* tile_mode grow handled via MACMAP_REFCON branch above */
+                }
             }
         } else {
             nhbell();
