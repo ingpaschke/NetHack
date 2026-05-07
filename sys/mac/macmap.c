@@ -371,7 +371,25 @@ macmap_clear(NhWindow *map)
 }
 
 void    macmap_cliparound(NhWindow *m UNUSED, int x UNUSED, int y UNUSED) { }
-void    macmap_grow_event(NhWindow *m UNUSED, long s UNUSED) { }
+
+void
+macmap_grow_event(NhWindow *map, long newSize)
+{
+    if (!map || gMap.owner != map || !map->its_window) return;
+    SizeWindow(map->its_window, (short)(newSize & 0xffff), (short)(newSize >> 16), true);
+    Rect cr; GetWindowPortBounds(map->its_window, &cr);
+    gMap.vis_cols = (cr.right - cr.left) / gMap.cell_w;
+    gMap.vis_rows = (cr.bottom - cr.top) / gMap.cell_h;
+    if (gMap.vis_cols < 1) gMap.vis_cols = 1;
+    if (gMap.vis_rows < 1) gMap.vis_rows = 1;
+    if (!allocate_backing()) {
+        mac_dprintf("macmap: backing realloc failed on grow\n");
+    }
+    /* Repaint everything from cache. */
+    InvalRect(&(*map->its_window).portRect);
+    macmap_update_event(map);
+}
+
 void    macmap_click(NhWindow *m UNUSED, Point p UNUSED, UInt32 mod UNUSED) { }
 void    macmap_pixel_to_cell(NhWindow *m UNUSED, Point p UNUSED,
                               int *c UNUSED, int *r UNUSED) { }
