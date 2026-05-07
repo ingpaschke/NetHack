@@ -2047,6 +2047,120 @@ optfn_map_mode(
     return optn_ok;
 }
 
+#ifdef MAC
+/* Parse "WxH" into two shorts.
+   Returns TRUE on success; leaves *w and *h unchanged on failure. */
+staticfn boolean
+parse_wxh(const char *s, short *w, short *h)
+{
+    int W = 0, H = 0;
+    if (!s) return FALSE;
+    while (*s == ' ' || *s == '\t') ++s;
+    if (*s < '0' || *s > '9') return FALSE;
+    while (*s >= '0' && *s <= '9') W = W * 10 + (*s++ - '0');
+    while (*s == ' ' || *s == '\t') ++s;
+    if (*s != 'x' && *s != 'X') return FALSE;
+    ++s;
+    while (*s == ' ' || *s == '\t') ++s;
+    if (*s < '0' || *s > '9') return FALSE;
+    while (*s >= '0' && *s <= '9') H = H * 10 + (*s++ - '0');
+    if (W < 0 || W > 0x7FFF || H < 0 || H > 0x7FFF) return FALSE;
+    *w = (short) W;
+    *h = (short) H;
+    return TRUE;
+}
+
+staticfn int
+optfn_map_window_pos(
+    int optidx UNUSED, int req, boolean negated UNUSED,
+    char *opts, char *op)
+{
+    if (req == do_init) {
+        iflags.mac_map_pos_x = 0;
+        iflags.mac_map_pos_y = 0;
+        return optn_ok;
+    }
+    if (req == do_set) {
+        op = string_for_opt(opts, FALSE);
+        if (op == empty_optstr
+            || !parse_wxh(op, &iflags.mac_map_pos_x, &iflags.mac_map_pos_y))
+            return optn_silenterr;
+        return optn_ok;
+    }
+    if (req == get_val || req == get_cnf_val) {
+        if (iflags.mac_map_pos_x || iflags.mac_map_pos_y)
+            Sprintf(opts, "%dx%d",
+                    (int) iflags.mac_map_pos_x, (int) iflags.mac_map_pos_y);
+        else if (req == get_cnf_val)
+            opts[0] = '\0';
+        else
+            Strcpy(opts, defopt);
+        return optn_ok;
+    }
+    return optn_ok;
+}
+
+staticfn int
+optfn_map_window_text_size(
+    int optidx UNUSED, int req, boolean negated UNUSED,
+    char *opts, char *op)
+{
+    if (req == do_init) {
+        iflags.mac_map_text_w = 0;
+        iflags.mac_map_text_h = 0;
+        return optn_ok;
+    }
+    if (req == do_set) {
+        op = string_for_opt(opts, FALSE);
+        if (op == empty_optstr
+            || !parse_wxh(op, &iflags.mac_map_text_w, &iflags.mac_map_text_h))
+            return optn_silenterr;
+        return optn_ok;
+    }
+    if (req == get_val || req == get_cnf_val) {
+        if (iflags.mac_map_text_w && iflags.mac_map_text_h)
+            Sprintf(opts, "%dx%d",
+                    (int) iflags.mac_map_text_w, (int) iflags.mac_map_text_h);
+        else if (req == get_cnf_val)
+            opts[0] = '\0';
+        else
+            Strcpy(opts, defopt);
+        return optn_ok;
+    }
+    return optn_ok;
+}
+
+staticfn int
+optfn_map_window_tile_size(
+    int optidx UNUSED, int req, boolean negated UNUSED,
+    char *opts, char *op)
+{
+    if (req == do_init) {
+        iflags.mac_map_tile_w = 0;
+        iflags.mac_map_tile_h = 0;
+        return optn_ok;
+    }
+    if (req == do_set) {
+        op = string_for_opt(opts, FALSE);
+        if (op == empty_optstr
+            || !parse_wxh(op, &iflags.mac_map_tile_w, &iflags.mac_map_tile_h))
+            return optn_silenterr;
+        return optn_ok;
+    }
+    if (req == get_val || req == get_cnf_val) {
+        if (iflags.mac_map_tile_w && iflags.mac_map_tile_h)
+            Sprintf(opts, "%dx%d",
+                    (int) iflags.mac_map_tile_w, (int) iflags.mac_map_tile_h);
+        else if (req == get_cnf_val)
+            opts[0] = '\0';
+        else
+            Strcpy(opts, defopt);
+        return optn_ok;
+    }
+    return optn_ok;
+}
+#endif /* MAC */
+
 /* all the key assignment options for menu_* commands are identical
    but optlist.h treats them as distinct rather than sharing one */
 staticfn int
