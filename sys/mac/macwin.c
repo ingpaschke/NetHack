@@ -3333,7 +3333,9 @@ HandleClick(EventRecord *theEvent)
             SetCursor(&qdarrow);
             if (GetWRefCon(theWindow) == MACMAP_REFCON) {
                 Rect growLimits;
-                SetRect(&growLimits, 200, 80, 1280, 768);
+                /* Allow up to a full-map-tile-size + room for chrome; the
+                   GrowWindow rect is (minW, minH, maxW, maxH). */
+                SetRect(&growLimits, 200, 80, 2048, 1536);
                 l = GrowWindow(theWindow, theEvent->where, &growLimits);
                 if (l)
                     macmap_grow_event(&theWindows[WIN_MAP], l);
