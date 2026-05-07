@@ -131,6 +131,23 @@ macmap_create(NhWindow *map)
     SetWRefCon(w, MACMAP_REFCON);
     map->its_window = w;
 
+    /* Apply saved position and text-mode size from NHDeflts (iflags). */
+    {
+        Rect screen = (*gd)->gdRect;
+        if (iflags.mac_map_pos_x || iflags.mac_map_pos_y) {
+            short x = iflags.mac_map_pos_x;
+            short y = iflags.mac_map_pos_y;
+            if (x < screen.left) x = screen.left;
+            if (y < screen.top + 20) y = screen.top + 20;
+            if (x > screen.right - 100) x = screen.right - 100;
+            if (y > screen.bottom - 50) y = screen.bottom - 50;
+            MoveWindow(w, x, y, false);
+        }
+        if (iflags.mac_map_text_w && iflags.mac_map_text_h) {
+            SizeWindow(w, iflags.mac_map_text_w, iflags.mac_map_text_h, false);
+        }
+    }
+
     gMap.owner       = map;
     gMap.tile_mode   = false;
     gMap.backing     = NULL;
@@ -176,6 +193,17 @@ macmap_set_mode(NhWindow *map, Boolean tile_mode)
         gMap.cell_h = 16;
         gMap.vis_cols = 30;   /* default; resize event will refine */
         gMap.vis_rows = 21;
+        /* Restore saved tile-mode window size. */
+        if (iflags.mac_map_tile_w && iflags.mac_map_tile_h
+            && map->its_window) {
+            SizeWindow(map->its_window,
+                       iflags.mac_map_tile_w, iflags.mac_map_tile_h, false);
+            Rect cr; GetWindowPortBounds(map->its_window, &cr);
+            gMap.vis_cols = (cr.right - cr.left) / gMap.cell_w;
+            gMap.vis_rows = (cr.bottom - cr.top) / gMap.cell_h;
+            if (gMap.vis_cols < 1) gMap.vis_cols = 1;
+            if (gMap.vis_rows < 1) gMap.vis_rows = 1;
+        }
         if (!allocate_backing()) {
             mac_dprintf("macmap: backing alloc failed in tile mode; using fallback\n");
         }
@@ -201,6 +229,17 @@ macmap_set_mode(NhWindow *map, Boolean tile_mode)
         }
         gMap.vis_cols = 80;
         gMap.vis_rows = 21;
+        /* Restore saved text-mode window size. */
+        if (iflags.mac_map_text_w && iflags.mac_map_text_h
+            && map->its_window) {
+            SizeWindow(map->its_window,
+                       iflags.mac_map_text_w, iflags.mac_map_text_h, false);
+            Rect cr; GetWindowPortBounds(map->its_window, &cr);
+            gMap.vis_cols = (cr.right - cr.left) / gMap.cell_w;
+            gMap.vis_rows = (cr.bottom - cr.top) / gMap.cell_h;
+            if (gMap.vis_cols < 1) gMap.vis_cols = 1;
+            if (gMap.vis_rows < 1) gMap.vis_rows = 1;
+        }
         /* Detach + dispose the palette so a future re-enable rebuilds it. */
         if (gMap.palette) {
             SetPalette(map->its_window, NULL, false);
@@ -539,6 +578,14 @@ macmap_grow_event(NhWindow *map, long newSize)
     gMap.vis_rows = (cr.bottom - cr.top) / gMap.cell_h;
     if (gMap.vis_cols < 1) gMap.vis_cols = 1;
     if (gMap.vis_rows < 1) gMap.vis_rows = 1;
+    /* Persist the new size to iflags so NHDeflts can save it. */
+    if (gMap.tile_mode) {
+        iflags.mac_map_tile_w = (short)(cr.right - cr.left);
+        iflags.mac_map_tile_h = (short)(cr.bottom - cr.top);
+    } else {
+        iflags.mac_map_text_w = (short)(cr.right - cr.left);
+        iflags.mac_map_text_h = (short)(cr.bottom - cr.top);
+    }
     if (!allocate_backing()) {
         mac_dprintf("macmap: backing realloc failed on grow\n");
     }
