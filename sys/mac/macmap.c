@@ -391,5 +391,11 @@ macmap_grow_event(NhWindow *map, long newSize)
 }
 
 void    macmap_click(NhWindow *m UNUSED, Point p UNUSED, UInt32 mod UNUSED) { }
-void    macmap_pixel_to_cell(NhWindow *m UNUSED, Point p UNUSED,
-                              int *c UNUSED, int *r UNUSED) { }
+
+void
+macmap_pixel_to_cell(NhWindow *map, Point pt, int *col, int *row)
+{
+    if (col) *col = (pt.h / gMap.cell_w) + gMap.scroll_col + 1;
+    if (row) *row = (pt.v / gMap.cell_h) + gMap.scroll_row;
+    (void) map;
+}
