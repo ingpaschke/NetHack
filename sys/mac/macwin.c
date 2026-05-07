@@ -14,6 +14,10 @@
 #include "mactile.h"
 #include "macmap.h"
 
+/* gTileMenuNeedsUpdate is defined in macmenu.c; macwin sets it to trigger
+   a menu refresh on the next idle pass. */
+extern short gTileMenuNeedsUpdate;
+
 #if 1 /*!TARGET_API_MAC_CARBON*/
 #include <LowMem.h>
 #include <AppleEvents.h>
@@ -2360,7 +2364,9 @@ BaseClick(NhWindow *wind, Point pt, UInt32 modifiers)
 {
     int col, row;
     if (wind == &theWindows[WIN_MAP] && wind->tile_mode) {
-        mactile_pixel_to_cell(wind, pt, &col, &row);
+        /* TODO Phase 4/5: macmap_pixel_to_cell(wind, pt, &col, &row); */
+        col = pt.h / 16 + 1;
+        row = pt.v / 16;
     } else {
         col = pt.h / wind->char_width + 1;
         row = pt.v / wind->row_height;
@@ -3308,7 +3314,7 @@ HandleClick(EventRecord *theEvent)
             }
             if (theWindow == _mt_window && WIN_MAP != WIN_ERR
                     && theWindows[WIN_MAP].tile_mode) {
-                mactile_resize(&theWindows[WIN_MAP]);
+                /* TODO Phase 4/5: macmap_grow_event(&theWindows[WIN_MAP], 0); */
             }
         } else {
             nhbell();
@@ -3460,7 +3466,8 @@ DoOsEvt(EventRecord *theEvent)
             /* Resuming: re-check if tile mode is still available */
             NhWindow *map = (WIN_MAP != WIN_ERR) ? &theWindows[WIN_MAP] : NULL;
             if (map && map->tile_mode && !mactile_available()) {
-                mactile_set_mode(map, false);
+                /* TODO Phase 4/5: macmap_set_mode(map, false); */
+                map->tile_mode = false;
                 iflags.wc_tiled_map = FALSE;          /* keep NHDeflts in sync */
                 InvalWindowRect(map->its_window, &map->its_window->portRect);
                 gTileMenuNeedsUpdate = 1;

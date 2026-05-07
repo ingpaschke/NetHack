@@ -1,25 +1,30 @@
-/* mactile.h — runtime tile rendering for the Mac 68k port. */
+/* mactile.h — tile sheet asset + per-tile blit. See macmap.h for the
+   map window owner. */
 #ifndef MACTILE_H
 #define MACTILE_H
 
 #include "macwin.h"
+#include <Palettes.h>
+#include <QDOffscreen.h>
 
-extern Boolean mactile_available(void);            /* depth >= 4bpp */
-extern Boolean mactile_init(void);                 /* load PICTs into GWorlds */
+extern Boolean mactile_available(void);    /* depth >= 4bpp */
+extern Boolean mactile_init(void);         /* load PICT 1000/1001 into GWorld */
 extern void    mactile_shutdown(void);
-extern void    mactile_set_mode(NhWindow *map, Boolean on);
-extern void    mactile_draw_cell(NhWindow *map, int col, int row,
-                                 int tileidx);
-extern void    mactile_redraw_viewport(NhWindow *map);
-extern void    mactile_center_on(NhWindow *map, int col, int row);
-extern void    mactile_pixel_to_cell(NhWindow *map, Point pt,
-                                     int *col, int *row);
-extern void    mactile_set_player(NhWindow *map, int col, int row);
-extern void    mactile_resize(NhWindow *map);
 
-/* Set by macwin's resume handler when tile-mode availability changed
- * (e.g. screen depth dropped below 4bpp). The menu code clears this when
- * it refreshes the Tile Mode item's enable / check state. */
-extern short gTileMenuNeedsUpdate;
+/* Where the tilesheet was loaded — needed by macmap to attach a Palette. */
+extern short      mactile_sheet_depth(void);
+extern CTabHandle mactile_sheet_ctable(void);
+
+/* Blit a single tile into a destination GWorld at (dst_x, dst_y).
+   The function manages SetGWorld save/restore internally. */
+extern void    mactile_blit_to(GWorldPtr dst,
+                                int tile_idx,
+                                short dst_x, short dst_y);
+
+/* Blit a single tile into a destination Window at (dst_x, dst_y).
+   The function manages SetPort save/restore internally. */
+extern void    mactile_blit_to_window(WindowPtr dst,
+                                       int tile_idx,
+                                       short dst_x, short dst_y);
 
 #endif /* MACTILE_H */
