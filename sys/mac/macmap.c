@@ -112,6 +112,7 @@ macmap_set_mode(NhWindow *map, Boolean tile_mode)
 
     if (tile_mode && !mactile_init()) return false;
     gMap.tile_mode = tile_mode;
+    map->tile_mode = tile_mode;   /* keep NhWindow field in sync for macwin/mactty */
     if (tile_mode) {
         gMap.cell_w = 16;
         gMap.cell_h = 16;
