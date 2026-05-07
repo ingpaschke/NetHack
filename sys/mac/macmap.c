@@ -431,6 +431,47 @@ repaint_full_viewport(void)
     }
 }
 
+static void
+backing_self_scroll(int dx_cells, int dy_cells)
+{
+    if (!gMap.backing) return;
+    PixMapHandle pm = GetGWorldPixMap(gMap.backing);
+    LockPixels(pm);
+    GWorldPtr saveW; GDHandle saveD;
+    GetGWorld(&saveW, &saveD);
+    SetGWorld(gMap.backing, NULL);
+
+    Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
+    Rect src = bbox, dst = bbox;
+    OffsetRect(&dst, (short)(-dx_cells * gMap.cell_w), (short)(-dy_cells * gMap.cell_h));
+    /* CopyBits same-port src/dst handles overlap correctly. */
+    CopyBits((BitMap *) *pm, (BitMap *) *pm, &src, &dst, srcCopy, NULL);
+
+    SetGWorld(saveW, saveD);
+    UnlockPixels(pm);
+}
+
+static void
+repaint_strip(int col_start, int row_start, int col_end, int row_end)
+{
+    int r, c;
+    if (col_start < 0) col_start = 0;
+    if (row_start < 0) row_start = 0;
+    if (col_end > COLNO) col_end = COLNO;
+    if (row_end > ROWNO) row_end = ROWNO;
+    for (r = row_start; r < row_end; ++r)
+        for (c = col_start; c < col_end; ++c) {
+            if (gMap.tile_mode) {
+                short idx = gMap.tile_cache[r][c];
+                if (idx) draw_cell_tile(c, r, (int) idx);
+            } else {
+                char ch  = (char) gMap.text_cache[r][c];
+                int  col = (int)  gMap.text_color[r][c];
+                if (ch != 0) draw_cell_text(c, r, ch, col);
+            }
+        }
+}
+
 void
 macmap_cliparound(NhWindow *map, int x, int y)
 {
@@ -446,13 +487,46 @@ macmap_cliparound(NhWindow *map, int x, int y)
         return;
     }
 
+    short old_col = gMap.scroll_col, old_row = gMap.scroll_row;
     short new_col, new_row;
     recompute_scroll_for_center(x, y, &new_col, &new_row);
-    if (new_col == gMap.scroll_col && new_row == gMap.scroll_row) return;
+    if (new_col == old_col && new_row == old_row) return;
+
+    short dx = new_col - old_col;
+    short dy = new_row - old_row;
 
     gMap.scroll_col = new_col;
     gMap.scroll_row = new_row;
-    repaint_full_viewport();
+
+    /* Big-jump path or no-backing fallback: full redraw. */
+    if (!gMap.backing
+        || abs(dx) > gMap.vis_cols / 2 || abs(dy) > gMap.vis_rows / 2) {
+        repaint_full_viewport();
+        return;
+    }
+
+    /* Soft-scroll: shift backing pixels, re-render exposed strip. */
+    backing_self_scroll(dx, dy);
+
+    if (dx > 0)
+        repaint_strip(new_col + gMap.vis_cols - dx, new_row,
+                      new_col + gMap.vis_cols, new_row + gMap.vis_rows);
+    else if (dx < 0)
+        repaint_strip(new_col, new_row,
+                      old_col, new_row + gMap.vis_rows);
+
+    if (dy > 0)
+        repaint_strip(new_col, new_row + gMap.vis_rows - dy,
+                      new_col + gMap.vis_cols, new_row + gMap.vis_rows);
+    else if (dy < 0)
+        repaint_strip(new_col, new_row,
+                      new_col + gMap.vis_cols, old_row);
+
+    /* Single backing -> window blit. */
+    if (gMap.backing && gMap.owner->its_window) {
+        Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
+        blit_backing_to_window(&bbox, &bbox);
+    }
 }
 
 void
