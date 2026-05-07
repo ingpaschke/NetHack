@@ -34,6 +34,7 @@ load_tile_pict(short pict_id, short depth)
         return false;
     }
     PixMapHandle pm = GetGWorldPixMap(gTileSheet);
+    NoPurgePixels(pm);   /* tile sheet stays resident */
     LockPixels(pm);
     GWorldPtr saveW; GDHandle saveD;
     GetGWorld(&saveW, &saveD);

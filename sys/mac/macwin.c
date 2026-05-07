@@ -260,6 +260,11 @@ GetNhWin(WindowPtr mac_win)
                                   systems, and */
         return theWindows; /* WRefCon still refers to tty struct, so we have
                               to map it */
+    /* Map window uses MACMAP_REFCON, not an NhWindow pointer. */
+    if (mac_win && GetWRefCon(mac_win) == MACMAP_REFCON
+        && WIN_MAP != WIN_ERR) {
+        return &theWindows[WIN_MAP];
+    }
     else {
         NhWindow *aWin = (NhWindow *) GetWRefCon(mac_win);
         if (aWin >= theWindows && aWin < &theWindows[NUM_MACWINDOWS])
@@ -1400,6 +1405,16 @@ mac_display_nhwindow(winid win, boolean f)
 
     if (theWindow == _mt_window) {
         tty_display_nhwindow(win, f);
+        return;
+    }
+
+    /* The map window owns its own size/position (macmap_create / macmap_grow_event).
+       Skip the adjust_window_pos sizing path entirely for WIN_MAP. */
+    if (win == WIN_MAP) {
+        if (!IsWindowVisible(theWindow)) {
+            SelectWindow(theWindow);
+            ShowWindow(theWindow);
+        }
         return;
     }
 

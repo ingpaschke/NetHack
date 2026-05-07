@@ -12,7 +12,7 @@ resource 'WIND' (200, "Dungeon Map (document)", purgeable) {
     {20, 0, 314, 480},          /* boundsRect: top, left, bottom, right */
     documentProc,               /* WDEF procID = 0 (doc, with grow) */
     invisible,                  /* visible flag — we ShowWindow later */
-    goAway,                     /* close box */
+    noGoAway,                   /* no close box — use File→Quit */
     0x0,                        /* refCon */
     "Dungeon Map",
     noAutoCenter
