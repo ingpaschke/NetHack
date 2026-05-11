@@ -249,17 +249,6 @@ struct FillParams {
     WORD offsety;
 };
 
-#ifdef __PPC__
-void PPC_LayerFillHook(void);
-struct EmulLibEntry LayerFillHook = { TRAP_LIB, 0,
-                                      (void (*)(void)) PPC_LayerFillHook };
-void
-PPC_LayerFillHook(void)
-{
-    struct Hook *hk = (struct Hook *) REG_A0;
-    struct RastPort *rp = (struct RastPort *) REG_A2;
-    struct FillParams *fp = (struct FillParams *) REG_A1;
-#else
 /* Assembly trampoline: Intuition calls LayerFillHook with arguments
    in registers a0 (hook), a1 (fillparams), a2 (rastport).
    Push them onto the stack and call the C implementation. */
@@ -277,7 +266,6 @@ void
 LayerFillHook_impl(struct Hook *hk, struct RastPort *rp,
                     struct FillParams *fp)
 {
-#endif
 
     long x, y, xmax, ymax;
     int apen;
@@ -811,17 +799,6 @@ amii_create_nhwindow(int type)
     return (newid);
 }
 
-#ifdef __PPC__
-int PPC_SM_Filter(void);
-struct EmulLibEntry SM_Filter = { TRAP_LIB, 0,
-                                  (int (*)(void)) PPC_SM_Filter };
-int
-PPC_SM_Filter(void)
-{
-    struct Hook *hk = (struct Hook *) REG_A0;
-    ULONG modeID = (ULONG) REG_A1;
-    struct ScreenModeRequester *smr = (struct ScreenModeRequester *) REG_A2;
-#else
 /* Assembly trampoline for SM_Filter hook callback.
    SM_Filter is the asm entry point; SM_Filter_impl is the C body. */
 extern void SM_Filter(void);
@@ -839,7 +816,6 @@ int
 SM_Filter_impl(struct Hook *hk, ULONG modeID,
                struct ScreenModeRequester *smr)
 {
-#endif
     struct DimensionInfo dims;
     struct DisplayInfo disp;
     DisplayInfoHandle handle;

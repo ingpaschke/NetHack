@@ -110,9 +110,5 @@ typedef enum {
 extern struct PDAT pictdata;
 extern struct Hook fillhook;
 extern struct TagItem wintags[];
-#ifdef __PPC__
-struct EmulLibEntry LayerFillHook;
-#else
 void LayerFillHook(void);
-#endif
 extern int mxsize, mysize;
