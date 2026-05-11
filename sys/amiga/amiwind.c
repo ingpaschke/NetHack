@@ -59,9 +59,13 @@ struct TextFont *TextsFont = NULL;
 struct TextFont *HackFont = NULL;
 struct TextFont *RogueFont = NULL;
 
+/* The hack font lives at NetHack:hack/8 and is registered via
+ * NetHack:hack.font.  We initially point ta_Name at "hack.font" (after
+ * the "NetHack:" prefix) so that simple OpenFont() / SetFont() calls
+ * work; OpenDiskFont() needs the path, and ta_Name is shuffled back to
+ * the start of FontName for those calls (see SIZEOF_DISKNAME in
+ * windefs.h). */
 UBYTE FontName[] = "NetHack:hack.font";
-/* # chars in "NetHack:": */
-#define SIZEOF_DISKNAME 8
 
 #endif
 

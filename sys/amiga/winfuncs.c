@@ -1181,10 +1181,10 @@ amii_init_nhwindows(int *argcp, char **argv)
     if (WINVERS_AMIV) {
         extern char *tilefile;
         if (amii_numcolors >= 32) {
-            tilefile = "NetHack:tiles/tiles32.iff";
+            tilefile = (char *) fqname("tiles/tiles32.iff", DATAPREFIX, 0);
             amii_numcolors = 32;
         } else {
-            tilefile = "NetHack:tiles/tiles16.iff";
+            tilefile = (char *) fqname("tiles/tiles16.iff", DATAPREFIX, 0);
         }
         amii_bmhd = ReadTileImageFiles();
     } else
@@ -1943,7 +1943,7 @@ removetopl(int cnt)
 void
 port_help(void)
 {
-    display_file(PORT_HELP, 1);
+    display_file(fqname(PORT_HELP, DATAPREFIX, 0), 1);
 }
 #endif
 
