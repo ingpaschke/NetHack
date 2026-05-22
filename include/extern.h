@@ -1488,7 +1488,9 @@ extern struct monst *clone_mon(struct monst *, coordxy, coordxy) NONNULLARG1;
 extern int monhp_per_lvl(struct monst *) NONNULLARG1;
 extern void newmonhp(struct monst *, int) NONNULLARG1;
 extern struct mextra *newmextra(void) NONNULL;
-extern struct monst *makemon(struct permonst *, coordxy, coordxy, mmflags_nht);
+extern struct monst *makemon_dbg(const char *, struct permonst *, coordxy,
+                                 coordxy, mmflags_nht);
+#define makemon(p, x, y, f) makemon_dbg(__func__, (p), (x), (y), (f))
 extern struct monst *unmakemon(struct monst *, mmflags_nht) NONNULLARG1;
 extern boolean create_critters(int, struct permonst *, boolean);
 extern struct permonst *rndmonst_adj(int, int);

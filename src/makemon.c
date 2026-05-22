@@ -1144,7 +1144,8 @@ makemon_rnd_goodpos(
  *      In case we make a monster group, only return the one at [x,y].
  */
 struct monst *
-makemon(
+makemon_dbg(
+    const char *caller,
     struct permonst *ptr,
     coordxy x, coordxy y,
     mmflags_nht mmflags)
@@ -1186,7 +1187,8 @@ makemon(
 
     /* sanity check */
     if (!isok(x, y)) {
-        impossible("makemon trying to create a monster at <%d,%d>?", x, y);
+        impossible("makemon[%s] trying to create a monster at <%d,%d>?",
+                   caller ? caller : "?", x, y);
         return (struct monst *) 0;
     }
 
