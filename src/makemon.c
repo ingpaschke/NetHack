@@ -1163,6 +1163,9 @@ makemon_dbg(
     mmflags_nht gpflags = (((mmflags & MM_IGNOREWATER) ? MM_IGNOREWATER : 0)
                            | GP_CHECKSCARY | GP_AVOID_MONPOS);
 
+    coord orig_cc = { x, y };
+    boolean codepath1 = FALSE, codepath2 = FALSE, codepath3 = FALSE;
+
     fakemon = cg.zeromonst;
     cc.x = cc.y = 0;
 
@@ -1171,6 +1174,7 @@ makemon_dbg(
 
     /* if caller wants random location, do it here */
     if (x == 0 && y == 0) {
+        codepath1 = TRUE;
         fakemon.data = ptr; /* set up for goodpos */
         if (!makemon_rnd_goodpos(ptr ? &fakemon : (struct monst *) 0,
                                  gpflags, &cc))
@@ -1178,17 +1182,36 @@ makemon_dbg(
         x = cc.x;
         y = cc.y;
     } else if (byyou && !gi.in_mklev) {
+        codepath2 = TRUE;
         if (!enexto_core(&cc, u.ux, u.uy, ptr, gpflags)
             && !enexto_core(&cc, u.ux, u.uy, ptr, gpflags & ~GP_CHECKSCARY))
             return (struct monst *) 0;
         x = cc.x;
         y = cc.y;
+    } else {
+        codepath3 = TRUE;
     }
 
     /* sanity check */
     if (!isok(x, y)) {
-        impossible("makemon[%s] trying to create a monster at <%d,%d>?",
-                   caller ? caller : "?", x, y);
+        char buf[BUFSZ];
+
+        (void) snprintf(buf, sizeof buf,
+                        "byyou: %s"
+                        ", passed cc: (%d, %d)"
+                        ", gpflags: 0x%lx"
+                        ", codepath1: %s"
+                        ", codepath2: %s"
+                        ", codepath3: %s"
+                        ", mon: mnum=%d, data=%s",
+                        byyou ? "TRUE" : "FALSE", orig_cc.x, orig_cc.y,
+                        (unsigned long) gpflags,
+                        codepath1 ? "TRUE" : "FALSE",
+                        codepath2 ? "TRUE" : "FALSE",
+                        codepath3 ? "TRUE" : "FALSE", fakemon.mnum,
+                        (fakemon.data != 0) ? Monnam(&fakemon) : "none");
+        impossible("makemon[%s] trying to create a monster at <%d,%d> %s?",
+                   caller ? caller : "?", x, y, buf);
         return (struct monst *) 0;
     }
 
