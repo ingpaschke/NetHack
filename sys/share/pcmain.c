@@ -68,6 +68,16 @@ mingw_main(int argc, char *argv[])
     boolean resuming;
 
     early_init(argc, argv);
+#ifdef GLYPH_TREE_SELF_TEST
+    {
+        extern int glyph_tree_self_test(void);
+        int errs = glyph_tree_self_test();
+        if (errs)
+            raw_printf("glyph_tree_self_test: %d failures", errs);
+        else
+            raw_printf("glyph_tree_self_test: OK");
+    }
+#endif
     resuming = pcmain(argc, argv);
     moveloop(resuming);
     nethack_exit(EXIT_SUCCESS);
