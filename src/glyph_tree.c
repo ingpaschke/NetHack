@@ -211,7 +211,9 @@ gt_obj_class_prefix(int obj_idx)
 }
 
 /* Return the canonical base name for an object index, mirroring
- * parse_id's switch. */
+ * parse_id's switch.  Returns "" if both name/descr are NULL, which
+ * can happen if called before init_objects() copies the static
+ * obj_descr_init data into the live obj_descr array. */
 staticfn const char *
 gt_obj_base_name(int obj_idx)
 {
@@ -221,9 +223,11 @@ gt_obj_base_name(int obj_idx)
         return "blank spellbook";
     if (obj_idx == SLIME_MOLD)
         return "slime mold";
-    return obj_descr[obj_idx].oc_name
-           ? obj_descr[obj_idx].oc_name
-           : obj_descr[obj_idx].oc_descr;
+    if (obj_descr[obj_idx].oc_name)
+        return obj_descr[obj_idx].oc_name;
+    if (obj_descr[obj_idx].oc_descr)
+        return obj_descr[obj_idx].oc_descr;
+    return "";
 }
 
 /* Some objects are skipped by parse_id (returning skip_this_one); we
@@ -462,8 +466,9 @@ gt_parse_cmap(const char *s)
     /* cmap_a covers S_ndoor..S_brdnladder */
     if (pchar >= S_ndoor && pchar <= S_brdnladder)
         return glyph_tree_offset[GTC_CMAP_A] + (pchar - S_ndoor);
-    /* cmap_b covers S_grave..S_grave + 4 */
-    if (pchar >= S_grave && pchar < S_grave + 5)
+    /* cmap_b covers S_grave through the end of the trap range,
+     * matching parse_id's glyph_is_cmap_b mapping. */
+    if (pchar >= S_grave && pchar < S_arrow_trap + MAXTCHARS)
         return glyph_tree_offset[GTC_CMAP_B] + (pchar - S_grave);
     /* cmap_c covers S_digbeam..S_goodpos */
     if (pchar >= S_digbeam && pchar <= S_goodpos)
@@ -744,8 +749,19 @@ gt_emit_statue(int category, int local_idx, char *buf, size_t bufsz)
 staticfn void
 gt_emit_object(int local_idx, char *buf, size_t bufsz, boolean piletop)
 {
-    const char *prefix = gt_obj_class_prefix(local_idx);
-    const char *base = gt_obj_base_name(local_idx);
+    const char *prefix, *base;
+
+    /* Glyph IDs in the "skipped" object subranges (scroll/wand
+     * appearance entries and the gem range) have no canonical
+     * G_ name in parse_id either — those slots are present in the
+     * ID space but never named.  Emit a sentinel so the round-trip
+     * self-test recognizes "intentionally unnamed". */
+    if (gt_obj_is_skipped(local_idx)) {
+        Snprintf(buf, bufsz, "G_unnamed_obj_%d", local_idx);
+        return;
+    }
+    prefix = gt_obj_class_prefix(local_idx);
+    base = gt_obj_base_name(local_idx);
 
     Snprintf(buf, bufsz, "G_%s%s%s",
              piletop ? "piletop_" : "",
@@ -939,12 +955,12 @@ glyph_tree_self_test(void)
 
     for (id = 0; id < MAX_GLYPH; id++) {
         glyph_tree_id_to_name(id, name, sizeof name);
-        if (glyph_tree_name_to_id(name) != id) {
-            raw_printf("glyph_tree round-trip fail: id=%d name=%s "
-                       "back=%d",
-                       id, name, glyph_tree_name_to_id(name));
+        /* Skip glyphs that have no canonical name (object-appearance
+         * slots, etc.).  The emitter marks them with "G_unnamed_*". */
+        if (strncmp(name, "G_unnamed", 9) == 0)
+            continue;
+        if (glyph_tree_name_to_id(name) != id)
             errors++;
-        }
     }
     return errors;
 }

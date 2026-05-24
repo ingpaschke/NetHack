@@ -65,6 +65,17 @@ main(int argc, char *argv[])
 
     early_init(argc, argv);
 
+#ifdef GLYPH_TREE_SELF_TEST
+    {
+        extern int glyph_tree_self_test(void);
+        int errs = glyph_tree_self_test();
+        if (errs)
+            raw_printf("glyph_tree_self_test: %d failures", errs);
+        else
+            raw_printf("glyph_tree_self_test: OK");
+    }
+#endif
+
 #if defined(__APPLE__)
     {
 /* special hack to change working directory to a resource fork when
