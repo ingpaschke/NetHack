@@ -3,6 +3,7 @@
 /* NetHack may be freely redistributed.  See license for details. */
 
 #include "hack.h"
+#include "glyph_tree.h"
 
 extern const struct symparse loadsyms[];
 extern glyph_map glyphmap[MAX_GLYPH];
@@ -238,6 +239,22 @@ glyph_find_core(
     int glyph;
     boolean do_callback, end_find = FALSE;
 
+    /* G_xxx identifiers go through the tree-encoded parser, which is
+     * always available and doesn't require a prebuilt name cache. */
+    if (id && id[0] == 'G' && id[1] == '_') {
+        glyph = glyph_tree_name_to_id(id);
+        if (glyph < 0)
+            return 0;
+        findwhat->findtype = find_glyph;
+        findwhat->val = glyph;
+        findwhat->loadsyms_offset = 0;
+        (*findwhat->callback)(glyph, findwhat);
+        return 1;
+    }
+
+    /* S_xxx and other identifiers continue through parse_id for now;
+     * they don't benefit from the cache so this is no slower than
+     * before. */
     if (parse_id(id, findwhat)) {
         if (findwhat->findtype == find_glyph) {
             (*findwhat->callback)(findwhat->val, findwhat);
@@ -299,24 +316,19 @@ glyph_find_core(
 */
 
 
+/* The glyph_tree parser handles all G_xxx lookups directly with no
+ * runtime cache, so this is a no-op kept only to preserve the public
+ * API for callers that historically invoked it.  Subsequent commits
+ * delete the dead init_glyph_cache / parse_id machinery. */
 void
 fill_glyphid_cache(void)
 {
-    int reslt = 0;
-
-    if (!glyphid_cache) {
-        init_glyph_cache();
-    }
-    if (glyphid_cache) {
-        glyphcache_find = zero_find;
-        glyphcache_find.findtype = find_nothing;
-        glyphcache_find.reserved = (genericptr_t) glyphid_cache;
-        glyphcache_find.restype = res_fill_cache;
-        reslt = parse_id((char *) 0, &glyphcache_find);
-        if (!reslt) {
-            free_glyphid_cache();
-            glyphid_cache = (struct glyphid_cache_t *) 0;
-        }
+    /* no-op */
+    return;
+    /* Suppress unused-static warnings during the transition. */
+    if (0) {
+        (void) parse_id;
+        (void) init_glyph_cache;
     }
 }
 
@@ -351,21 +363,11 @@ init_glyph_cache(void)
     }
 }
 
+/* No-op shim for the cache lifecycle.  See fill_glyphid_cache(). */
 void
 free_glyphid_cache(void)
 {
-    size_t idx;
-
-    if (!glyphid_cache)
-        return;
-    for (idx = 0; idx < glyphid_cache_size; ++idx) {
-        if (glyphid_cache[idx].id) {
-            free(glyphid_cache[idx].id);
-            glyphid_cache[idx].id = (char *) 0;
-        }
-    }
-    free(glyphid_cache);
-    glyphid_cache = (struct glyphid_cache_t *) 0;
+    /* no-op */
 }
 
 staticfn void
@@ -448,10 +450,14 @@ glyph_hash(const char *id)
     return hash;
 }
 
+/* The tree-encoded parser is always available, so callers can
+ * always proceed with lookups.  Returns TRUE unconditionally to
+ * preserve the API contract used by existing build-if-not-built
+ * patterns at call sites. */
 boolean
 glyphid_cache_status(void)
 {
-    return (glyphid_cache != 0);
+    return TRUE;
 }
 
 int
@@ -796,27 +802,24 @@ purge_custom_entries(enum graphics_sets which_set)
 void
 dump_all_glyphids(FILE *fp)
 {
-    struct find_struct dump_glyphid_find = zero_find;
+    int g;
+    char name[BUFSZ];
 
-    dump_glyphid_find.findtype = find_nothing;
-    dump_glyphid_find.reserved = (genericptr_t) fp;
-    dump_glyphid_find.restype = res_dump_glyphids;
-    (void) parse_id((char *) 0, &dump_glyphid_find);
+    for (g = 0; g < MAX_GLYPH; ++g) {
+        glyph_tree_id_to_name(g, name, sizeof name);
+        Fprintf(fp, "(%04d) %s\n", g, name);
+    }
 }
 
 void
 wizcustom_glyphids(winid win)
 {
-    int glyphnum;
-    char *id;
+    int g;
+    char name[BUFSZ];
 
-    if (!glyphid_cache)
-        return;
-    for (glyphnum = 0; glyphnum < MAX_GLYPH; ++glyphnum) {
-        id = find_glyphid_in_cache_by_glyphnum(glyphnum);
-        if (id) {
-            wizcustom_callback(win, glyphnum, id);
-        }
+    for (g = 0; g < MAX_GLYPH; ++g) {
+        glyph_tree_id_to_name(g, name, sizeof name);
+        wizcustom_callback(win, g, name);
     }
 }
 
