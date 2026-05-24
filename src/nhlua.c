@@ -1974,9 +1974,9 @@ nhl_meta_u_index(lua_State *L)
     } ustruct[] = {
         { "ux", &(u.ux), ANY_INT16 },
         { "uy", &(u.uy), ANY_INT16 },
-        { "dx", &(u.dx), ANY_SCHAR },
-        { "dy", &(u.dy), ANY_SCHAR },
-        { "dz", &(u.dz), ANY_SCHAR },
+        { "dx", &(u.dx), ANY_INT },
+        { "dy", &(u.dy), ANY_INT },
+        { "dz", &(u.dz), ANY_INT },
         { "tx", &(u.tx), ANY_INT16 },
         { "ty", &(u.ty), ANY_INT16 },
         { "ulevel", &(u.ulevel), ANY_INT },
@@ -2000,7 +2000,6 @@ nhl_meta_u_index(lua_State *L)
     const char *tkey = luaL_checkstring(L, 2);
     int i;
 
-    /* FIXME: doesn't really work, eg. negative values for u.dx */
     for (i = 0; i < SIZE(ustruct); i++)
         if (!strcmp(tkey, ustruct[i].name)) {
             return nhl_push_anything(L, ustruct[i].type, ustruct[i].ptr);
