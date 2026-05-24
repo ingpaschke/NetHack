@@ -43,3 +43,18 @@ MENUCOLOR=" unholy water"=red&bold
 MENUCOLOR=" \\(being worn\\)$"=green
 MENUCOLOR=" \\(weapon in hand\\)$"=green
 MENUCOLOR=" \\(wielded\\)$"=green
+
+# --- Tree-parser smoke test (commented out) ---------------------------
+# Uncomment the lines below to exercise the G_xxx glyph-name parser
+# via the customcolor option.  If the parser is working, the config
+# loads without error and the named entities will appear in the listed
+# colors when seen in-game.  Covers several glyph categories:
+#   monsters (male/female/pet variants), corpses, objects, dungeon
+#   features.
+#OPTIONS=customcolors
+#OPTIONS=customcolor:G_male_red_dragon/red
+#OPTIONS=customcolor:G_pet_male_little_dog/green
+#OPTIONS=customcolor:G_male_dwarf_leader/blue
+#OPTIONS=customcolor:G_body_red_dragon/red
+#OPTIONS=customcolor:G_scroll_of_identify/yellow
+#OPTIONS=customcolor:G_wand_of_wishing/magenta
