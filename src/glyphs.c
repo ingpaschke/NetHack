@@ -40,7 +40,6 @@ staticfn void init_glyph_cache(void);
 staticfn void add_glyph_to_cache(int glyphnum, const char *id);
 staticfn int find_glyph_in_cache(const char *id);
 staticfn char *find_glyphid_in_cache_by_glyphnum(int glyphnum);
-staticfn uint32 glyph_hash(const char *id);
 staticfn void to_custom_symset_entry_callback(int glyph,
                                             struct find_struct *findwhat);
 staticfn int parse_id(const char *id, struct find_struct *findwhat);
@@ -371,7 +370,7 @@ free_glyphid_cache(void)
 staticfn void
 add_glyph_to_cache(int glyphnum, const char *id)
 {
-    uint32 hash = glyph_hash(id);
+    uint32 hash = glyph_name_hash(id);
     size_t hash1 = (size_t) (hash & (glyphid_cache_size - 1));
     size_t hash2 = (size_t)
             (((hash >> glyphid_cache_lsize) & (glyphid_cache_size - 1)) | 1);
@@ -394,7 +393,7 @@ add_glyph_to_cache(int glyphnum, const char *id)
 staticfn int
 find_glyph_in_cache(const char *id)
 {
-    uint32 hash = glyph_hash(id);
+    uint32 hash = glyph_name_hash(id);
     size_t hash1 = (size_t) (hash & (glyphid_cache_size - 1));
     size_t hash2 = (size_t)
             (((hash >> glyphid_cache_lsize) & (glyphid_cache_size - 1)) | 1);
@@ -431,8 +430,8 @@ find_glyphid_in_cache_by_glyphnum(int glyphnum)
     return (char *) 0;
 }
 
-staticfn uint32
-glyph_hash(const char *id)
+uint32
+glyph_name_hash(const char *id)
 {
     uint32 hash = 0;
     size_t i;
@@ -820,16 +819,245 @@ wizcustom_glyphids(winid win)
     }
 }
 
+int
+compose_glyph_name(int glyph, char *buf, size_t bufsz)
+{
+    int i, j, mnum, cmap_offset = 0;
+    boolean skip_base = FALSE;
+    const char *buf2, *buf3, *buf4;
+    char tmpbuf[4][QBUFSZ];
+
+    if (bufsz < 2)
+        return 0;
+    buf[0] = '\0';
+    tmpbuf[0][0] = tmpbuf[1][0] = tmpbuf[2][0] = tmpbuf[3][0] = '\0';
+
+    /* loadsyms[] is indexed by an offset that depends on how many SYM_CONTROL
+       entries precede SYM_PCHAR; recompute on each call so the helper can
+       be used standalone by util/mkglyphhash without relying on cached state. */
+    i = 0;
+    while (loadsyms[i].range) {
+        if (!cmap_offset && loadsyms[i].range == SYM_PCHAR)
+            cmap_offset = i;
+        i++;
+    }
+
+    if (glyph_is_monster(glyph)) {
+        buf2 = "";
+        buf3 = monsdump[glyph_to_mon(glyph)].nm;
+        if (glyph_is_normal_male_monster(glyph)) {
+            buf2 = "male_";
+        } else if (glyph_is_normal_female_monster(glyph)) {
+            buf2 = "female_";
+        } else if (glyph_is_ridden_male_monster(glyph)) {
+            buf2 = "ridden_male_";
+        } else if (glyph_is_ridden_female_monster(glyph)) {
+            buf2 = "ridden_female_";
+        } else if (glyph_is_detected_male_monster(glyph)) {
+            buf2 = "detected_male_";
+        } else if (glyph_is_detected_female_monster(glyph)) {
+            buf2 = "detected_female_";
+        } else if (glyph_is_male_pet(glyph)) {
+            buf2 = "pet_male_";
+        } else if (glyph_is_female_pet(glyph)) {
+            buf2 = "pet_female_";
+        }
+        Strcpy(buf, "G_");
+        Strcat(buf, buf2);
+        Strcat(buf, buf3);
+    } else if (glyph_is_body(glyph)) {
+        buf2 = glyph_is_body_piletop(glyph) ? "piletop_body_" : "body_";
+        buf3 = monsdump[glyph_to_body_corpsenm(glyph)].nm;
+        Strcpy(buf, "G_");
+        Strcat(buf, buf2);
+        Strcat(buf, buf3);
+    } else if (glyph_is_statue(glyph)) {
+        buf2 = glyph_is_fem_statue_piletop(glyph)
+               ? "piletop_statue_of_female_"
+               : glyph_is_fem_statue(glyph)
+                 ? "statue_of_female_"
+                 : glyph_is_male_statue_piletop(glyph)
+                   ? "piletop_statue_of_male_"
+                   : glyph_is_male_statue(glyph)
+                     ? "statue_of_male_"
+                     : "";
+        buf3 = monsdump[glyph_to_statue_corpsenm(glyph)].nm;
+        Strcpy(buf, "G_");
+        Strcat(buf, buf2);
+        Strcat(buf, buf3);
+    } else if (glyph_is_object(glyph)) {
+        i = glyph_to_obj(glyph);
+        if (((i > SCR_STINKING_CLOUD) && (i < SCR_MAIL))
+            || ((i > WAN_LIGHTNING) && (i < GOLD_PIECE))) {
+            return 0;
+        }
+        if ((i >= WAN_LIGHT) && (i <= WAN_LIGHTNING))
+            buf2 = "wand of ";
+        else if ((i >= SPE_DIG) && (i < SPE_BLANK_PAPER))
+            buf2 = "spellbook of ";
+        else if ((i >= SCR_ENCHANT_ARMOR) && (i <= SCR_STINKING_CLOUD))
+            buf2 = "scroll of ";
+        else if ((i >= POT_GAIN_ABILITY) && (i <= POT_WATER))
+            buf2 = (i == POT_WATER) ? "flask of n" : "potion of ";
+        else if ((i >= RIN_ADORNMENT) && (i <= RIN_PROTECTION_FROM_SHAPE_CHAN))
+            buf2 = "ring of ";
+        else if (i == LAND_MINE)
+            buf2 = "unset ";
+        else
+            buf2 = "";
+        buf3 = (i == SCR_BLANK_PAPER) ? "blank scroll"
+               : (i == SPE_BLANK_PAPER) ? "blank spellbook"
+                 : (i == SLIME_MOLD) ? "slime mold"
+                   : obj_descr[i].oc_name
+                     ? obj_descr[i].oc_name
+                     : obj_descr[i].oc_descr;
+        Strcpy(buf, "G_");
+        if (glyph_is_normal_piletop_obj(glyph))
+            Strcat(buf, "piletop_");
+        Strcat(buf, buf2);
+        Strcat(buf, buf3);
+    } else if (glyph_is_cmap(glyph) || glyph_is_cmap_zap(glyph)
+               || glyph_is_swallow(glyph) || glyph_is_explosion(glyph)) {
+        int cmap = -1;
+
+        buf2 = "";
+        buf3 = "";
+        buf4 = "";
+        if (glyph == GLYPH_CMAP_OFF) {
+            cmap = S_stone;
+            buf3 = "stone substrate";
+            skip_base = TRUE;
+        } else if (glyph_is_cmap_gehennom(glyph)) {
+            cmap = (glyph - GLYPH_CMAP_GEH_OFF) + S_vwall;
+            buf4 = "_gehennom";
+        } else if (glyph_is_cmap_knox(glyph)) {
+            cmap = (glyph - GLYPH_CMAP_KNOX_OFF) + S_vwall;
+            buf4 = "_knox";
+        } else if (glyph_is_cmap_main(glyph)) {
+            cmap = (glyph - GLYPH_CMAP_MAIN_OFF) + S_vwall;
+            buf4 = "_main";
+        } else if (glyph_is_cmap_mines(glyph)) {
+            cmap = (glyph - GLYPH_CMAP_MINES_OFF) + S_vwall;
+            buf4 = "_mines";
+        } else if (glyph_is_cmap_sokoban(glyph)) {
+            cmap = (glyph - GLYPH_CMAP_SOKO_OFF) + S_vwall;
+            buf4 = "_sokoban";
+        } else if (glyph_is_cmap_a(glyph)) {
+            cmap = (glyph - GLYPH_CMAP_A_OFF) + S_ndoor;
+        } else if (glyph_is_cmap_altar(glyph)) {
+            static const char *const altar_text[] = {
+                "unaligned", "chaotic", "neutral",
+                "lawful",    "other",
+            };
+
+            j = (glyph - GLYPH_ALTAR_OFF);
+            cmap = S_altar;
+            if (j != altar_other) {
+                Snprintf(tmpbuf[2], sizeof tmpbuf[2], "%s_", altar_text[j]);
+                buf2 = tmpbuf[2];
+            } else {
+                buf3 = "altar other";
+                skip_base = TRUE;
+            }
+        } else if (glyph_is_cmap_b(glyph)) {
+            cmap = (glyph - GLYPH_CMAP_B_OFF) + S_grave;
+        } else if (glyph_is_cmap_zap(glyph)) {
+            static const char *const zap_texts[] = {
+                "missile", "fire",      "frost",      "sleep",
+                "death",   "lightning", "poison gas", "acid"
+            };
+
+            j = (glyph - GLYPH_ZAP_OFF);
+            cmap = (j % 4) + S_vbeam;
+            Snprintf(tmpbuf[2], sizeof tmpbuf[2], "%s",
+                     loadsyms[cmap + cmap_offset].name + 2);
+            Snprintf(tmpbuf[3], sizeof tmpbuf[3], "%s zap %s",
+                     zap_texts[j / 4], fix_glyphname(tmpbuf[2]));
+            buf3 = tmpbuf[3];
+            buf2 = "";
+            skip_base = TRUE;
+        } else if (glyph_is_cmap_c(glyph)) {
+            cmap = (glyph - GLYPH_CMAP_C_OFF) + S_digbeam;
+        } else if (glyph_is_swallow(glyph)) {
+            static const char *const swallow_texts[] = {
+                "top left",      "top center",   "top right",
+                "middle left",   "middle right", "bottom left",
+                "bottom center", "bottom right",
+            };
+
+            j = glyph - GLYPH_SWALLOW_OFF;
+            cmap = glyph_to_swallow(glyph);
+            mnum = j / ((S_sw_br - S_sw_tl) + 1);
+            Strcpy(tmpbuf[3], "swallow ");
+            Strcat(tmpbuf[3], monsdump[mnum].nm);
+            Strcat(tmpbuf[3], " ");
+            Strcat(tmpbuf[3], swallow_texts[cmap]);
+            buf3 = tmpbuf[3];
+            skip_base = TRUE;
+        } else if (glyph_is_explosion(glyph)) {
+            static const char *const expl_type_texts[] = {
+                "dark",    "noxious", "muddy",  "wet",
+                "magical", "fiery",   "frosty",
+            };
+            static const char *const expl_texts[] = {
+                "tl", "tc", "tr", "ml", "mc",
+                "mr", "bl", "bc", "br",
+            };
+            int expl;
+
+            j = glyph - GLYPH_EXPLODE_OFF;
+            expl = j / ((S_expl_br - S_expl_tl) + 1);
+            cmap = glyph_to_explosion(glyph) + S_expl_tl;
+            i = cmap - S_expl_tl;
+            Snprintf(tmpbuf[2], sizeof tmpbuf[2], "%s ", expl_type_texts[expl]);
+            buf2 = tmpbuf[2];
+            Snprintf(tmpbuf[3], sizeof tmpbuf[3], "%s%s", "expl_", expl_texts[i]);
+            buf3 = tmpbuf[3];
+            skip_base = TRUE;
+        }
+        if (!skip_base) {
+            if (cmap >= 0 && cmap < MAXPCHARS)
+                buf3 = loadsyms[cmap + cmap_offset].name + 2;
+        }
+        Strcpy(buf, "G_");
+        Strcat(buf, buf2);
+        Strcat(buf, buf3);
+        Strcat(buf, buf4);
+    } else if (glyph_is_invisible(glyph)) {
+        Strcpy(buf, "G_invisible");
+    } else if (glyph_is_nothing(glyph)) {
+        Strcpy(buf, "G_nothing");
+    } else if (glyph_is_unexplored(glyph)) {
+        Strcpy(buf, "G_unexplored");
+    } else if (glyph_is_warning(glyph)) {
+        j = glyph - GLYPH_WARNING_OFF;
+        Snprintf(buf, bufsz, "G_%s%d", "warning", j);
+    }
+
+    if (buf[0] == '\0')
+        return 0;
+
+    /* Caller's buffer is at least bufsz; the local tmpbuf machinery used
+       QBUFSZ chunks so the assembled string fits comfortably in any sane
+       BUFSZ-class buffer the caller supplies.  Catch programmer error. */
+    if (memchr(buf, '\0', bufsz) == NULL)
+        panic("compose_glyph_name: buf overflowed");
+
+    fix_glyphname(buf + 2);
+    nhUse(mnum);
+    return 1;
+}
+
 staticfn int
 parse_id(
     const char *id,
     struct find_struct *findwhat)
 {
     FILE *fp = (FILE *) 0;
-    int i = 0, j, mnum, glyph,
+    int i = 0, glyph,
         pm_offset = 0, oc_offset = 0, cmap_offset = 0,
         pm_count = 0, oc_count = 0, cmap_count = 0;
-    boolean skip_base = FALSE, skip_this_one = FALSE, dump_ids = FALSE,
+    boolean dump_ids = FALSE,
             filling_cache = FALSE, is_S = FALSE, is_G = FALSE;
     char buf[4][QBUFSZ];
 
@@ -884,6 +1112,26 @@ parse_id(
                 return 0;
             }
         } else {
+            /* individual matching glyph entries */
+            for (glyph = 0; glyph < MAX_GLYPH; ++glyph) {
+                if (!compose_glyph_name(glyph, buf[0], sizeof buf[0]))
+                    continue;
+                if (dump_ids) {
+                    Fprintf(fp, "(%04d) %s\n", glyph, buf[0]);
+                } else if (filling_cache) {
+                    add_glyph_to_cache(glyph, buf[0]);
+                } else if (id) {
+                    if (!strcmpi(id, buf[0])) {
+                        findwhat->findtype = find_glyph;
+                        findwhat->val = glyph;
+                        findwhat->loadsyms_offset = 0;
+                        return 1;
+                    }
+                }
+            }
+        }
+#if 0  /* superseded by compose_glyph_name */
+        else {
             const char *buf2, *buf3, *buf4;
 
             /* individual matching glyph entries */
@@ -1124,6 +1372,7 @@ parse_id(
                 }
             }
         } /* not glyphid_cache */
+#endif /* 0 — superseded */
     } else if (is_S) {
         /* cmap entries */
         for (i = 0; i < cmap_count; ++i) {
