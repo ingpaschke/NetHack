@@ -119,8 +119,9 @@ main(int argc, char *argv[])
     fprintf(ofp, "const uint32 glyph_hash_index_hash[%u] = {\n", n);
     for (i = 0; i < n; ++i) {
         compose_glyph_name((int) entries[i].glyph, buf, sizeof buf);
-        fprintf(ofp, "    0x%08lxUL, /* %s */\n",
-                (unsigned long) entries[i].hash, buf);
+        fprintf(ofp, "    0x%08lxUL, /* [%04u] %s */\n",
+                (unsigned long) entries[i].hash,
+                (unsigned) entries[i].glyph, buf);
     }
     fprintf(ofp, "};\n\n");
 
