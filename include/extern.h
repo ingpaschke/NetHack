@@ -1188,6 +1188,10 @@ extern void wizcustom_glyphnames(winid win);
 extern void populate_glyphname_hashtable(void);
 extern void empty_glyphname_hashtable(void);
 extern boolean glyphname_hashtable_loaded(void);
+/* Build canonical "G_xxx" identifier for one glyph; returns 1 if a name
+   was produced, 0 for skipped slots (buf set to "" in that case). */
+extern int compose_glyph_name(int glyph, char *buf, size_t bufsz);
+extern uint32 glyph_name_hash(const char *id) NONNULLARG1;
 extern void apply_customizations(enum graphics_sets which_set,
                                  enum do_customizations docustomize);
 extern void purge_custom_entries(enum graphics_sets which_set);
