@@ -19,6 +19,59 @@ extern struct enum_dump monsdump[];     /* from earlyarg.c, NUMMONS+5 long */
 extern struct enum_dump objdump[];      /* from earlyarg.c, NUM_OBJECTS+1 */
 extern const struct symparse loadsyms[]; /* from symbols.c */
 
+/* -- forward declarations ------------------------------------- */
+
+staticfn void gt_fix_glyphname(char *str);
+staticfn int gt_strcmp_fixed(const char *user, const char *raw);
+staticfn int gt_normcmp(const char *a, const char *b);
+staticfn int gt_lookup_monster(const char *name);
+staticfn int gt_monster_compare(const void *pa, const void *pb);
+staticfn void gt_monster_sort_init(void);
+staticfn int gt_cmap_offset(void);
+staticfn int gt_lookup_pchar(const char *name);
+staticfn const char *gt_mon_form_prefix_string(int category);
+staticfn const char *gt_obj_class_prefix(int obj_idx);
+staticfn const char *gt_obj_base_name(int obj_idx);
+staticfn boolean gt_obj_is_skipped(int obj_idx);
+staticfn int gt_lookup_object(const char *name);
+staticfn int gt_object_compare(const void *pa, const void *pb);
+staticfn void gt_object_sort_init(void);
+staticfn int gt_parse_monsters_living(const char *s);
+staticfn int gt_parse_singleton(const char *s, const char *expected, int cat);
+staticfn int gt_parse_warning(const char *s);
+staticfn int gt_parse_body_kind(const char *s, const char *prefix,
+                                int prefix_len, int category);
+staticfn int gt_parse_body(const char *s);
+staticfn int gt_parse_body_piletop(const char *s);
+staticfn int gt_parse_statue(const char *s);
+staticfn int gt_parse_cmap(const char *s);
+staticfn int gt_parse_altar(const char *s);
+staticfn int gt_parse_zap(const char *s);
+staticfn int gt_parse_explosion(const char *s);
+staticfn int gt_parse_swallow(const char *s);
+staticfn int gt_parse_object_kind(const char *s, int category);
+staticfn int gt_parse_object(const char *s);
+staticfn int gt_id_to_category(int id);
+staticfn void gt_emit_monsters_living(int category, int local_idx,
+                                      char *buf, size_t bufsz);
+staticfn void gt_emit_body(int local_idx, char *buf, size_t bufsz,
+                           boolean piletop);
+staticfn void gt_emit_statue(int category, int local_idx,
+                             char *buf, size_t bufsz);
+staticfn void gt_emit_object(int local_idx, char *buf, size_t bufsz,
+                             boolean piletop);
+staticfn void gt_emit_cmap_main(int local_idx, char *buf, size_t bufsz,
+                                const char *suffix);
+staticfn void gt_emit_cmap_a(int local_idx, char *buf, size_t bufsz);
+staticfn void gt_emit_cmap_b(int local_idx, char *buf, size_t bufsz);
+staticfn void gt_emit_cmap_c(int local_idx, char *buf, size_t bufsz);
+staticfn void gt_emit_altar(int local_idx, char *buf, size_t bufsz);
+staticfn void gt_emit_zap(int local_idx, char *buf, size_t bufsz);
+staticfn void gt_emit_explosion(int local_idx, char *buf, size_t bufsz);
+staticfn void gt_emit_swallow(int local_idx, char *buf, size_t bufsz);
+staticfn void gt_emit_warning(int local_idx, char *buf, size_t bufsz);
+
+
 /* -- name normalization & matching ----------------------------- */
 
 /* Local copy of fix_glyphname() — keeps glyph_tree.c self-contained
@@ -74,17 +127,87 @@ gt_strcmp_fixed(const char *user, const char *raw)
     return 0;
 }
 
-/* Linear scan over monsdump[] for a name match. */
+/* 3-way normalized comparison: both arguments are raw enum-dump
+ * names; result is as-if both were run through fix_glyphname() first.
+ * Used by qsort when building the sorted-monster/sorted-object index. */
 staticfn int
-gt_lookup_monster(const char *name)
+gt_normcmp(const char *a, const char *b)
+{
+    while (*a || *b) {
+        unsigned char ca = (unsigned char) *a;
+        unsigned char cb = (unsigned char) *b;
+        if (!ca && !cb)
+            return 0;
+        if (!ca)
+            return -1;
+        if (!cb)
+            return 1;
+        if (ca >= 'A' && ca <= 'Z')
+            ca = (unsigned char) (ca + ('a' - 'A'));
+        if (cb >= 'A' && cb <= 'Z')
+            cb = (unsigned char) (cb + ('a' - 'A'));
+        if (!((ca >= 'a' && ca <= 'z') || (ca >= '0' && ca <= '9')))
+            ca = '_';
+        if (!((cb >= 'a' && cb <= 'z') || (cb >= '0' && cb <= '9')))
+            cb = '_';
+        if (ca != cb)
+            return (int) ca - (int) cb;
+        a++;
+        b++;
+    }
+    return 0;
+}
+
+/* Lazy-initialized sorted index over monsdump[].  qsort cost is paid
+ * once on the first monster-name lookup; subsequent lookups are
+ * O(log NUMMONS) binary search. */
+static short *gt_monster_sorted;
+static boolean gt_monster_sorted_ready = FALSE;
+
+staticfn int
+gt_monster_compare(const void *pa, const void *pb)
+{
+    int a = (int) *(const short *) pa;
+    int b = (int) *(const short *) pb;
+    return gt_normcmp(monsdump[a].nm, monsdump[b].nm);
+}
+
+staticfn void
+gt_monster_sort_init(void)
 {
     int i;
 
+    if (gt_monster_sorted_ready)
+        return;
+    gt_monster_sorted = (short *) alloc(NUMMONS * sizeof(short));
+    for (i = 0; i < NUMMONS; i++)
+        gt_monster_sorted[i] = (short) i;
+    qsort(gt_monster_sorted, NUMMONS, sizeof(short),
+          gt_monster_compare);
+    gt_monster_sorted_ready = TRUE;
+}
+
+/* Binary search via the lazy-initialized sorted index. */
+staticfn int
+gt_lookup_monster(const char *name)
+{
+    int lo, hi;
+
     if (!name || !*name)
         return -1;
-    for (i = 0; i < NUMMONS; i++) {
-        if (gt_strcmp_fixed(name, monsdump[i].nm) == 0)
-            return i;
+    gt_monster_sort_init();
+    lo = 0;
+    hi = NUMMONS - 1;
+    while (lo <= hi) {
+        int mid = (lo + hi) >> 1;
+        int idx = (int) gt_monster_sorted[mid];
+        int cmp = gt_strcmp_fixed(name, monsdump[idx].nm);
+        if (cmp == 0)
+            return idx;
+        if (cmp < 0)
+            hi = mid - 1;
+        else
+            lo = mid + 1;
     }
     return -1;
 }
@@ -242,27 +365,84 @@ gt_obj_is_skipped(int obj_idx)
     return FALSE;
 }
 
-/* Look up an object by its canonical name (the form that would be
- * emitted by emit_object).  Returns object index, or -1 if no match.
- * Linear scan over NUM_OBJECTS — fine for the rare config-parse case. */
+/* Lazy-initialized sorted index over the nameable objects.  Each
+ * entry holds the canonical form of the object's emitted name plus
+ * the original obj_descr[] index.  qsort cost is paid once on the
+ * first object-name lookup; subsequent lookups are O(log N) binary
+ * search. */
+struct gt_obj_entry {
+    char *name;     /* canonical (post-fix_glyphname) form */
+    short idx;      /* index into obj_descr[] / objects[] */
+};
+static struct gt_obj_entry *gt_object_sorted;
+static int gt_object_sorted_count;
+static boolean gt_object_sorted_ready = FALSE;
+
 staticfn int
-gt_lookup_object(const char *name)
+gt_object_compare(const void *pa, const void *pb)
+{
+    const struct gt_obj_entry *a = (const struct gt_obj_entry *) pa;
+    const struct gt_obj_entry *b = (const struct gt_obj_entry *) pb;
+    return strcmp(a->name, b->name);
+}
+
+staticfn void
+gt_object_sort_init(void)
 {
     int i;
-    char canonical[BUFSZ];
-    const char *prefix, *base;
+    char buf[BUFSZ];
 
-    if (!name || !*name)
-        return -1;
+    if (gt_object_sorted_ready)
+        return;
+    gt_object_sorted = (struct gt_obj_entry *)
+                          alloc(NUM_OBJECTS * sizeof(struct gt_obj_entry));
+    gt_object_sorted_count = 0;
     for (i = 0; i < NUM_OBJECTS; i++) {
+        const char *prefix, *base;
+
         if (gt_obj_is_skipped(i))
             continue;
         prefix = gt_obj_class_prefix(i);
         base = gt_obj_base_name(i);
-        Snprintf(canonical, sizeof canonical, "%s%s", prefix, base);
-        gt_fix_glyphname(canonical);
-        if (gt_strcmp_fixed(name, canonical) == 0)
-            return i;
+        Snprintf(buf, sizeof buf, "%s%s", prefix, base);
+        gt_fix_glyphname(buf);
+        gt_object_sorted[gt_object_sorted_count].name = dupstr(buf);
+        gt_object_sorted[gt_object_sorted_count].idx = (short) i;
+        gt_object_sorted_count++;
+    }
+    qsort(gt_object_sorted, gt_object_sorted_count,
+          sizeof(struct gt_obj_entry), gt_object_compare);
+    gt_object_sorted_ready = TRUE;
+}
+
+/* Look up an object by its canonical name; assumes the caller has
+ * already passed user input through fix_glyphname-equivalent
+ * canonicalization (which both the config parser and our internal
+ * paths do).  Returns object index, or -1 if no match. */
+staticfn int
+gt_lookup_object(const char *name)
+{
+    int lo, hi;
+    char query[BUFSZ];
+
+    if (!name || !*name)
+        return -1;
+    gt_object_sort_init();
+    /* Normalize input so an upper-case or unusual-character spelling
+     * from the user still matches the canonicalized table entries. */
+    Snprintf(query, sizeof query, "%s", name);
+    gt_fix_glyphname(query);
+    lo = 0;
+    hi = gt_object_sorted_count - 1;
+    while (lo <= hi) {
+        int mid = (lo + hi) >> 1;
+        int cmp = strcmp(query, gt_object_sorted[mid].name);
+        if (cmp == 0)
+            return (int) gt_object_sorted[mid].idx;
+        if (cmp < 0)
+            hi = mid - 1;
+        else
+            lo = mid + 1;
     }
     return -1;
 }
