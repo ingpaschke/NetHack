@@ -9,8 +9,11 @@ extern glyph_map glyphmap[MAX_GLYPH];
 extern struct enum_dump monsdump[];
 extern struct enum_dump objdump[];
 
-/* Generated at build time by util/mkglyphhash; indexed by glyph number. */
-extern const uint32 glyph_name_hashes[MAX_GLYPH];
+/* Generated at build time by util/mkglyphhash: sorted (hash, glyph) index
+   of canonical G_xxx identifiers, for O(log N) lookup via binary search. */
+extern const uint32 glyph_hash_index_hash[];
+extern const uint16 glyph_hash_index_glyph[];
+extern const unsigned glyph_hash_index_count;
 
 #define Fprintf (void) fprintf
 
@@ -681,21 +684,29 @@ parse_id(
         }
     }
     if (is_G && id) {
-        /* Hash the input once, then linear-scan the build-time hash table;
-           reconstruct the canonical name only for hash matches. */
+        /* Binary-search the sorted (hash, glyph) index, then walk equal-hash
+           neighbours (collisions are rare) verifying each candidate by
+           reconstructing its canonical name. */
         uint32 want = glyph_name_hash(id);
+        unsigned lo = 0, hi = glyph_hash_index_count, mid;
 
-        for (glyph = 0; glyph < MAX_GLYPH; ++glyph) {
-            if (glyph_name_hashes[glyph] != want)
-                continue;
-            if (!compose_glyph_name(glyph, buf, sizeof buf))
-                continue;
-            if (!strcmpi(id, buf)) {
+        while (lo < hi) {
+            mid = (lo + hi) >> 1;
+            if (glyph_hash_index_hash[mid] < want)
+                lo = mid + 1;
+            else
+                hi = mid;
+        }
+        while (lo < glyph_hash_index_count
+               && glyph_hash_index_hash[lo] == want) {
+            int g = (int) glyph_hash_index_glyph[lo];
+            if (compose_glyph_name(g, buf, sizeof buf) && !strcmpi(id, buf)) {
                 findwhat->findtype = find_glyph;
-                findwhat->val = glyph;
+                findwhat->val = g;
                 findwhat->loadsyms_offset = 0;
                 return 1;
             }
+            ++lo;
         }
         return 0;
     }
