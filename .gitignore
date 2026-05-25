@@ -79,6 +79,8 @@ util/djgpp-linux64-gcc550.tar.bz2
 util/djgpp-osx-gcc550.tar.bz2
 util/djgpp-mingw-gcc550-standalone.zip
 util/dlb_main
+util/mkglyphhash
+src/glyph_hashes.c
 util/thintile
 util/til2bin2
 util/tile2bin
