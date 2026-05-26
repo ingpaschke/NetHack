@@ -363,11 +363,15 @@ init_glyph_cache(void)
     }
 }
 
-/* No-op shim for the cache lifecycle.  See fill_glyphid_cache(). */
+/* Shim for the cache lifecycle.  The hash table this used to release is
+ * gone, but the tree parser keeps lazy-initialized sorted indexes for
+ * monster and object name lookups; release those here so callers' existing
+ * populate/empty cycle still has an effect.  Subsequent lookups
+ * transparently repopulate. */
 void
 free_glyphid_cache(void)
 {
-    /* no-op */
+    glyph_tree_free_caches();
 }
 
 staticfn void
@@ -807,6 +811,10 @@ dump_all_glyphids(FILE *fp)
 
     for (g = 0; g < MAX_GLYPH; ++g) {
         glyph_tree_id_to_name(g, name, sizeof name);
+        /* Skip slots that never had a canonical name (the scroll/gem
+           appearance gaps); parse_id used to silently omit them too. */
+        if (strncmp(name, "G_unnamed", 9) == 0)
+            continue;
         Fprintf(fp, "(%04d) %s\n", g, name);
     }
 }
@@ -819,6 +827,11 @@ wizcustom_glyphids(winid win)
 
     for (g = 0; g < MAX_GLYPH; ++g) {
         glyph_tree_id_to_name(g, name, sizeof name);
+        /* Skip object slots that never had a canonical G_xxx (the scroll
+           appearance and gem ranges that parse_id silently skipped); the
+           emitter marks them with a "G_unnamed_*" sentinel. */
+        if (strncmp(name, "G_unnamed", 9) == 0)
+            continue;
         wizcustom_callback(win, g, name);
     }
 }

@@ -71,4 +71,8 @@ extern void glyph_tree_id_to_name(int id, char *buf, size_t bufsz);
  * Returns 0 on success, count of mismatches on failure. */
 extern int glyph_tree_self_test(void);
 
+/* Free the lazy-initialized sorted-index caches.  Called via the
+ * existing free_glyphid_cache() shim so callers don't have to change. */
+extern void glyph_tree_free_caches(void);
+
 #endif /* GLYPH_TREE_H */

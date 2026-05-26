@@ -415,6 +415,33 @@ gt_object_sort_init(void)
     gt_object_sorted_ready = TRUE;
 }
 
+/* Release any cache memory held by the lazy-initialized sorted indexes.
+ * Wired in from free_glyphid_cache() in glyphs.c so the existing
+ * populate/empty cycle still has somewhere to release memory.  After this
+ * the next G_xxx lookup will repopulate the cache transparently. */
+void
+glyph_tree_free_caches(void)
+{
+    int i;
+
+    if (gt_monster_sorted) {
+        free(gt_monster_sorted);
+        gt_monster_sorted = (short *) 0;
+    }
+    gt_monster_sorted_ready = FALSE;
+
+    if (gt_object_sorted) {
+        for (i = 0; i < gt_object_sorted_count; i++) {
+            free((genericptr_t) gt_object_sorted[i].name);
+            gt_object_sorted[i].name = (char *) 0;
+        }
+        free(gt_object_sorted);
+        gt_object_sorted = (struct gt_obj_entry *) 0;
+        gt_object_sorted_count = 0;
+    }
+    gt_object_sorted_ready = FALSE;
+}
+
 /* Look up an object by its canonical name; assumes the caller has
  * already passed user input through fix_glyphname-equivalent
  * canonicalization (which both the config parser and our internal
@@ -591,14 +618,19 @@ struct gt_cmap_branch_suffix {
 
 /* These suffixes only apply to glyphs whose underlying pchar is in
  * the wall range (S_vwall .. S_trwall).  Categories cmap_a/b/c use
- * non-wall pchars and have no suffix. */
+ * non-wall pchars and have no suffix.
+ * sizeof(literal) - 1 keeps suffix and suffix_len locked together at
+ * compile time -- a typo in the string can't silently produce a wrong
+ * length any more. */
+#define GT_SUFFIX(lit, cat) { lit, sizeof(lit) - 1, cat, S_vwall }
 static const struct gt_cmap_branch_suffix gt_cmap_branch_suffixes[] = {
-    { "_gehennom", 9, GTC_CMAP_GEH,   S_vwall },
-    { "_sokoban",  8, GTC_CMAP_SOKO,  S_vwall },
-    { "_mines",    6, GTC_CMAP_MINES, S_vwall },
-    { "_knox",     5, GTC_CMAP_KNOX,  S_vwall },
-    { "_main",     5, GTC_CMAP_MAIN,  S_vwall },
+    GT_SUFFIX("_gehennom", GTC_CMAP_GEH),
+    GT_SUFFIX("_sokoban",  GTC_CMAP_SOKO),
+    GT_SUFFIX("_mines",    GTC_CMAP_MINES),
+    GT_SUFFIX("_knox",     GTC_CMAP_KNOX),
+    GT_SUFFIX("_main",     GTC_CMAP_MAIN),
 };
+#undef GT_SUFFIX
 
 staticfn int
 gt_parse_cmap(const char *s)
