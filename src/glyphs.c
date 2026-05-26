@@ -26,18 +26,27 @@ struct find_struct {
     genericptr_t reserved;
 };
 static const struct find_struct zero_find = { 0 };
+/* Open-addressed hash table over the 16-bit canonical-name hash.
+   See populate_glyphname_hash_indices() below for the layout / sizing
+   rationale.  Bucket = (uint16 hash, uint16 glyphnum); NO_GLYPH marks
+   an empty bucket. */
+#define GLYPHNAME_HT_LSIZE 14
+#define GLYPHNAME_HT_SIZE  (1U << GLYPHNAME_HT_LSIZE)   /* 16384 */
+#define GLYPHNAME_HT_MASK  (GLYPHNAME_HT_SIZE - 1U)
+/* Build-time: the table stores glyph numbers as uint16, and the empty-
+   bucket sentinel is NO_GLYPH == MAX_GLYPH.  Both must fit in uint16. */
+typedef char glyphname_ht_sentinel_fits[NO_GLYPH <= 65535 ? 1 : -1];
+typedef char glyphname_ht_load_under_full[MAX_GLYPH < (int)GLYPHNAME_HT_SIZE ? 1 : -1];
 struct glyphname_hash_index_entry_t {
-    uint32 hash;
-    int glyphnum;
+    uint16 hash;
+    uint16 glyphnum;
 };
 static struct glyphname_hash_index_entry_t *glyphname_hash_indices_ptr;
-static size_t glyphname_hash_indices_count;
 static struct find_struct to_custom_symbol_find;
 static const long nonzero_black = CLR_BLACK | NH_BASIC_COLOR;
 
 staticfn int find_glyph_in_hashtable(const char *id);
-staticfn int cmp_glyphname_entry(const void *a, const void *b);
-staticfn uint32 glyph_hash(const char *id);
+staticfn uint16 glyph_hash16(const char *id);
 staticfn int compose_glyph_name(int glyph, char *buf, size_t bufsz);
 staticfn int get_cmap_offset(void);
 staticfn void to_custom_symset_entry_callback(int glyph,
@@ -216,169 +225,172 @@ get_cmap_offset(void)
 }
 
 /* Build the canonical "G_xxx" identifier for the given glyph into buf.
- * Returns 1 if a name was produced, 0 if this glyph has no canonical name
- * (a few unused object indices); buf[0] is set to '\0' in that case.
+ * Returns 1 if a name was produced, 0 if this glyph has no canonical
+ * name (the scroll/gem appearance gaps); buf[0] is set to "G_" on the
+ * 0-return paths but callers check the return value before inspecting.
+ *
+ * The literal fragments below are written in their already-canonical
+ * form (lowercase, '_' for word boundaries) so they pass through
+ * fix_glyphname() unchanged.  Data-driven fragments (monsdump[].nm,
+ * obj_descr[].oc_name / oc_descr) may have uppercase or spaces and rely
+ * on the fix_glyphname() pass at the end to normalise.
+ *
+ * Uses cursor-based appends (single-pass write) rather than Strcat to
+ * skip the scan-to-null-terminator that Strcat would do on each call.
  * Callers must pass a BUFSZ-sized buffer.
- * Used by find_glyph_in_hashtable to verify hash matches, by the
- * --dumpglyphnames path, by populate_glyphname_hash_indices to fill the
- * table, and by wizcustom_glyphnames. */
+ *
+ * Used by find_glyph_in_hashtable() to verify hash matches, by the
+ * --dumpglyphnames path, by populate_glyphname_hash_indices() to fill
+ * the hash table, and by wizcustom_glyphnames().
+ */
 staticfn int
 compose_glyph_name(int glyph, char *buf, size_t bufsz)
 {
-    int i, j, mnum, cmap_offset;
-    boolean skip_base = FALSE;
-    const char *buf2, *buf3, *buf4;
-    char tmpbuf[4][QBUFSZ];
+    int i, j, mnum;
+    int cmap_offset = get_cmap_offset();
+    char *p, *end;
+
+#define APPEND(s)                                                       \
+    do {                                                                \
+        const char *_q = (s);                                           \
+        while (*_q && p < end)                                          \
+            *p++ = *_q++;                                               \
+    } while (0)
+#define APPEND_FMT(fmt, n)                                              \
+    do {                                                                \
+        char _b[16];                                                    \
+        Snprintf(_b, sizeof _b, (fmt), (n));                            \
+        APPEND(_b);                                                     \
+    } while (0)
+#define FINISH() do { *p = '\0'; fix_glyphname(buf + 2); return 1; } while (0)
 
     if (bufsz < BUFSZ)
         return 0;
-    buf[0] = '\0';
-    tmpbuf[0][0] = tmpbuf[1][0] = tmpbuf[2][0] = tmpbuf[3][0] = '\0';
-    cmap_offset = get_cmap_offset();
+    p = buf;
+    end = buf + bufsz - 1;
+    APPEND("G_");
 
     if (glyph_is_monster(glyph)) {
-        buf2 = "";
-        buf3 = monsdump[glyph_to_mon(glyph)].nm;
-        if (glyph_is_normal_male_monster(glyph)) {
-            buf2 = "male_";
-        } else if (glyph_is_normal_female_monster(glyph)) {
-            buf2 = "female_";
-        } else if (glyph_is_ridden_male_monster(glyph)) {
-            buf2 = "ridden_male_";
-        } else if (glyph_is_ridden_female_monster(glyph)) {
-            buf2 = "ridden_female_";
-        } else if (glyph_is_detected_male_monster(glyph)) {
-            buf2 = "detected_male_";
-        } else if (glyph_is_detected_female_monster(glyph)) {
-            buf2 = "detected_female_";
-        } else if (glyph_is_male_pet(glyph)) {
-            buf2 = "pet_male_";
-        } else if (glyph_is_female_pet(glyph)) {
-            buf2 = "pet_female_";
-        }
-        Snprintf(buf, bufsz, "G_%s%s", buf2, buf3);
-    } else if (glyph_is_body(glyph)) {
-        buf2 = glyph_is_body_piletop(glyph) ? "piletop_body_" : "body_";
-        buf3 = monsdump[glyph_to_body_corpsenm(glyph)].nm;
-        Snprintf(buf, bufsz, "G_%s%s", buf2, buf3);
-    } else if (glyph_is_statue(glyph)) {
-        buf2 = glyph_is_fem_statue_piletop(glyph)
-               ? "piletop_statue_of_female_"
-               : glyph_is_fem_statue(glyph)
-                 ? "statue_of_female_"
-                 : glyph_is_male_statue_piletop(glyph)
-                   ? "piletop_statue_of_male_"
-                   : glyph_is_male_statue(glyph)
-                     ? "statue_of_male_"
-                     : "";
-        buf3 = monsdump[glyph_to_statue_corpsenm(glyph)].nm;
-        Snprintf(buf, bufsz, "G_%s%s", buf2, buf3);
-    } else if (glyph_is_object(glyph)) {
+        if (glyph_is_normal_male_monster(glyph))            APPEND("male_");
+        else if (glyph_is_normal_female_monster(glyph))     APPEND("female_");
+        else if (glyph_is_ridden_male_monster(glyph))       APPEND("ridden_male_");
+        else if (glyph_is_ridden_female_monster(glyph))     APPEND("ridden_female_");
+        else if (glyph_is_detected_male_monster(glyph))     APPEND("detected_male_");
+        else if (glyph_is_detected_female_monster(glyph))   APPEND("detected_female_");
+        else if (glyph_is_male_pet(glyph))                  APPEND("pet_male_");
+        else if (glyph_is_female_pet(glyph))                APPEND("pet_female_");
+        APPEND(monsdump[glyph_to_mon(glyph)].nm);
+        FINISH();
+    }
+    if (glyph_is_body(glyph)) {
+        APPEND(glyph_is_body_piletop(glyph) ? "piletop_body_" : "body_");
+        APPEND(monsdump[glyph_to_body_corpsenm(glyph)].nm);
+        FINISH();
+    }
+    if (glyph_is_statue(glyph)) {
+        APPEND(glyph_is_fem_statue_piletop(glyph)
+                                                ? "piletop_statue_of_female_"
+                : glyph_is_fem_statue(glyph)    ? "statue_of_female_"
+                : glyph_is_male_statue_piletop(glyph)
+                                                ? "piletop_statue_of_male_"
+                : glyph_is_male_statue(glyph)   ? "statue_of_male_"
+                                                : "");
+        APPEND(monsdump[glyph_to_statue_corpsenm(glyph)].nm);
+        FINISH();
+    }
+    if (glyph_is_object(glyph)) {
         i = glyph_to_obj(glyph);
         if (((i > SCR_STINKING_CLOUD) && (i < SCR_MAIL))
-            || ((i > WAN_LIGHTNING) && (i < GOLD_PIECE))) {
+            || ((i > WAN_LIGHTNING) && (i < GOLD_PIECE)))
             return 0;
-        }
-        if ((i >= WAN_LIGHT) && (i <= WAN_LIGHTNING))
-            buf2 = "wand of ";
-        else if ((i >= SPE_DIG) && (i < SPE_BLANK_PAPER))
-            buf2 = "spellbook of ";
-        else if ((i >= SCR_ENCHANT_ARMOR) && (i <= SCR_STINKING_CLOUD))
-            buf2 = "scroll of ";
-        else if ((i >= POT_GAIN_ABILITY) && (i <= POT_WATER))
-            buf2 = (i == POT_WATER) ? "flask of n" : "potion of ";
-        else if ((i >= RIN_ADORNMENT) && (i <= RIN_PROTECTION_FROM_SHAPE_CHAN))
-            buf2 = "ring of ";
-        else if (i == LAND_MINE)
-            buf2 = "unset ";
-        else
-            buf2 = "";
-        buf3 = (i == SCR_BLANK_PAPER) ? "blank scroll"
-               : (i == SPE_BLANK_PAPER) ? "blank spellbook"
-                 : (i == SLIME_MOLD) ? "slime mold"
-                   : obj_descr[i].oc_name
-                     ? obj_descr[i].oc_name
-                     : obj_descr[i].oc_descr;
-        Snprintf(buf, bufsz, "G_%s%s%s",
-                 (glyph_is_normal_piletop_obj(glyph)
-                  || glyph_is_piletop_generic_obj(glyph)) ? "piletop_" : "",
-                 buf2, buf3);
-    } else if (glyph_is_cmap(glyph) || glyph_is_cmap_zap(glyph)
-               || glyph_is_swallow(glyph) || glyph_is_explosion(glyph)) {
-        int cmap = -1;
+        if (glyph_is_normal_piletop_obj(glyph)
+            || glyph_is_piletop_generic_obj(glyph))
+            APPEND("piletop_");
 
-        buf2 = "";
-        buf3 = "";
-        buf4 = "";
+        if ((i >= WAN_LIGHT) && (i <= WAN_LIGHTNING))
+            APPEND("wand_of_");
+        else if ((i >= SPE_DIG) && (i < SPE_BLANK_PAPER))
+            APPEND("spellbook_of_");
+        else if ((i >= SCR_ENCHANT_ARMOR) && (i <= SCR_STINKING_CLOUD))
+            APPEND("scroll_of_");
+        else if ((i >= POT_GAIN_ABILITY) && (i <= POT_WATER))
+            APPEND(i == POT_WATER ? "flask_of_n" : "potion_of_");
+        else if ((i >= RIN_ADORNMENT) && (i <= RIN_PROTECTION_FROM_SHAPE_CHAN))
+            APPEND("ring_of_");
+        else if (i == LAND_MINE)
+            APPEND("unset_");
+
+        if (i == SCR_BLANK_PAPER)        APPEND("blank_scroll");
+        else if (i == SPE_BLANK_PAPER)   APPEND("blank_spellbook");
+        else if (i == SLIME_MOLD)        APPEND("slime_mold");
+        else if (obj_descr[i].oc_name)   APPEND(obj_descr[i].oc_name);
+        else                             APPEND(obj_descr[i].oc_descr);
+        FINISH();
+    }
+    if (glyph_is_cmap(glyph) || glyph_is_cmap_zap(glyph)
+        || glyph_is_swallow(glyph) || glyph_is_explosion(glyph)) {
+        int cmap = -1;
+        const char *suffix = "";
+
         if (glyph == GLYPH_CMAP_OFF) {
-            cmap = S_stone;
-            buf3 = "stone substrate";
-            skip_base = TRUE;
+            APPEND("stone_substrate");
+            FINISH();
         } else if (glyph_is_cmap_gehennom(glyph)) {
-            cmap = (glyph - GLYPH_CMAP_GEH_OFF) + S_vwall;
-            buf4 = "_gehennom";
+            cmap = (glyph - GLYPH_CMAP_GEH_OFF) + S_vwall;  suffix = "_gehennom";
         } else if (glyph_is_cmap_knox(glyph)) {
-            cmap = (glyph - GLYPH_CMAP_KNOX_OFF) + S_vwall;
-            buf4 = "_knox";
+            cmap = (glyph - GLYPH_CMAP_KNOX_OFF) + S_vwall; suffix = "_knox";
         } else if (glyph_is_cmap_main(glyph)) {
-            cmap = (glyph - GLYPH_CMAP_MAIN_OFF) + S_vwall;
-            buf4 = "_main";
+            cmap = (glyph - GLYPH_CMAP_MAIN_OFF) + S_vwall; suffix = "_main";
         } else if (glyph_is_cmap_mines(glyph)) {
-            cmap = (glyph - GLYPH_CMAP_MINES_OFF) + S_vwall;
-            buf4 = "_mines";
+            cmap = (glyph - GLYPH_CMAP_MINES_OFF) + S_vwall; suffix = "_mines";
         } else if (glyph_is_cmap_sokoban(glyph)) {
-            cmap = (glyph - GLYPH_CMAP_SOKO_OFF) + S_vwall;
-            buf4 = "_sokoban";
+            cmap = (glyph - GLYPH_CMAP_SOKO_OFF) + S_vwall; suffix = "_sokoban";
         } else if (glyph_is_cmap_a(glyph)) {
             cmap = (glyph - GLYPH_CMAP_A_OFF) + S_ndoor;
         } else if (glyph_is_cmap_altar(glyph)) {
             static const char *const altar_text[] = {
-                "unaligned", "chaotic", "neutral",
-                "lawful",    "other",
+                "unaligned", "chaotic", "neutral", "lawful", "other",
             };
 
-            j = (glyph - GLYPH_ALTAR_OFF);
-            cmap = S_altar;
+            j = glyph - GLYPH_ALTAR_OFF;
             if (j != altar_other) {
-                Snprintf(tmpbuf[2], sizeof tmpbuf[2], "%s_", altar_text[j]);
-                buf2 = tmpbuf[2];
+                APPEND(altar_text[j]);
+                APPEND("_");
+                cmap = S_altar;
             } else {
-                buf3 = "altar other";
-                skip_base = TRUE;
+                APPEND("altar_other");
+                FINISH();
             }
         } else if (glyph_is_cmap_b(glyph)) {
             cmap = (glyph - GLYPH_CMAP_B_OFF) + S_grave;
         } else if (glyph_is_cmap_zap(glyph)) {
             static const char *const zap_texts[] = {
-                "missile", "fire",      "frost",      "sleep",
-                "death",   "lightning", "poison gas", "acid"
+                "missile", "fire",      "frost",     "sleep",
+                "death",   "lightning", "poison_gas","acid",
             };
 
-            j = (glyph - GLYPH_ZAP_OFF);
-            cmap = (j % 4) + S_vbeam;
-            Snprintf(tmpbuf[2], sizeof tmpbuf[2], "%s",
-                     loadsyms[cmap + cmap_offset].name + 2);
-            Snprintf(tmpbuf[3], sizeof tmpbuf[3], "%s zap %s",
-                     zap_texts[j / 4], fix_glyphname(tmpbuf[2]));
-            buf3 = tmpbuf[3];
-            buf2 = "";
-            skip_base = TRUE;
+            j = glyph - GLYPH_ZAP_OFF;
+            APPEND(zap_texts[j / 4]);
+            APPEND("_zap_");
+            APPEND(loadsyms[(j % 4) + S_vbeam + cmap_offset].name + 2);
+            FINISH();
         } else if (glyph_is_cmap_c(glyph)) {
             cmap = (glyph - GLYPH_CMAP_C_OFF) + S_digbeam;
         } else if (glyph_is_swallow(glyph)) {
             static const char *const swallow_texts[] = {
-                "top left",      "top center",   "top right",
-                "middle left",   "middle right", "bottom left",
-                "bottom center", "bottom right",
+                "top_left",      "top_center",   "top_right",
+                "middle_left",   "middle_right", "bottom_left",
+                "bottom_center", "bottom_right",
             };
 
             j = glyph - GLYPH_SWALLOW_OFF;
             cmap = glyph_to_swallow(glyph);
             mnum = j / ((S_sw_br - S_sw_tl) + 1);
-            Snprintf(tmpbuf[3], sizeof tmpbuf[3], "swallow %s %s",
-                     monsdump[mnum].nm, swallow_texts[cmap]);
-            buf3 = tmpbuf[3];
-            skip_base = TRUE;
+            APPEND("swallow_");
+            APPEND(monsdump[mnum].nm);
+            APPEND("_");
+            APPEND(swallow_texts[cmap]);
+            FINISH();
         } else if (glyph_is_explosion(glyph)) {
             static const char *const expl_type_texts[] = {
                 "dark",    "noxious", "muddy",  "wet",
@@ -392,37 +404,32 @@ compose_glyph_name(int glyph, char *buf, size_t bufsz)
 
             j = glyph - GLYPH_EXPLODE_OFF;
             expl = j / ((S_expl_br - S_expl_tl) + 1);
-            cmap = glyph_to_explosion(glyph) + S_expl_tl;
-            i = cmap - S_expl_tl;
-            Snprintf(tmpbuf[2], sizeof tmpbuf[2], "%s ",
-                     expl_type_texts[expl]);
-            buf2 = tmpbuf[2];
-            Snprintf(tmpbuf[3], sizeof tmpbuf[3], "%s%s", "expl_",
-                     expl_texts[i]);
-            buf3 = tmpbuf[3];
-            skip_base = TRUE;
+            i = glyph_to_explosion(glyph);
+            APPEND(expl_type_texts[expl]);
+            APPEND("_expl_");
+            APPEND(expl_texts[i]);
+            FINISH();
         }
-        if (!skip_base) {
-            if (cmap >= 0 && cmap < MAXPCHARS)
-                buf3 = loadsyms[cmap + cmap_offset].name + 2;
-        }
-        Snprintf(buf, bufsz, "G_%s%s%s", buf2, buf3, buf4);
-    } else if (glyph_is_invisible(glyph)) {
-        Snprintf(buf, bufsz, "G_invisible");
-    } else if (glyph_is_nothing(glyph)) {
-        Snprintf(buf, bufsz, "G_nothing");
-    } else if (glyph_is_unexplored(glyph)) {
-        Snprintf(buf, bufsz, "G_unexplored");
-    } else if (glyph_is_warning(glyph)) {
-        j = glyph - GLYPH_WARNING_OFF;
-        Snprintf(buf, bufsz, "G_%s%d", "warning", j);
+        /* sub-predicates above are exhaustive by construction; if we
+           reach here 'cmap' is valid. */
+        if (cmap >= 0 && cmap < MAXPCHARS)
+            APPEND(loadsyms[cmap + cmap_offset].name + 2);
+        APPEND(suffix);
+        FINISH();
     }
-
-    if (buf[0] == '\0')
-        return 0;
-    fix_glyphname(buf + 2);
+    if (glyph_is_invisible(glyph))  { APPEND("invisible"); FINISH(); }
+    if (glyph_is_nothing(glyph))    { APPEND("nothing"); FINISH(); }
+    if (glyph_is_unexplored(glyph)) { APPEND("unexplored"); FINISH(); }
+    if (glyph_is_warning(glyph)) {
+        APPEND("warning");
+        APPEND_FMT("%d", glyph - GLYPH_WARNING_OFF);
+        FINISH();
+    }
     nhUse(mnum);
-    return 1;
+    return 0;
+#undef APPEND
+#undef APPEND_FMT
+#undef FINISH
 }
 
 int
@@ -512,58 +519,79 @@ glyph_find_core(
 }
 
 /*
- * glyphname_hash_indices is a sorted (hash, glyph) index of canonical
- * "G_xxx" identifiers.  populate_glyphname_hash_indices() allocates one
- * block of MAX_GLYPH * sizeof(entry) (some entries go unused for the
- * scroll/gem appearance gaps), fills it via compose_glyph_name(), and
- * sorts ascending by hash.  Lookup is bsearch on the hash with
- * compose_glyph_name()+strcmpi to disambiguate the rare collision.
+ * glyphname_hash_indices is an open-addressed hash table over the
+ * 16-bit canonical-name hash.  Each bucket holds (uint16 hash, uint16
+ * glyphnum), 4 bytes; the table size is a fixed power of two (16384,
+ * ~60% load for the 9577 named glyphs) so the bucket index is just
+ * (hash & GLYPHNAME_HT_MASK).  An empty bucket has glyphnum == NO_GLYPH.
  *
- * The name "hashtable" is historical; this is a sorted array, not an
- * open-addressed hash table.  The on-disk API in extern.h is kept so
- * that callers (wizcmds.c, options.c) don't need to change.
+ * Linear probing on collisions: with a 16-bit hash some names share a
+ * value (~14% of named slots), and several distinct hashes can also
+ * land on the same primary bucket.  The verification step
+ * (reconstruct the candidate via compose_glyph_name and strcmpi) sorts
+ * those out cheaply.
  *
- * Memory: one alloc, ~75 KB for the 9577 named slots on a typical 5.0
- * build (struct is 8 bytes, no per-name strings).  The same data in
- * upstream's open-addressed table cost ~256 KB for the buckets plus
- * ~290 KB of dupstr'd names plus malloc overhead.
+ * Memory: 16384 * 4 = 64 KB, one allocation, no per-name strings.
+ * No sort phase during populate -- big win on slow m68k.
  */
 
-staticfn int
-cmp_glyphname_entry(const void *a, const void *b)
+staticfn uint16
+glyph_hash16(const char *id)
 {
-    uint32 ha = ((const struct glyphname_hash_index_entry_t *) a)->hash;
-    uint32 hb = ((const struct glyphname_hash_index_entry_t *) b)->hash;
+    uint16 hash = 0;
+    size_t i;
 
-    if (ha < hb)
-        return -1;
-    if (ha > hb)
-        return 1;
-    return 0;
+    for (i = 0; id[i] != '\0'; ++i) {
+        char ch = id[i];
+
+        if ('A' <= ch && ch <= 'Z')
+            ch += 'a' - 'A';
+        hash = (uint16) ((hash << 5) | (hash >> 11));
+        hash ^= (unsigned char) ch;
+    }
+    return hash;
 }
 
 void
 populate_glyphname_hash_indices(void)
 {
     int glyph;
-    size_t n = 0;
+    size_t i;
     char buf[BUFSZ];
 
     if (glyphname_hash_indices_ptr)
         return;
     glyphname_hash_indices_ptr = (struct glyphname_hash_index_entry_t *) alloc(
-        MAX_GLYPH * sizeof (struct glyphname_hash_index_entry_t));
+        GLYPHNAME_HT_SIZE * sizeof (struct glyphname_hash_index_entry_t));
+    for (i = 0; i < GLYPHNAME_HT_SIZE; i++) {
+        glyphname_hash_indices_ptr[i].hash = 0;
+        glyphname_hash_indices_ptr[i].glyphnum = (uint16) NO_GLYPH;
+    }
 
     for (glyph = 0; glyph < MAX_GLYPH; ++glyph) {
-        if (compose_glyph_name(glyph, buf, sizeof buf)) {
-            glyphname_hash_indices_ptr[n].hash = glyph_hash(buf);
-            glyphname_hash_indices_ptr[n].glyphnum = glyph;
-            ++n;
+        uint16 h;
+        size_t idx;
+
+        if (!compose_glyph_name(glyph, buf, sizeof buf))
+            continue;
+        h = glyph_hash16(buf);
+        idx = h & GLYPHNAME_HT_MASK;
+        /* Linear probe to the first empty slot.  Load < 60% bounds the
+           expected probe length to ~1.5; the load-under-full build-time
+           assertion above guarantees there is always an empty slot. */
+        {
+            size_t probes = 0;
+
+            while (glyphname_hash_indices_ptr[idx].glyphnum
+                   != (uint16) NO_GLYPH) {
+                idx = (idx + 1) & GLYPHNAME_HT_MASK;
+                if (++probes >= GLYPHNAME_HT_SIZE)
+                    panic("populate_glyphname_hash_indices: table full");
+            }
         }
+        glyphname_hash_indices_ptr[idx].hash = h;
+        glyphname_hash_indices_ptr[idx].glyphnum = (uint16) glyph;
     }
-    qsort(glyphname_hash_indices_ptr, n,
-          sizeof glyphname_hash_indices_ptr[0], cmp_glyphname_entry);
-    glyphname_hash_indices_count = n;
 }
 
 void
@@ -573,60 +601,30 @@ empty_glyphname_hash_indices(void)
         return;
     free(glyphname_hash_indices_ptr);
     glyphname_hash_indices_ptr = (struct glyphname_hash_index_entry_t *) 0;
-    glyphname_hash_indices_count = 0;
 }
-
-
-
-
-
-
-
-
 
 staticfn int
 find_glyph_in_hashtable(const char *id)
 {
-    uint32 want = glyph_hash(id);
-    size_t lo = 0, hi = glyphname_hash_indices_count, mid;
+    uint16 want = glyph_hash16(id);
+    size_t idx = want & GLYPHNAME_HT_MASK;
     char buf[BUFSZ];
+    size_t probes = 0;
 
-    /* Binary-search the sorted array for the first entry whose hash >= want. */
-    while (lo < hi) {
-        mid = (lo + hi) >> 1;
-        if (glyphname_hash_indices_ptr[mid].hash < want)
-            lo = mid + 1;
-        else
-            hi = mid;
-    }
-    /* Walk forward across any equal-hash neighbours, verifying each by
-       reconstructing the canonical name and strcmpi'ing it back. */
-    while (lo < glyphname_hash_indices_count
-           && glyphname_hash_indices_ptr[lo].hash == want) {
-        int g = glyphname_hash_indices_ptr[lo].glyphnum;
+    /* Linear probe.  Stop at an empty bucket (definitive miss) or after
+       walking the whole table (defensive). */
+    while (glyphname_hash_indices_ptr[idx].glyphnum != (uint16) NO_GLYPH) {
+        if (glyphname_hash_indices_ptr[idx].hash == want) {
+            int g = (int) glyphname_hash_indices_ptr[idx].glyphnum;
 
-        if (compose_glyph_name(g, buf, sizeof buf) && !strcmpi(id, buf))
-            return g;
-        ++lo;
+            if (compose_glyph_name(g, buf, sizeof buf) && !strcmpi(id, buf))
+                return g;
+        }
+        idx = (idx + 1) & GLYPHNAME_HT_MASK;
+        if (++probes >= GLYPHNAME_HT_SIZE)
+            break;
     }
     return -1;
-}
-
-staticfn uint32
-glyph_hash(const char *id)
-{
-    uint32 hash = 0;
-    size_t i;
-
-    for (i = 0; id[i] != '\0'; ++i) {
-        char ch = id[i];
-        if ('A' <= ch && ch <= 'Z') {
-            ch += 'a' - 'A';
-        }
-        hash = (hash << 5) | (hash >> 27);
-        hash ^= ch;
-    }
-    return hash;
 }
 
 boolean
@@ -1042,7 +1040,7 @@ parse_id(
     }
     if (is_G && id) {
         if (glyphname_hash_indices_ptr) {
-            /* Fast path: bsearch the populated index. */
+            /* Fast path: hash-table lookup with linear probing. */
             int val = find_glyph_in_hashtable(id);
 
             if (val >= 0) {
