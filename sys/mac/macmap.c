@@ -82,6 +82,10 @@ set_nh_color(int color)
 {
     if (color < 0 || color >= 16) color = 8;   /* NO_COLOR */
     RGBColor c = gNhColorRGB[color];
+    /* The map background is black (NetHack's colors are designed for a dark
+       terminal); pure-black CLR_BLACK glyphs would be invisible, so render
+       color 0 as a dark gray, the way terminals show "black" on black. */
+    if (color == 0) { c.red = c.green = c.blue = R16(0x55); }
     RGBForeColor(&c);
 }
 
@@ -121,10 +125,12 @@ allocate_backing(void)
         PixMapHandle pm = GetGWorldPixMap(gMap.backing);
         NoPurgePixels(pm);   /* backing stays resident; reallocated on grow */
     }
-    /* Initialize the backing port: deterministic white background, black
-       foreground, and the SAME font/size the map window uses, so DrawChar
-       in draw_cell_text produces actual glyphs (not "missing-glyph"
-       rectangles from the system default font). */
+    /* Initialize the backing port: black foreground on WHITE background, and
+       the SAME font/size the map window uses, so DrawChar in draw_cell_text
+       produces actual glyphs (not "missing-glyph" rects).  fg=black/bg=white
+       is REQUIRED: CopyBits (tile blits) colorizes the image unless the
+       foreground is black and the background white.  The text path flips to a
+       black background only locally, per cell, and restores it. */
     GWorldPtr saveW; GDHandle saveD;
     GetGWorld(&saveW, &saveD);
     SetGWorld(gMap.backing, NULL);
@@ -382,6 +388,9 @@ draw_cell_text(int col, int row, char ch, int color)
         return;   /* off-viewport, cache only */
     }
 
+    RGBColor black = {0, 0, 0};
+    RGBColor white = {0xFFFF, 0xFFFF, 0xFFFF};
+
     if (gMap.backing) {
         /* Paint into backing first, then blit cell to window. */
         PixMapHandle pm = GetGWorldPixMap(gMap.backing);
@@ -390,11 +399,17 @@ draw_cell_text(int col, int row, char ch, int color)
         GetGWorld(&saveW, &saveD);
         SetGWorld(gMap.backing, NULL);
 
+        FontInfo fi; GetFontInfo(&fi);
         Rect cell = { dy, dx, dy + gMap.cell_h, dx + gMap.cell_w };
+        RGBBackColor(&black);          /* NetHack's colors want a dark bg */
         EraseRect(&cell);
         set_nh_color(color);
-        MoveTo(dx, dy + gMap.cell_h - 4);
+        /* Baseline = top + ascent so the glyph's TOP row aligns with the cell
+           top and isn't clipped (the old fixed cell_h-4 cut tall glyphs). */
+        MoveTo(dx, dy + fi.ascent);
         DrawChar(ch);
+        RGBForeColor(&black);          /* restore fg=black/bg=white — required */
+        RGBBackColor(&white);          /* so the tile-blit CopyBits isn't tinted */
 
         SetGWorld(saveW, saveD);
         UnlockPixels(pm);
@@ -403,14 +418,15 @@ draw_cell_text(int col, int row, char ch, int color)
         /* Fallback: direct to window (slower). */
         GrafPtr saveP; GetPort(&saveP);
         SetPort(gMap.owner->its_window);
+        FontInfo fi; GetFontInfo(&fi);
         Rect cell = { dy, dx, dy + gMap.cell_h, dx + gMap.cell_w };
+        RGBBackColor(&black);
         EraseRect(&cell);
         set_nh_color(color);
-        /* Baseline = top + (cell_h - descent). For typical Monaco 9 (cell_h=14,
-           descent ~3), this puts the baseline at cell_h - 4 = 10, which leaves
-           a 1-pixel descender room below the cell. */
-        MoveTo(dx, dy + gMap.cell_h - 4);
+        MoveTo(dx, dy + fi.ascent);
         DrawChar(ch);
+        RGBForeColor(&black);
+        RGBBackColor(&white);
         SetPort(saveP);
     }
 }
@@ -438,15 +454,14 @@ draw_cell_tile(int col, int row, int tile_idx)
     }
 }
 
-/* Two-ring cell cursor for getpos/farlook (and an always-on hero highlight
-   on every curs call): a black outer ring (visible on light tiles) and an
-   inner ring in the brightest tile-CLUT color (visible on dark/black tiles).
-   Both colors are EXACT entries in the tile palette, so RGBForeColor matches
-   an existing CLUT slot (distance 0) and the Palette Manager never renders a
-   new color / reorganizes the device CLUT — the same reason black is safe.
-   (Requesting a color that ISN'T an exact palette entry — or drawing through
-   the system-CLUT backing and remapping on blit — is what recolored the whole
-   map in earlier attempts.) */
+/* Cell cursor for getpos/farlook (and an always-on hero highlight on every
+   curs call).  TILE mode: a black outer ring (visible on light tiles) plus an
+   inner ring in a bright non-white tile-CLUT color selected by INDEX via
+   PmForeColor — index-direct, so the Palette Manager never renders a new color
+   / reorganizes the device CLUT (requesting a non-exact color, or routing
+   through the system-CLUT backing, is what recolored the whole map in earlier
+   attempts).  TEXT mode: no tile palette is attached, so RGBForeColor is safe;
+   the map bg is black there, so a single white frame is used. */
 static void
 draw_cursor_border(int col, int row)
 {
@@ -464,14 +479,13 @@ draw_cursor_border(int col, int row)
     PenSize(1, 1);
     PenMode(srcCopy);
     RGBColor black = {0, 0, 0};
-    /* Inner ring first, in a bright non-white tile-CLUT color chosen by INDEX
-       and set with PmForeColor (index-direct — no RGB match, no render), so
-       it's visible on dark/black tiles.  Then the black outer ring (exact
-       palette entry, safe) for light tiles; ending on black leaves a sane
-       foreground. */
-    {
+    if (gMap.palette) {
+        /* TILE mode: inner ring in a bright non-white tile-CLUT color chosen
+           by INDEX via PmForeColor (index-direct — no RGB match, no render),
+           visible on dark tiles; then a black outer ring (exact palette entry,
+           safe) for light tiles.  Ending on black leaves a sane foreground. */
         short cidx = mactile_cursor_clut_index();
-        if (gMap.palette && cidx >= 0) {
+        if (cidx >= 0) {
             Rect inner = cell;
             InsetRect(&inner, 1, 1);
             if (inner.right > inner.left && inner.bottom > inner.top) {
@@ -479,9 +493,17 @@ draw_cursor_border(int col, int row)
                 FrameRect(&inner);
             }
         }
+        RGBForeColor(&black);
+        FrameRect(&cell);
+    } else {
+        /* TEXT mode: no tile palette is attached, so RGBForeColor is safe
+           (system palette, no reorg) — and the map background is black, so a
+           black frame would be invisible.  Draw a WHITE frame instead. */
+        RGBColor white = {0xFFFF, 0xFFFF, 0xFFFF};
+        RGBForeColor(&white);
+        FrameRect(&cell);
+        RGBForeColor(&black);   /* restore a sane foreground */
     }
-    RGBForeColor(&black);
-    FrameRect(&cell);
     SetPenState(&savePen);
     SetPort(saveP);
 }
