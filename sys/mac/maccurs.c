@@ -5,6 +5,7 @@
 #include "hack.h"
 #include "mactty.h"
 #include "macwin.h"
+#include "macmap.h"
 
 #if 1 /*!TARGET_API_MAC_CARBON*/
 #include <Folders.h>
@@ -155,10 +156,15 @@ static short
 GetWinKind(WindowPtr win)
 {
     short kind;
+    extern WindowPtr _mt_window;
 
     if (!CheckNhWin(win)) {
         return -1;
     }
+    if (GetWRefCon(win) == MACMAP_REFCON)   /* dedicated map window */
+        return kMapWindow;
+    if (win == _mt_window)                  /* shared base/status tty window */
+        return kStatusWindow;
     kind = GetWindowKind(win) - WIN_BASE_KIND;
     if (kind < 0 || kind > NHW_TEXT) {
         return -1;

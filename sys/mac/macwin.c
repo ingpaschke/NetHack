@@ -610,7 +610,7 @@ SanePositions(void)
     ConstrainWindowToScreen(_mt_window, kWindowContentRgn,
                             kWindowConstrainMoveRegardlessOfFit, NULL, NULL);
     GetWindowBounds(_mt_window, kWindowContentRgn, &rbase);
-    if (RetrievePosition(kMapWindow, &rbase.top, &rbase.left))
+    if (RetrievePosition(kStatusWindow, &rbase.top, &rbase.left))
         MoveWindow(_mt_window, rbase.left, rbase.top, TRUE);
 
     GetWindowBounds(theWindows[NHW_MESSAGE].its_window, kWindowContentRgn,
@@ -656,11 +656,14 @@ SanePositions(void)
 #endif
     OffsetRect(&screenArea, -screenArea.left, -screenArea.top);
 
-    /* Map Window */
+    /* Status/base window (_mt_window). NOTE: this 68k branch still uses the
+       legacy single-window layout; Task 3 rewrites it into the
+       message/map/status stack. Persist under kStatusWindow to match
+       GetWinKind()/SaveWindowPos() so the saved position round-trips. */
     height = _mt_window->portRect.bottom - _mt_window->portRect.top;
     width = _mt_window->portRect.right - _mt_window->portRect.left;
 
-    if (!RetrievePosition(kMapWindow, &top, &left)) {
+    if (!RetrievePosition(kStatusWindow, &top, &left)) {
         top = mbar_height + (small_screen ? 2 : 20);
         left = (screenArea.right - width) / 2;
     }

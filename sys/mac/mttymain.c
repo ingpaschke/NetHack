@@ -194,7 +194,7 @@ extern struct DisplayDesc *ttyDisplay; /* the tty display descriptor */
 char kill_char = CHAR_ESC;
 char erase_char = CHAR_BS;
 
-WindowRef _mt_window = (WindowRef) 0;
+WindowPtr _mt_window = (WindowPtr) 0;  /* WindowPtr: matches all extern decls */
 static Boolean _mt_in_color = 0;
 extern short win_fonts[NHW_TEXT + 1];
 
@@ -264,7 +264,7 @@ _mt_init_stuff(void)
         error("_mt_init_stuff: Couldn't get tty metrics.");
 
     SizeWindow(_mt_window, win_width + 2, win_height + 2, 1);
-    if (RetrievePosition(kMapWindow, &vert, &hor)) {
+    if (RetrievePosition(kStatusWindow, &vert, &hor)) {
         MoveWindow(_mt_window, hor, vert, 1);
     }
     ShowWindow(_mt_window);
