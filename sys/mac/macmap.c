@@ -439,7 +439,14 @@ draw_cell_tile(int col, int row, int tile_idx)
 }
 
 /* Frame a cell's outer 1-pixel edge in black — software cursor for
-   getpos/farlook (and an always-on hero highlight on every curs call). */
+   getpos/farlook (and an always-on hero highlight on every curs call).
+   Black is the ONLY safe drawing color in this pipeline: anything else,
+   whether drawn to the window OR into the backing GWorld, ends up recoloring
+   the whole map (the pmTolerant palette renders out-of-tolerance colors into
+   the device CLUT).  Black is an exact palette entry, so it's safe — but
+   invisible on solid-black tiles.  Making the cursor visible on black needs
+   a color sourced from the tile sheet itself (a cursor TILE blitted via the
+   proven tile path), not a QuickDraw color call — see notes. */
 static void
 draw_cursor_border(int col, int row)
 {
@@ -456,14 +463,10 @@ draw_cursor_border(int col, int row)
     PenState savePen; GetPenState(&savePen);
     PenSize(1, 1);
     PenMode(srcCopy);
-    /* Black is one of the 29 tile-palette colors; setting it does NOT cause
-       the Palette Manager to allocate a new CLUT slot. Even white
-       (which IS in the palette) seems to trigger CLUT reorganization
-       on this hardware/QEMU combo — only black is verified safe. */
     RGBColor black = {0, 0, 0};
     RGBForeColor(&black);
     FrameRect(&cell);
-    SetPenState(&savePen);   /* don't leak srcCopy/1px pen into other drawing */
+    SetPenState(&savePen);
     SetPort(saveP);
 }
 

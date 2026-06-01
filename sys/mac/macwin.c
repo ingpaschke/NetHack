@@ -893,6 +893,9 @@ got1:
             Rect full;
             GetWindowPortBounds(_mt_window, &full);
             InvalWindowRect(_mt_window, &full);
+            /* _mt_window is created from WIND 131 — the legacy tty "dungeon
+               map" window — but it's the status window now, so retitle it. */
+            SetWTitle(_mt_window, P_STRING_CONV("Status"));
         }
         return i;
     }
@@ -1969,6 +1972,7 @@ mac_putstr(winid win, int attr, const char *str)
     long len, slen;
     NhWindow *aWin = &theWindows[win];
     static char in_putstr = 0;
+    static char gLastMsgTransient = 0; /* prev WIN_MESSAGE line was ATR_NOHISTORY */
     short newWidth, maxWidth;
     Rect r;
     char *src, *sline, *dst, ch;
@@ -2027,6 +2031,24 @@ mac_putstr(winid win, int attr, const char *str)
         }
     }
 
+    /* Transient message (ATR_NOHISTORY — e.g. a farlook tile description):
+       if the previous message was also transient, drop its line so this one
+       replaces it in place instead of piling up / spamming the scrollback. */
+    if (win == WIN_MESSAGE && (attr & ATR_NOHISTORY) && gLastMsgTransient
+        && aWin->windowTextLen > 0) {
+        long n = aWin->windowTextLen;
+        HLock(aWin->windowText);
+        {
+            char *p = *aWin->windowText;
+            if (n > 0 && p[n - 1] == CHAR_CR) n--;       /* trailing CR */
+            while (n > 0 && p[n - 1] != CHAR_CR) n--;     /* back to line start */
+        }
+        HUnlock(aWin->windowText);
+        if (aWin->y_size > 0) aWin->y_size--;
+        if (aWin->y_curs > 0) aWin->y_curs--;
+        aWin->windowTextLen = n;
+    }
+
     len = aWin->windowTextLen;
     HLock(aWin->windowText);
     dst = *(aWin->windowText) + len;
@@ -2067,6 +2089,7 @@ mac_putstr(winid win, int attr, const char *str)
     HUnlock(aWin->windowText);
 
     if (win == WIN_MESSAGE) {
+        gLastMsgTransient = (attr & ATR_NOHISTORY) != 0;
         short min = aWin->y_size - (r.bottom - r.top) / aWin->row_height;
         if (aWin->scrollPos < min) {
             aWin->scrollPos = min;
@@ -3653,7 +3676,8 @@ struct window_procs mac_procs = {
         | WC_FONT_STATUS | WC_FONT_TEXT | WC_FONTSIZ_MAP | WC_FONTSIZ_MENU
         | WC_FONTSIZ_MESSAGE | WC_FONTSIZ_STATUS | WC_FONTSIZ_TEXT
         | WC_TILED_MAP,
-    0L,
+    WC2_SUPPRESS_HIST,   /* honor ATR_NOHISTORY: transient msgs (e.g. farlook
+                            descriptions) replace the line instead of logging */
     {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},
     mac_init_nhwindows,
     mac_player_selection,
