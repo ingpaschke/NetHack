@@ -19,6 +19,7 @@ extern void    macmap_print_glyph(NhWindow *map, int x, int y,
                                   const glyph_info *gi);
 extern void    macmap_clear(NhWindow *map);
 extern void    macmap_cliparound(NhWindow *map, int x, int y);
+extern void    macmap_curs(NhWindow *map, int x, int y);
 
 /* Mac event callbacks. */
 extern void    macmap_update_event(NhWindow *map);

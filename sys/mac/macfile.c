@@ -235,14 +235,14 @@ macopen(const char *name, int flags, long fileType)
 				name = (Handle)NewString(plnamep);
 				if (name)
 					replace_resource(name, 'STR ', PLAYER_NAME_RES_ID,
-									"\x0bPlayer Name");
+									P_STRING_CONV("Player Name"));
 
 				/* The application name resource.  See IM VI, page 9-21. */
 				name = (Handle)GetString(APP_NAME_RES_ID);
 				if (name) {
 					DetachResource(name);
 					replace_resource(name, 'STR ', APP_NAME_RES_ID,
-									 "\x10Application Name");
+									 P_STRING_CONV("Application Name"));
 				}
 
 				CloseResFile(resRef);

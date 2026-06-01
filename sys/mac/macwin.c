@@ -818,8 +818,6 @@ got1:
     aWin->miSize = 0;
     aWin->menuChar = 'a';
 
-    mac_dprintf("cre_win: New kind %d", kind);
-
     if (kind == NHW_MAP) {
         /* Map gets its own window. */
         /* Still populate wintty's wins[i] slot so tty internals
@@ -855,6 +853,47 @@ got1:
         get_tty_metrics(aWin->its_window, &x_sz, &y_sz, &x_sz_p, &y_sz_p,
                         &aWin->font_number, &aWin->font_size,
                         &aWin->char_width, &aWin->row_height);
+        /* Status: shrink _mt_window to just the status rows (the map area
+           moved to the dedicated macmap window). Use SetOrigin so the bottom
+           rows of the existing offscreen blit into the visible content. */
+        if (kind == NHW_STATUS && wins[i]) {
+            short row_h = aWin->row_height;
+            short off_y = (short) wins[i]->offy;       /* status top row */
+            short rows  = (short) wins[i]->rows;       /* 2 or 3 */
+            short content_h = rows * row_h;
+            short content_w = x_sz_p;
+            if (off_y <= 0) {
+                /* tty_create_nhwindow should have populated offy with the
+                   status row index (~ROWNO+1). If it's 0 here, something
+                   has changed the init order and the SetOrigin shift below
+                   will land on the empty top of the offscreen instead of
+                   the status text. */
+                mac_dprintf("status: off_y=%d, rows=%d — init order changed?\n",
+                            (int) off_y, (int) rows);
+            }
+            SetPortWindowPort(_mt_window);
+            SizeWindow(_mt_window, content_w + 2, content_h + 2, 1);
+            /* Park it just below the map window. Move first, then SetOrigin —
+               MoveWindow recomputes visRgn/portBits and we want the origin
+               shift applied to the final placement. */
+            if (WIN_MAP != WIN_ERR && theWindows[WIN_MAP].its_window) {
+                Rect mr;
+                GetWindowBounds(theWindows[WIN_MAP].its_window,
+                                kWindowContentRgn, &mr);
+                MoveWindow(_mt_window, mr.left, mr.bottom + 4, false);
+            }
+            /* SetOrigin so port-coord (0, off_y*row_h) maps to bitmap (1,1)
+               — i.e. the offscreen status rows blit directly into the visible
+               window area, with the existing 1px frame inset. */
+            SetPortWindowPort(_mt_window);
+            SetOrigin(-1, off_y * row_h - 1);
+            /* Queue a full repaint so the next update event re-blits status
+               into the now-visible area. (image_tty here would force a
+               CopyBits during early init — unsafe path on classic Mac.) */
+            Rect full;
+            GetWindowPortBounds(_mt_window, &full);
+            InvalWindowRect(_mt_window, &full);
+        }
         return i;
     }
 
@@ -1815,6 +1854,13 @@ mac_get_nh_event(void)
     if (!iflags.window_inited)
         return;
 
+    /* This proc is wired to BOTH win_get_nh_event and win_wait_synch.
+       NetHack calls wait_synch() to flush buffered output before reading
+       input. During gameplay setftty() clears TA_ALWAYS_REFRESH so all
+       status writes accumulate in the offscreen — without an explicit
+       update_tty here they never reach the screen. */
+    if (_mt_window) update_tty(_mt_window);
+
 #if TARGET_API_MAC_CARBON
     QDFlushPortBuffer(GetWindowPort(_mt_window), NULL);
 #endif
@@ -1896,7 +1942,7 @@ mac_delay_output(void)
 }
 
 #ifdef CLIPPING
-static void
+void
 mac_cliparound(int x, int y)
 {
     if (WIN_MAP != WIN_ERR) {
@@ -2041,6 +2087,13 @@ mac_curs(winid win, int x, int y)
 
     if (aWin->its_window == _mt_window) {
         tty_curs(win, x, y);
+        return;
+    }
+
+    /* Macmap window: software cursor for getpos/farlook. */
+    if (WIN_MAP != WIN_ERR && win == WIN_MAP
+        && GetWRefCon(aWin->its_window) == MACMAP_REFCON) {
+        macmap_curs(aWin, x, y);
         return;
     }
 
@@ -2291,7 +2344,15 @@ mac_resume_nhwindows(void)
 static void
 mac_mark_synch(void)
 {
-    /* noop - could call mac_get_nh_event if needed */
+    /* Flush buffered tty writes (e.g. status field updates) to screen.
+       During gameplay setftty() clears TA_ALWAYS_REFRESH on _mt_window,
+       so add_tty_char accumulates the invalid rect rather than blitting
+       directly. NetHack calls mark_synch() after each status_update batch
+       expecting the screen to reflect the new text — without this call
+       the offscreen has the right pixels but the window keeps showing
+       stale ones. */
+    if (_mt_window && iflags.window_inited)
+        update_tty(_mt_window);
 }
 
 static void
@@ -2580,6 +2641,28 @@ MsgClick(NhWindow *wind, Point pt)
     return;
 }
 
+/* Draw one yn-prompt button: centered label + rounded frame (heavier frame
+   for the default).  Takes a plain C string and converts it to Pascal here, so
+   call sites stay readable and the length byte is never hand-counted. */
+static void
+draw_topl_button(const Rect *frame, const char *label, Boolean is_default)
+{
+    Str255 name;
+    FontInfo font;
+    C2P(label, name);
+    TextFont(kFontIDGeneva);
+    TextSize(9);
+    GetFontInfo(&font);
+    MoveTo((frame->left + frame->right - StringWidth(name)) / 2,
+           (frame->top + frame->bottom + font.ascent - font.descent
+            - font.leading - 1) / 2);
+    DrawString(name);
+    PenNormal();
+    if (is_default)
+        PenSize(2, 2);
+    FrameRoundRect(frame, 4, 4);
+}
+
 static void
 MsgUpdate(NhWindow *wind)
 {
@@ -2669,35 +2752,26 @@ MsgUpdate(NhWindow *wind)
     if (in_topl_mode() && topl_resp[0]) {
         SetClip(org_clip); /* restore full clip for button area */
         for (l = 0; topl_resp[l] && topl_resp[l] != '\033' && l < 10; l++) {
-            unsigned char namebuf[16];
-            StringPtr name;
-            FontInfo font;
+            Boolean is_def = (l == topl_def_idx);
             Rect frame;
             topl_resp_rect(l, &frame);
             switch (topl_resp[l]) {
-            case 'y':  name = "\x03yes"; break;
-            case 'n':  name = "\x02no"; break;
-            case 'N':  name = "\x04None"; break;
-            case 'a':  name = "\x03all"; break;
-            case 'q':  name = "\x04quit"; break;
-            case CHAR_ANY: name = "\x07any key"; break;
-            default:
-                namebuf[0] = 1;
-                namebuf[1] = topl_resp[l];
-                name = namebuf;
+            case 'y':  draw_topl_button(&frame, "yes", is_def); break;
+            case 'n':  draw_topl_button(&frame, "no", is_def); break;
+            case 'N':  draw_topl_button(&frame, "None", is_def); break;
+            case 'a':  draw_topl_button(&frame, "all", is_def); break;
+            case 'q':  draw_topl_button(&frame, "quit", is_def); break;
+            case CHAR_ANY:
+                draw_topl_button(&frame, "any key", is_def);
+                break;
+            default: {
+                char one[2];
+                one[0] = (char) topl_resp[l];
+                one[1] = '\0';
+                draw_topl_button(&frame, one, is_def);
                 break;
             }
-            TextFont(kFontIDGeneva);
-            TextSize(9);
-            GetFontInfo(&font);
-            MoveTo((frame.left + frame.right - StringWidth(name)) / 2,
-                   (frame.top + frame.bottom + font.ascent - font.descent
-                    - font.leading - 1) / 2);
-            DrawString(name);
-            PenNormal();
-            if (l == topl_def_idx)
-                PenSize(2, 2);
-            FrameRoundRect(&frame, 4, 4);
+            }
         }
     }
 
@@ -3448,7 +3522,9 @@ HandleUpdate(EventRecord *theEvent)
 #else
     {
         int kind = GetWindowKind(theWindow) - WIN_BASE_KIND;
-        if (kind == NHW_MAP && WIN_MAP != WIN_ERR) {
+        /* Distinguish the macmap window (its own Mac WindowPtr) from
+           _mt_window — both share kind=NHW_MAP for legacy reasons. */
+        if (GetWRefCon(theWindow) == MACMAP_REFCON && WIN_MAP != WIN_ERR) {
             macmap_update_event(&theWindows[WIN_MAP]);
         } else if (kind >= 0 && kind < NUM_FUNCS) {
             winUpdateFuncs[kind](&fake, theWindow);

@@ -8,6 +8,28 @@
 #include <QDOffscreen.h>
 #include <Palettes.h>
 
+/* From src/tile.c (generated). NetHack 3.7 with default config (no
+   STATUES_DONT_LOOK_LIKE_MONSTERS) reserves a per-monster tile slot for
+   each statue beyond `maxothtile`, but real NetHack tile data only
+   provides one generic statue tile in objects.txt. We don't generate
+   per-monster statue tiles into our PICT sheet (it bloats the sheet to
+   the point that classic-Mac DrawPicture paths balloon memory through
+   QEMU). Instead we remap any out-of-sheet tile index to the OBJ_STATUE
+   tile at runtime — see remap_tile_idx below. */
+extern int maxothtile;
+extern glyph_map glyphmap[MAX_GLYPH];
+
+static short
+remap_tile_idx(int idx)
+{
+    if (idx <= maxothtile) return (short) idx;
+    /* Cache the OBJ_STATUE tile index from glyphmap on first use. */
+    static short statue_tile = -1;
+    if (statue_tile < 0)
+        statue_tile = glyphmap[GLYPH_OBJ_OFF + STATUE].tileidx;
+    return statue_tile;
+}
+
 typedef struct {
     NhWindow      *owner;
     Boolean        tile_mode;
@@ -22,6 +44,11 @@ typedef struct {
     short          saved_text_w, saved_text_h;
     short          saved_tile_w, saved_tile_h;
     Point          saved_position;
+    /* Software cursor for getpos/farlook: NetHack calls curs(WIN_MAP,x,y)
+       between cells. We track the inverted cell so the next call can
+       un-invert it before highlighting the new one. */
+    Boolean        cursor_on;
+    short          cursor_x, cursor_y;
 } MacMapState;
 
 static MacMapState gMap = {0};
@@ -102,7 +129,15 @@ allocate_backing(void)
     GetGWorld(&saveW, &saveD);
     SetGWorld(gMap.backing, NULL);
     PixMapHandle pm = GetGWorldPixMap(gMap.backing);
-    LockPixels(pm);
+    if (!LockPixels(pm)) {
+        /* Base address invalid (pixels purged) — drawing here would crash
+           on real hardware. Tear the half-built GWorld down and fail. */
+        mac_dprintf("macmap: LockPixels failed in allocate_backing\n");
+        SetGWorld(saveW, saveD);
+        DisposeGWorld(gMap.backing);
+        gMap.backing = NULL;
+        return false;
+    }
     {
         RGBColor white = {0xFFFF, 0xFFFF, 0xFFFF};
         RGBColor black = {0, 0, 0};
@@ -130,7 +165,12 @@ blit_backing_to_window(const Rect *src_rect, const Rect *dst_rect)
 {
     if (!gMap.backing || !gMap.owner || !gMap.owner->its_window) return;
     PixMapHandle pm = GetGWorldPixMap(gMap.backing);
-    LockPixels(pm);
+    if (!LockPixels(pm)) {
+        /* Pixels purged from under us — skip the blit rather than read
+           stale/garbage memory through CopyBits. */
+        mac_dprintf("macmap: blit_backing_to_window: LockPixels failed\n");
+        return;
+    }
     GrafPtr saveP; GetPort(&saveP);
     SetPort(gMap.owner->its_window);
     CopyBits((BitMap *) *pm,
@@ -189,7 +229,7 @@ macmap_create(NhWindow *map)
     gMap.cell_h      = 14;
     gMap.vis_cols    = 80;
     gMap.vis_rows    = 21;
-    gMap.scroll_col  = 0;
+    gMap.scroll_col  = 1;   /* NetHack col 0 is unused */
     gMap.scroll_row  = 0;
     /* Backing + tile-mode init deferred to macmap_finalize. */
 
@@ -241,6 +281,7 @@ macmap_show(NhWindow *map)
 {
     if (map && map->its_window) ShowWindow(map->its_window);
 }
+
 Boolean
 macmap_set_mode(NhWindow *map, Boolean tile_mode)
 {
@@ -252,19 +293,22 @@ macmap_set_mode(NhWindow *map, Boolean tile_mode)
     if (tile_mode) {
         gMap.cell_w = 16;
         gMap.cell_h = 16;
-        gMap.vis_cols = 30;   /* default; resize event will refine */
-        gMap.vis_rows = 21;
-        /* Restore saved tile-mode window size. */
+        /* Restore saved tile-mode window size if persisted. */
         if (iflags.mac_map_tile_w && iflags.mac_map_tile_h
             && map->its_window) {
             SizeWindow(map->its_window,
                        iflags.mac_map_tile_w, iflags.mac_map_tile_h, false);
+        }
+        /* Always derive vis_cols/vis_rows from the actual window size — the
+           edge-margin and scroll math depend on these matching what the user
+           can really see, not a hardcoded "30x21". */
+        if (map->its_window) {
             Rect cr; GetWindowPortBounds(map->its_window, &cr);
             gMap.vis_cols = (cr.right - cr.left) / gMap.cell_w;
             gMap.vis_rows = (cr.bottom - cr.top) / gMap.cell_h;
-            if (gMap.vis_cols < 1) gMap.vis_cols = 1;
-            if (gMap.vis_rows < 1) gMap.vis_rows = 1;
         }
+        if (gMap.vis_cols < 1) gMap.vis_cols = 1;
+        if (gMap.vis_rows < 1) gMap.vis_rows = 1;
         if (!allocate_backing()) {
             mac_dprintf("macmap: backing alloc failed in tile mode; using fallback\n");
         }
@@ -288,19 +332,19 @@ macmap_set_mode(NhWindow *map, Boolean tile_mode)
             if (gMap.cell_w < 1) gMap.cell_w = 6;
             if (gMap.cell_h < 1) gMap.cell_h = 14;
         }
-        gMap.vis_cols = 80;
-        gMap.vis_rows = 21;
-        /* Restore saved text-mode window size. */
+        /* Restore saved text-mode window size if persisted. */
         if (iflags.mac_map_text_w && iflags.mac_map_text_h
             && map->its_window) {
             SizeWindow(map->its_window,
                        iflags.mac_map_text_w, iflags.mac_map_text_h, false);
+        }
+        if (map->its_window) {
             Rect cr; GetWindowPortBounds(map->its_window, &cr);
             gMap.vis_cols = (cr.right - cr.left) / gMap.cell_w;
             gMap.vis_rows = (cr.bottom - cr.top) / gMap.cell_h;
-            if (gMap.vis_cols < 1) gMap.vis_cols = 1;
-            if (gMap.vis_rows < 1) gMap.vis_rows = 1;
         }
+        if (gMap.vis_cols < 1) gMap.vis_cols = 1;
+        if (gMap.vis_rows < 1) gMap.vis_rows = 1;
         /* Detach + dispose the palette so a future re-enable rebuilds it. */
         if (gMap.palette) {
             SetPalette(map->its_window, NULL, false);
@@ -394,6 +438,69 @@ draw_cell_tile(int col, int row, int tile_idx)
     }
 }
 
+/* Frame a cell's outer 1-pixel edge in black — software cursor for
+   getpos/farlook (and an always-on hero highlight on every curs call). */
+static void
+draw_cursor_border(int col, int row)
+{
+    if (!gMap.owner || !gMap.owner->its_window) return;
+    if (col < 1 || col >= COLNO || row < 0 || row >= ROWNO) return;
+    short dx = (col - gMap.scroll_col) * gMap.cell_w;
+    short dy = (row - gMap.scroll_row) * gMap.cell_h;
+    if (dx < 0 || dy < 0
+        || dx >= gMap.vis_cols * gMap.cell_w
+        || dy >= gMap.vis_rows * gMap.cell_h) return;
+    Rect cell = { dy, dx, dy + gMap.cell_h, dx + gMap.cell_w };
+    GrafPtr saveP; GetPort(&saveP);
+    SetPortWindowPort(gMap.owner->its_window);
+    PenState savePen; GetPenState(&savePen);
+    PenSize(1, 1);
+    PenMode(srcCopy);
+    /* Black is one of the 29 tile-palette colors; setting it does NOT cause
+       the Palette Manager to allocate a new CLUT slot. Even white
+       (which IS in the palette) seems to trigger CLUT reorganization
+       on this hardware/QEMU combo — only black is verified safe. */
+    RGBColor black = {0, 0, 0};
+    RGBForeColor(&black);
+    FrameRect(&cell);
+    SetPenState(&savePen);   /* don't leak srcCopy/1px pen into other drawing */
+    SetPort(saveP);
+}
+
+/* Repaint a single cell from cache — removes the cursor border by drawing
+   the underlying tile/glyph back over it. */
+static void
+redraw_cell_from_cache(int col, int row)
+{
+    if (col < 1 || col >= COLNO || row < 0 || row >= ROWNO) return;
+    if (gMap.tile_mode) {
+        short idx = gMap.tile_cache[row][col];
+        draw_cell_tile(col, row, (int) idx);
+    } else {
+        char ch  = (char) gMap.text_cache[row][col];
+        int  color = (int) gMap.text_color[row][col];
+        if (ch == 0) ch = ' ';
+        draw_cell_text(col, row, ch, color);
+    }
+}
+
+void
+macmap_curs(NhWindow *map, int x, int y)
+{
+    if (!map || gMap.owner != map) return;
+    /* Remove the old cursor border by repainting its cell from cache. */
+    if (gMap.cursor_on
+        && (gMap.cursor_x != x || gMap.cursor_y != y)) {
+        redraw_cell_from_cache(gMap.cursor_x, gMap.cursor_y);
+    }
+    /* Frame the new cell. The cell's underlying tile/glyph is already on
+       screen (from print_glyph or a repaint); we only add the border. */
+    draw_cursor_border(x, y);
+    gMap.cursor_x  = (short) x;
+    gMap.cursor_y  = (short) y;
+    gMap.cursor_on = true;
+}
+
 void
 macmap_print_glyph(NhWindow *map, int x, int y,
                     const glyph_info *gi)
@@ -413,7 +520,7 @@ macmap_print_glyph(NhWindow *map, int x, int y,
 
     char ch = gi->ttychar;
     int  color = gi->gm.sym.color;
-    int  idx = gi->gm.tileidx;
+    int  idx = remap_tile_idx(gi->gm.tileidx);
 
     /* Update both caches so a mode toggle has data to repaint with. */
     gMap.text_cache[y][x] = (unsigned char) ch;
@@ -434,6 +541,10 @@ macmap_update_event(NhWindow *map)
        call, leaving an empty visRgn for the second — every subsequent
        draw gets clipped out. */
     if (!map || gMap.owner != map || !map->its_window) return;
+
+    /* Window was damaged and we're about to repaint the whole content;
+       any inverted-cell software cursor is being wiped. */
+    gMap.cursor_on = false;
 
     GrafPtr saveP; GetPort(&saveP);
     SetPort(map->its_window);
@@ -474,6 +585,13 @@ macmap_clear(NhWindow *map)
             gMap.text_color[r][c] = 8; /* NO_COLOR */
             gMap.tile_cache[r][c] = 0;
         }
+    /* Reset scroll so the next print_glyph for the hero forces a recenter
+       (otherwise the prior level's viewport may still happen to contain the
+       new hero position, and the edge-margin check skips the recenter).
+       scroll_col=1 since col 0 is unused. */
+    gMap.scroll_col = 1;
+    gMap.scroll_row = 0;
+    gMap.cursor_on  = false;
     if (map->its_window) {
         GrafPtr saveP; GetPort(&saveP);
         SetPort(map->its_window);
@@ -485,14 +603,17 @@ macmap_clear(NhWindow *map)
        pixels back onto the window. */
     if (gMap.backing) {
         PixMapHandle pm = GetGWorldPixMap(gMap.backing);
-        LockPixels(pm);
-        GWorldPtr saveW; GDHandle saveD;
-        GetGWorld(&saveW, &saveD);
-        SetGWorld(gMap.backing, NULL);
-        Rect bb; GetPortBounds((CGrafPtr) gMap.backing, &bb);
-        EraseRect(&bb);
-        SetGWorld(saveW, saveD);
-        UnlockPixels(pm);
+        if (LockPixels(pm)) {
+            GWorldPtr saveW; GDHandle saveD;
+            GetGWorld(&saveW, &saveD);
+            SetGWorld(gMap.backing, NULL);
+            Rect bb; GetPortBounds((CGrafPtr) gMap.backing, &bb);
+            EraseRect(&bb);
+            SetGWorld(saveW, saveD);
+            UnlockPixels(pm);
+        } else {
+            mac_dprintf("macmap: macmap_clear: LockPixels failed\n");
+        }
     }
 }
 
@@ -503,11 +624,13 @@ recompute_scroll_for_center(int x, int y, short *new_col, short *new_row)
 {
     short c = (short) x - gMap.vis_cols / 2;
     short r = (short) y - gMap.vis_rows / 2;
-    if (c < 0) c = 0;
+    /* NetHack uses cols [1, COLNO-1]; clamp scroll so col 0 never enters
+       the viewport. Rows use [0, ROWNO). */
+    if (c < 1) c = 1;
     if (r < 0) r = 0;
     if (c + gMap.vis_cols > COLNO) c = COLNO - gMap.vis_cols;
     if (r + gMap.vis_rows > ROWNO) r = ROWNO - gMap.vis_rows;
-    if (c < 0) c = 0;
+    if (c < 1) c = 1;
     if (r < 0) r = 0;
     *new_col = c;
     *new_row = r;
@@ -517,6 +640,7 @@ static void
 repaint_full_viewport(void)
 {
     if (!gMap.owner) return;
+    gMap.cursor_on = false;   /* full repaint wipes the inverted-cell cursor */
     if (gMap.backing) {
         Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
         GWorldPtr saveW; GDHandle saveD;
@@ -526,22 +650,15 @@ repaint_full_viewport(void)
         SetGWorld(saveW, saveD);
     }
     int r, c;
+    /* NetHack only uses cols [1, COLNO-1]; col 0 is unused (display.c uses
+       `for (x=1; x<COLNO; ++x)`). Skip col 0 so we don't paint stale cache
+       (idx==0 → tile 0, which is a real glyph, not "blank"). */
+    int c_first = gMap.scroll_col < 1 ? 1 : gMap.scroll_col;
+    int c_last  = gMap.scroll_col + gMap.vis_cols;
+    if (c_last > COLNO) c_last = COLNO;
     for (r = gMap.scroll_row; r < gMap.scroll_row + gMap.vis_rows && r < ROWNO; ++r)
-        for (c = gMap.scroll_col; c < gMap.scroll_col + gMap.vis_cols && c < COLNO; ++c) {
-            if (gMap.tile_mode) {
-                short idx = gMap.tile_cache[r][c];
-                /* Always blit — idx==0 falls back to the first sheet cell
-                   (acts as the "empty/unexplored" tile). */
-                draw_cell_tile(c, r, (int) idx);
-            } else {
-                char ch  = (char) gMap.text_cache[r][c];
-                int  col = (int)  gMap.text_color[r][c];
-                /* Treat 0 as a blank cell so the backing isn't left
-                   transparent on cells NetHack hasn't printed yet. */
-                if (ch == 0) ch = ' ';
-                draw_cell_text(c, r, ch, col);
-            }
-        }
+        for (c = c_first; c < c_last; ++c)
+            redraw_cell_from_cache(c, r);
     /* Final viewport blit if we're using backing. */
     if (gMap.backing && gMap.owner->its_window) {
         Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
@@ -577,23 +694,18 @@ repaint_strip(int col_start, int row_start, int col_end, int row_end)
     if (row_start < 0) row_start = 0;
     if (col_end > COLNO) col_end = COLNO;
     if (row_end > ROWNO) row_end = ROWNO;
+    /* NetHack uses cols [1, COLNO-1]; col 0 is unused. */
+    if (col_start < 1) col_start = 1;
     for (r = row_start; r < row_end; ++r)
-        for (c = col_start; c < col_end; ++c) {
-            if (gMap.tile_mode) {
-                short idx = gMap.tile_cache[r][c];
-                if (idx) draw_cell_tile(c, r, (int) idx);
-            } else {
-                char ch  = (char) gMap.text_cache[r][c];
-                int  col = (int)  gMap.text_color[r][c];
-                if (ch != 0) draw_cell_text(c, r, ch, col);
-            }
-        }
+        for (c = col_start; c < col_end; ++c)
+            redraw_cell_from_cache(c, r);
 }
 
 void
 macmap_cliparound(NhWindow *map, int x, int y)
 {
-    if (!map || gMap.owner != map) return;
+    if (!map || gMap.owner != map)
+        return;
 
     /* Don't scroll unless hero is within edge margin. */
     short hero_in_view_x = (short) x - gMap.scroll_col;
@@ -612,6 +724,12 @@ macmap_cliparound(NhWindow *map, int x, int y)
 
     short dx = new_col - old_col;
     short dy = new_row - old_row;
+
+    /* The repaint paths below blit the backing over the window, which
+       wipes any software-cursor InvertRect. Mark the cursor as no longer
+       drawn so the next macmap_curs call doesn't try to "erase" pixels
+       that are already clean. */
+    gMap.cursor_on = false;
 
     gMap.scroll_col = new_col;
     gMap.scroll_row = new_row;
@@ -670,7 +788,7 @@ macmap_grow_event(NhWindow *map, long newSize)
     }
     /* Recenter on the hero, then repaint from cache. */
     if (u.ux > 0 || u.uy > 0) {
-        gMap.scroll_col = 0;
+        gMap.scroll_col = 1;     /* col 0 is unused */
         gMap.scroll_row = 0;
         macmap_cliparound(map, (int) u.ux, (int) u.uy);
     } else {
@@ -683,7 +801,7 @@ void    macmap_click(NhWindow *m UNUSED, Point p UNUSED, UInt32 mod UNUSED) { }
 void
 macmap_pixel_to_cell(NhWindow *map, Point pt, int *col, int *row)
 {
-    if (col) *col = (pt.h / gMap.cell_w) + gMap.scroll_col + 1;
+    if (col) *col = (pt.h / gMap.cell_w) + gMap.scroll_col;
     if (row) *row = (pt.v / gMap.cell_h) + gMap.scroll_row;
     (void) map;
 }

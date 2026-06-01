@@ -210,10 +210,7 @@ _mt_init_stuff(void)
     CO = MT_WIDTH;
 
     if (!strcmp(windowprocs.name, "mac")) {
-        mac_dprintf("Mac Windows");
         LI -= 1;
-    } else {
-        mac_dprintf("TTY Windows");
     }
 
     /*
@@ -268,7 +265,6 @@ _mt_init_stuff(void)
 
     SizeWindow(_mt_window, win_width + 2, win_height + 2, 1);
     if (RetrievePosition(kMapWindow, &vert, &hor)) {
-        mac_dprintf("Moving window to (%d,%d)", hor, vert);
         MoveWindow(_mt_window, hor, vert, 1);
     }
     ShowWindow(_mt_window);

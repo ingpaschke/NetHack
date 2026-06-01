@@ -183,6 +183,19 @@ extern Boolean RetrieveWinPos(WindowPtr, short *, short *);
 extern void C2P(const char *c, unsigned char *p);
 extern void P2C(const unsigned char *p, char *c);
 
+/* Build a Pascal string from a C-string LITERAL at the call site, with the
+   length byte computed by sizeof() at compile time.  Constraints: (1)
+   literal-only -- sizeof must see the array, so a char* variable won't work;
+   (2) the result points at a compound literal with the enclosing block's
+   lifetime, so use it inline (e.g. as a call argument), never store it for use
+   after the block. */
+#define P_STRING_CONV(X)                                              \
+    _Generic((X) + 0,                                                 \
+             char *: (StringPtr) &((struct {                          \
+                 char len;                                            \
+                 char s[sizeof(X) - 1];                               \
+             }){ (char) (sizeof(X) - 1), (X) }).len)
+
 /* ### macmenu.c ### */
 
 extern void DoMenuEvt(long);
