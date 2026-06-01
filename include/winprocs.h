@@ -16,7 +16,7 @@ enum wp_ids { wp_tty = 1, wp_X11, wp_Qt, wp_mswin, wp_curses,
 #if defined(AMIGA)
               wp_amii, wp_amiv,
 #endif
-#ifdef MAC
+#ifdef MACOS9
               wp_mac,
 #endif
 #ifdef OUTDATED_STUFF

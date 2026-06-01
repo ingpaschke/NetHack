@@ -3,7 +3,7 @@
 /*-Copyright (c) Kevin Hugo, 2004. */
 /* NetHack may be freely redistributed.  See license for details. */
 
-#ifdef MAC
+#ifdef MACOS9
 #ifndef MACCONF_H
 #define MACCONF_H
 

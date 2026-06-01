@@ -2046,7 +2046,7 @@ optfn_map_mode(
     return optn_ok;
 }
 
-#ifdef MAC
+#ifdef MACOS9
 /* Parse "WxH" into two shorts.
    Returns TRUE on success; leaves *w and *h unchanged on failure. */
 staticfn boolean
@@ -7265,7 +7265,7 @@ initoptions_init(void)
     }
 
     /* make any symbol parsing quicker */
-#ifndef MAC
+#ifndef MACOS9
     /* Skip on classic Mac OS — fill_glyphid_cache iterates thousands of
        glyphs with Sprintf + hash insertions, taking ~2 minutes on 68030.
        The cache is only needed for glyph name lookups in config files. */
