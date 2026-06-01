@@ -193,9 +193,8 @@ macmap_create(NhWindow *map)
     if (!map) return false;
     if (gMap.owner) return true;   /* idempotent */
 
-    GDHandle gd = GetMainDevice();
-    short screen_h = (*gd)->gdRect.bottom - (*gd)->gdRect.top;
-    short wind_id = (screen_h >= 480) ? kWindMapDocument : kWindMapBorderless;
+    GDHandle gd = GetMainDevice();   /* small_screen is declared in macwin.h */
+    short wind_id = small_screen ? kWindMapBorderless : kWindMapDocument;
 
     WindowPtr w = (WindowPtr) GetNewCWindow(wind_id, NULL, (WindowPtr) -1L);
     if (!w) {

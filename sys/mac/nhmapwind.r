@@ -1,15 +1,19 @@
 /* nhmapwind.r — WIND resources for the dedicated map window.
- * 200 = documentProc (resizable, for Quadra+ screens >= 480px tall).
- * 201 = plainDBox    (borderless, fixed, for SE/30 screens <  480px tall).
+ * 200 = documentProc (resizable, for Quadra+ / large screens, small_screen=false).
+ * 201 = plainDBox    (borderless, fixed, for SE/30 screens,  small_screen=true).
  *
  * boundsRect coordinates are top, left, bottom, right.
  * Width = 80 cols * 6 px = 480; height_text = 21 rows * 14 px = 294.
+ *
+ * WIND 200 content top is y=40: the documentProc title bar (~11px) sits
+ * above the content rect, so the title bar top lands at ~y=29, clearing
+ * the 20px menu bar.  Height preserved: 334-40 = 294.
  */
 
 #include "Multiverse.r"
 
 resource 'WIND' (200, "Dungeon Map (document)", purgeable) {
-    {20, 0, 314, 480},          /* boundsRect: top, left, bottom, right */
+    {40, 0, 334, 480},          /* content top y=40: title bar (~y29-40) clears the 20px menu bar */
     documentProc,               /* WDEF procID = 0 (doc, with grow) */
     invisible,                  /* visible flag — we ShowWindow later */
     noGoAway,                   /* no close box — use File→Quit */
