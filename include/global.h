@@ -174,7 +174,7 @@ typedef uchar nhsym;
 
 #include "warnings.h"
 
-#ifdef MAC
+#ifdef MACOS9
 #include "macconf.h"
 #endif
 

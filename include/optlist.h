@@ -425,7 +425,7 @@ static int optfn_##a(int, int, boolean, char *, char *);
            "enable the mail daemon")
     NHOPTC(map_mode, Advanced, 20, opt_in, set_gameview,
                 Yes, Yes, No, No, NoAlias, "map display mode under Windows")
-#ifdef MAC
+#ifdef MACOS9
     NHOPTC(map_window_pos, Advanced, 16, opt_in, set_in_config,
                 No, Yes, No, No, NoAlias,
                 "position of map window (XxY pixels from top-left)")

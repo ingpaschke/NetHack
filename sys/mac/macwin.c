@@ -3674,7 +3674,7 @@ struct window_procs mac_procs = {
     mac_getlin, mac_get_ext_cmd, mac_number_pad, mac_delay_output,
 #ifdef CHANGE_COLOR
     mac_change_color,
-#ifdef MAC
+#ifdef MACOS9
     mac_change_background, set_tty_font_name,
 #endif
     mac_get_color_string,

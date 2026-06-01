@@ -2047,7 +2047,7 @@ optfn_map_mode(
     return optn_ok;
 }
 
-#ifdef MAC
+#ifdef MACOS9
 /* Parse "WxH" into two shorts.
    Returns TRUE on success; leaves *w and *h unchanged on failure. */
 staticfn boolean
