@@ -438,15 +438,15 @@ draw_cell_tile(int col, int row, int tile_idx)
     }
 }
 
-/* Frame a cell's outer 1-pixel edge in black — software cursor for
-   getpos/farlook (and an always-on hero highlight on every curs call).
-   Black is the ONLY safe drawing color in this pipeline: anything else,
-   whether drawn to the window OR into the backing GWorld, ends up recoloring
-   the whole map (the pmTolerant palette renders out-of-tolerance colors into
-   the device CLUT).  Black is an exact palette entry, so it's safe — but
-   invisible on solid-black tiles.  Making the cursor visible on black needs
-   a color sourced from the tile sheet itself (a cursor TILE blitted via the
-   proven tile path), not a QuickDraw color call — see notes. */
+/* Two-ring cell cursor for getpos/farlook (and an always-on hero highlight
+   on every curs call): a black outer ring (visible on light tiles) and an
+   inner ring in the brightest tile-CLUT color (visible on dark/black tiles).
+   Both colors are EXACT entries in the tile palette, so RGBForeColor matches
+   an existing CLUT slot (distance 0) and the Palette Manager never renders a
+   new color / reorganizes the device CLUT — the same reason black is safe.
+   (Requesting a color that ISN'T an exact palette entry — or drawing through
+   the system-CLUT backing and remapping on blit — is what recolored the whole
+   map in earlier attempts.) */
 static void
 draw_cursor_border(int col, int row)
 {
@@ -464,6 +464,22 @@ draw_cursor_border(int col, int row)
     PenSize(1, 1);
     PenMode(srcCopy);
     RGBColor black = {0, 0, 0};
+    /* Inner ring first, in a bright non-white tile-CLUT color chosen by INDEX
+       and set with PmForeColor (index-direct — no RGB match, no render), so
+       it's visible on dark/black tiles.  Then the black outer ring (exact
+       palette entry, safe) for light tiles; ending on black leaves a sane
+       foreground. */
+    {
+        short cidx = mactile_cursor_clut_index();
+        if (gMap.palette && cidx >= 0) {
+            Rect inner = cell;
+            InsetRect(&inner, 1, 1);
+            if (inner.right > inner.left && inner.bottom > inner.top) {
+                PmForeColor(cidx);
+                FrameRect(&inner);
+            }
+        }
+    }
     RGBForeColor(&black);
     FrameRect(&cell);
     SetPenState(&savePen);

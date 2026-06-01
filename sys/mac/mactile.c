@@ -104,6 +104,34 @@ mactile_sheet_ctable(void)
     return (**GetGWorldPixMap(gTileSheet)).pmTable;
 }
 
+/* Index of a bright, NON-white tile-palette color for the farlook cursor.
+   Scored R+G-B so it favors bright/warm (yellow) and deprioritizes white and
+   blue; near-white entries are skipped outright (the white CLUT slot triggers
+   a reorg).  Cached.  Callers use PmForeColor(index) — index-direct, no render.
+   Returns -1 if no sheet/ctable or no usable color. */
+short
+mactile_cursor_clut_index(void)
+{
+    static short cached = -2;             /* -2 = not yet computed */
+    if (cached == -2) {
+        cached = -1;
+        CTabHandle ct = mactile_sheet_ctable();
+        if (ct && *ct) {
+            short n = (**ct).ctSize;      /* ctSize is (count - 1) */
+            long  bestscore = -0x7FFFFFFFL;
+            short i;
+            for (i = 0; i <= n; i++) {
+                RGBColor c = (**ct).ctTable[i].rgb;
+                if (c.red > 0xC000 && c.green > 0xC000 && c.blue > 0xC000)
+                    continue;             /* skip near-white */
+                long score = (long) c.red + (long) c.green - (long) c.blue;
+                if (score > bestscore) { bestscore = score; cached = i; }
+            }
+        }
+    }
+    return cached;
+}
+
 void
 mactile_blit_to(GWorldPtr dst, int tile_idx, short dst_x, short dst_y)
 {

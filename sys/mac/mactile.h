@@ -27,4 +27,11 @@ extern void    mactile_blit_to_window(WindowPtr dst,
                                        int tile_idx,
                                        short dst_x, short dst_y);
 
+/* CLUT index of a bright, NON-white tile-palette color (yellow-ish) for the
+   farlook cursor.  Use it with PmForeColor(index): that sets the foreground
+   straight to that CLUT slot — no RGB, no color matching, no Palette Manager
+   render — so it can't recolor the map.  (White is deliberately excluded: the
+   white slot reorganizes the CLUT.)  Returns -1 if no sheet/ctable. */
+extern short   mactile_cursor_clut_index(void);
+
 #endif /* MACTILE_H */
