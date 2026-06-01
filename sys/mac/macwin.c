@@ -126,6 +126,11 @@ static TEHandle top_line = (TEHandle) nil;
 static int topl_query_len;
 static int topl_def_idx = -1;
 static char topl_resp[BUFSZ] = "";
+/* Whether the previous WIN_MESSAGE line was transient (ATR_NOHISTORY), so the
+   next transient line replaces it in place.  File-scope so mac_clear_nhwindow
+   can reset it — otherwise a clear that leaves content could let a following
+   transient line drop a real (non-transient) message. */
+static char gLastMsgTransient = 0;
 
 #define CHAR_ANY '\n'
 
@@ -1016,6 +1021,7 @@ mac_clear_nhwindow(winid win)
 
     switch (GetWindowKind(theWindow) - WIN_BASE_KIND) {
     case NHW_MESSAGE:
+        gLastMsgTransient = 0;   /* a clear invalidates the transient-line state */
         if (aWin->scrollPos
             == aWin->y_size - 1) /* if no change since last clear */
             return;              /* don't bother with redraw */
@@ -1972,7 +1978,6 @@ mac_putstr(winid win, int attr, const char *str)
     long len, slen;
     NhWindow *aWin = &theWindows[win];
     static char in_putstr = 0;
-    static char gLastMsgTransient = 0; /* prev WIN_MESSAGE line was ATR_NOHISTORY */
     short newWidth, maxWidth;
     Rect r;
     char *src, *sline, *dst, ch;

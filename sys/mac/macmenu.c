@@ -1066,7 +1066,6 @@ DoMenuEvt(long menuEntry)
             break;
 
         case menuFileTileMode: {
-            extern void docrt(void);   /* src/display.c */
             NhWindow *map = (WIN_MAP != WIN_ERR) ? &theWindows[WIN_MAP] : NULL;
             if (!map) break;
             Boolean newOn = !macmap_get_mode(map);
@@ -1079,11 +1078,13 @@ DoMenuEvt(long menuEntry)
             SetItemMark(MHND_FILE, menuFileTileMode,
                         newOn ? checkMark : noMark);
             iflags.wc_tiled_map = newOn;
-            /* Force NetHack core to re-emit print_glyph for every visible
-               cell so the new-mode cache populates. Without this, the cache
-               is stale and the post-toggle window shows nothing. */
-            if (program_state.in_moveloop)
-                docrt();
+            /* Trigger a redraw by queueing ^R (the redraw command), exactly
+               like the File>Redraw item.  A redraw run synchronously from
+               this menu-handler context (docrt() here, or macmap_set_mode's
+               blit) doesn't take — the window isn't settled — so ^R was still
+               needed by hand.  Queued, doredraw()/docrt() runs in the normal
+               command loop and re-emits print_glyph for the new mode. */
+            AddToKeyQueue('R' & 0x1f, 1);
             break;
         }
         }

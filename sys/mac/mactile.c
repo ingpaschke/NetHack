@@ -13,6 +13,8 @@ static PaletteHandle gTilePalette   = NULL;
 static short         gSheetDepth    = 0;
 static short         gSheetCols     = 0;   /* tiles across in the sheet */
 static short         gSheetRows     = 0;   /* tiles down in the sheet */
+static short         gCursorClutIdx = -2;  /* cached farlook-cursor color index;
+                                              -2 = unset, -1 = none, >=0 = index */
 
 /* --- helper: load a PICT resource into an offscreen GWorld --- */
 static Boolean
@@ -89,6 +91,7 @@ mactile_shutdown(void)
 {
     if (gTileSheet)   { DisposeGWorld(gTileSheet);    gTileSheet   = NULL; }
     if (gTilePalette) { DisposePalette(gTilePalette); gTilePalette = NULL; }
+    gCursorClutIdx = -2;   /* recompute against a freshly reloaded sheet/ctable */
 }
 
 short
@@ -112,9 +115,8 @@ mactile_sheet_ctable(void)
 short
 mactile_cursor_clut_index(void)
 {
-    static short cached = -2;             /* -2 = not yet computed */
-    if (cached == -2) {
-        cached = -1;
+    if (gCursorClutIdx == -2) {            /* -2 = not yet computed */
+        gCursorClutIdx = -1;
         CTabHandle ct = mactile_sheet_ctable();
         if (ct && *ct) {
             short n = (**ct).ctSize;      /* ctSize is (count - 1) */
@@ -125,11 +127,11 @@ mactile_cursor_clut_index(void)
                 if (c.red > 0xC000 && c.green > 0xC000 && c.blue > 0xC000)
                     continue;             /* skip near-white */
                 long score = (long) c.red + (long) c.green - (long) c.blue;
-                if (score > bestscore) { bestscore = score; cached = i; }
+                if (score > bestscore) { bestscore = score; gCursorClutIdx = i; }
             }
         }
     }
-    return cached;
+    return gCursorClutIdx;
 }
 
 void

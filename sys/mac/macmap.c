@@ -361,10 +361,19 @@ macmap_set_mode(NhWindow *map, Boolean tile_mode)
             mac_dprintf("macmap: backing alloc failed in text mode; using fallback\n");
         }
     }
-    /* Repaint cache → backing so the update event blits populated pixels. */
+    /* Repopulate the backing for the new mode, then mark the map window dirty
+       so it redraws on the NEXT update pass.  A SYNCHRONOUS blit from here
+       does NOT take: macmap_set_mode runs in the menu-handler context, where
+       the window's port/visRgn isn't settled, so the pixels are clipped away
+       (this is why a manual ^R was still needed).  InvalWindowRect defers the
+       redraw to HandleUpdate -> macmap_update_event in the settled command
+       loop, which works — same as what ^R/docrt does.  (The old code used
+       InvalRect, which acts on the current, wrong port.) */
     repaint_full_viewport();
-    /* Force a full redraw via update event. */
-    if (map->its_window) InvalRect(&(*map->its_window).portRect);
+    if (map->its_window) {
+        Rect b; GetWindowPortBounds(map->its_window, &b);
+        InvalWindowRect(map->its_window, &b);
+    }
     return true;
 }
 
@@ -394,7 +403,10 @@ draw_cell_text(int col, int row, char ch, int color)
     if (gMap.backing) {
         /* Paint into backing first, then blit cell to window. */
         PixMapHandle pm = GetGWorldPixMap(gMap.backing);
-        LockPixels(pm);
+        if (!LockPixels(pm)) {
+            mac_dprintf("macmap: draw_cell_text: LockPixels failed\n");
+            return;
+        }
         GWorldPtr saveW; GDHandle saveD;
         GetGWorld(&saveW, &saveD);
         SetGWorld(gMap.backing, NULL);
@@ -577,10 +589,12 @@ macmap_print_glyph(NhWindow *map, int x, int y,
 void
 macmap_update_event(NhWindow *map)
 {
-    /* Caller (HandleUpdate) is responsible for BeginUpdate/EndUpdate.
-       Calling BeginUpdate twice consumes the invalid region on the first
-       call, leaving an empty visRgn for the second — every subsequent
-       draw gets clipped out. */
+    /* Called from HandleUpdate, INSIDE its BeginUpdate/EndUpdate — visRgn is
+       the damaged region and the blit is clipped to it.  Do NOT call
+       BeginUpdate here: HandleUpdate already did, and a second call consumes
+       the invalid region, leaving an empty visRgn that clips out every draw.
+       (Mode switches don't call this directly — they InvalWindowRect and let
+       the resulting update event reach here.) */
     if (!map || gMap.owner != map || !map->its_window) return;
 
     /* Window was damaged and we're about to repaint the whole content;
@@ -683,12 +697,16 @@ repaint_full_viewport(void)
     if (!gMap.owner) return;
     gMap.cursor_on = false;   /* full repaint wipes the inverted-cell cursor */
     if (gMap.backing) {
-        Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
-        GWorldPtr saveW; GDHandle saveD;
-        GetGWorld(&saveW, &saveD);
-        SetGWorld(gMap.backing, NULL);
-        EraseRect(&bbox);
-        SetGWorld(saveW, saveD);
+        PixMapHandle pm = GetGWorldPixMap(gMap.backing);
+        if (LockPixels(pm)) {
+            Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
+            GWorldPtr saveW; GDHandle saveD;
+            GetGWorld(&saveW, &saveD);
+            SetGWorld(gMap.backing, NULL);
+            EraseRect(&bbox);
+            SetGWorld(saveW, saveD);
+            UnlockPixels(pm);
+        }
     }
     int r, c;
     /* NetHack only uses cols [1, COLNO-1]; col 0 is unused (display.c uses
@@ -712,7 +730,12 @@ backing_self_scroll(int dx_cells, int dy_cells)
 {
     if (!gMap.backing) return;
     PixMapHandle pm = GetGWorldPixMap(gMap.backing);
-    LockPixels(pm);
+    if (!LockPixels(pm)) {
+        /* Purged pixels: CopyBits here reads AND writes *pm, so a stale
+           baseAddr would corrupt the backing. Skip the scroll. */
+        mac_dprintf("macmap: backing_self_scroll: LockPixels failed\n");
+        return;
+    }
     GWorldPtr saveW; GDHandle saveD;
     GetGWorld(&saveW, &saveD);
     SetGWorld(gMap.backing, NULL);
