@@ -189,11 +189,9 @@ blit_backing_to_window(const Rect *src_rect, const Rect *dst_rect)
 Boolean
 macmap_create(NhWindow *map)
 {
-    extern WindowPtr _mt_window;
     if (!map) return false;
     if (gMap.owner) return true;   /* idempotent */
 
-    GDHandle gd = GetMainDevice();   /* small_screen is declared in macwin.h */
     short wind_id = small_screen ? kWindMapBorderless : kWindMapDocument;
 
     WindowPtr w = (WindowPtr) GetNewCWindow(wind_id, NULL, (WindowPtr) -1L);
@@ -205,23 +203,11 @@ macmap_create(NhWindow *map)
     SetWindowKind(w, WIN_BASE_KIND + NHW_MAP);
     map->its_window = w;
     ShowWindow(w);
-    (void) _mt_window;   /* leave shown so status remains visible (Round 1) */
 
-    /* Apply saved position and text-mode size from NHDeflts (iflags). */
-    {
-        Rect screen = (*gd)->gdRect;
-        if (iflags.mac_map_pos_x || iflags.mac_map_pos_y) {
-            short x = iflags.mac_map_pos_x;
-            short y = iflags.mac_map_pos_y;
-            if (x < screen.left) x = screen.left;
-            if (y < screen.top + 20) y = screen.top + 20;
-            if (x > screen.right - 100) x = screen.right - 100;
-            if (y > screen.bottom - 50) y = screen.bottom - 50;
-            MoveWindow(w, x, y, false);
-        }
-        if (iflags.mac_map_text_w && iflags.mac_map_text_h) {
-            SizeWindow(w, iflags.mac_map_text_w, iflags.mac_map_text_h, false);
-        }
+    /* placement is owned by SanePositions() */
+    /* Apply saved text-mode size from NHDeflts (iflags); position deferred. */
+    if (iflags.mac_map_text_w && iflags.mac_map_text_h) {
+        SizeWindow(w, iflags.mac_map_text_w, iflags.mac_map_text_h, false);
     }
 
     gMap.owner       = map;

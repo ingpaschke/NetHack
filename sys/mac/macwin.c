@@ -603,6 +603,8 @@ DrawScrollbar(NhWindow *aWin)
 int
 SanePositions(void)
 {
+    WindowPtr mapw = (WIN_MAP != WIN_ERR && theWindows[WIN_MAP].its_window)
+                     ? theWindows[WIN_MAP].its_window : _mt_window;
 #if TARGET_API_MAC_CARBON
     Rect rbase, rmsg;
     SInt16 i, width, height;
@@ -641,13 +643,16 @@ SanePositions(void)
                 kWindowConstrainMoveRegardlessOfFit, NULL, NULL);
         }
 #else
-    short left, top, width, height;
+    short left, top;
     int ix, numText = 0, numMenu = 0;
     int mbar_height = GetMBarHeight();
     BitMap qbitmap;
     Rect screenArea;
     WindowPtr theWindow;
-    NhWindow *nhWin;
+    WindowPtr msgw   = theWindows[WIN_MESSAGE].its_window;
+    WindowPtr statw  = _mt_window;
+    Rect mr, msgr, statr;
+    short msg_h, map_h, stat_h, content_left, content_w;
 
 #ifdef CROSS_TO_MAC68K
     screenArea = qd.screenBits.bounds;
@@ -656,49 +661,51 @@ SanePositions(void)
 #endif
     OffsetRect(&screenArea, -screenArea.left, -screenArea.top);
 
-    /* Status/base window (_mt_window). NOTE: this 68k branch still uses the
-       legacy single-window layout; Task 3 rewrites it into the
-       message/map/status stack. Persist under kStatusWindow to match
-       GetWinKind()/SaveWindowPos() so the saved position round-trips. */
-    height = _mt_window->portRect.bottom - _mt_window->portRect.top;
-    width = _mt_window->portRect.right - _mt_window->portRect.left;
+    /* Natural content sizes already set at creation. Read them back. */
+    GetWindowPortBounds(mapw,  &mr);
+    GetWindowPortBounds(msgw,  &msgr);
+    GetWindowPortBounds(statw, &statr);
+    map_h  = mr.bottom  - mr.top;
+    msg_h  = msgr.bottom - msgr.top;
+    stat_h = statr.bottom - statr.top;
 
-    if (!RetrievePosition(kStatusWindow, &top, &left)) {
-        top = mbar_height + (small_screen ? 2 : 20);
-        left = (screenArea.right - width) / 2;
-    }
-    MoveWindow(_mt_window, left, top, 1);
+    /* Horizontal: center on the map width (expected to be the widest). */
+    content_w    = mr.right - mr.left;
+    content_left = (screenArea.right - content_w) / 2;
+    if (content_left < 0) content_left = 0;
 
-    /* Message Window */
-    if (!RetrievePosition(kMessageWindow, &top, &left)) {
-        top += height;
-        if (!small_screen)
-            top += 20;
-    }
+    {
+        short title_h = small_screen ? 0 : 20;   /* title bar + small gap */
+        short y = mbar_height + (small_screen ? 2 : 4);
 
-    if (!RetrieveSize(kMessageWindow, top, left, &height, &width)) {
-        height =
-            screenArea.bottom - top - (small_screen ? 2 - SBARHEIGHT : 2);
-        if (height > MAX_HEIGHT) {
-            height = MAX_HEIGHT;
-        } else if (height < MIN_HEIGHT) {
-            height = MIN_HEIGHT;
-            width = MIN_WIDTH;
-            left = screenArea.right - width;
-            top = screenArea.bottom - MIN_HEIGHT;
+        /* Messages on top. */
+        if (!RetrievePosition(kMessageWindow, &top, &left)) {
+            top = y + title_h; left = content_left;
         }
+        MoveWindow(msgw, left, top, 1);
+        if (theWindows[WIN_MESSAGE].scrollBar)
+            DrawScrollbar(&theWindows[WIN_MESSAGE]);
+        y = top + msg_h + 2;
+
+        /* Map in the middle. */
+        if (!RetrievePosition(kMapWindow, &top, &left)) {
+            top = y + title_h; left = content_left;
+        }
+        MoveWindow(mapw, left, top, 1);
+        y = top + map_h + 2;
+
+        /* Status on the bottom; keep it on-screen. */
+        if (!RetrievePosition(kStatusWindow, &top, &left)) {
+            top = y + title_h; left = content_left;
+        }
+        if (top + stat_h > screenArea.bottom)
+            top = screenArea.bottom - stat_h - 2;
+        if (top < mbar_height + 2)      /* never overlap the menu bar */
+            top = mbar_height + 2;
+        MoveWindow(statw, left, top, 1);
     }
 
-    /* Move these windows */
-    nhWin = theWindows + WIN_MESSAGE;
-    theWindow = nhWin->its_window;
-
-    MoveWindow(theWindow, left, top, 1);
-    SizeWindow(theWindow, width, height, 1);
-    if (nhWin->scrollBar)
-        DrawScrollbar(nhWin);
-
-    /* Handle other windows */
+    /* Handle other windows (NHW_MENU / NHW_TEXT) */
     for (ix = 0; ix < NUM_MACWINDOWS; ix++) {
         if (ix != WIN_STATUS && ix != WIN_MESSAGE && ix != WIN_MAP
             && ix != BASE_WINDOW) {
@@ -735,7 +742,7 @@ SanePositions(void)
     }
 #endif
     /* Bring the map window to the front */
-    SelectWindow(_mt_window);
+    SelectWindow(mapw);
     return (0);
 }
 
