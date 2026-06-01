@@ -101,7 +101,6 @@ RetrievePosition(short kind, short *top, short *left)
     p.h = savePos[kind].left;
     *left = p.h;
     *top = p.v;
-    mac_dprintf("Retrieve Kind %d Pt (%d,%d)", kind, p.h, p.v);
     return (PtInRgn(p, GetGrayRgn()));
 }
 
@@ -135,7 +134,6 @@ SavePosition(short kind, short top, short left)
     savePos[kind].validPos = 1;
     savePos[kind].top = top;
     savePos[kind].left = left;
-    mac_dprintf("Save kind %d pt (%d,%d)", kind, left, top);
     FlushWinFile();
 }
 
@@ -165,7 +163,6 @@ GetWinKind(WindowPtr win)
     if (kind < 0 || kind > NHW_TEXT) {
         return -1;
     }
-    mac_dprintf("In win kind %d (%lx)", kind, win);
     switch (kind) {
     case NHW_MAP:
     case NHW_STATUS:
@@ -182,7 +179,6 @@ GetWinKind(WindowPtr win)
         kind = kTextWindow;
         break;
     }
-    mac_dprintf("Out kind %d", kind);
     return kind;
 }
 

@@ -187,12 +187,12 @@ enum { bttnMenuAlertNo = 1, bttnMenuAlertYes };
 
 /******** Globals ********/
 static unsigned char *menuErrStr[err_Menu_total] = {
-    "\x1dAbort: Bad \'MNU#\' resource!", /* errGetMenuList */
-    "\x1dAbort: Bad \'MENU\' resource!", /* errGetMenu */
-    "\x1dAbort: Bad \'DLOG\' resource!", /* errGetANDlogTemplate */
-    "\x1dAbort: Bad \'DITL\' resource!", /* errGetANDlogItems */
-    "\x1dAbort: Bad Dialog Allocation!", /* errGetANDialog */
-    "\x1bAbort: Bad Menu Allocation!",   /* errANNewMenu */
+    P_STRING_CONV("Abort: Bad 'MNU#' resource!"), /* errGetMenuList */
+    P_STRING_CONV("Abort: Bad 'MENU' resource!"), /* errGetMenu */
+    P_STRING_CONV("Abort: Bad 'DLOG' resource!"), /* errGetANDlogTemplate */
+    P_STRING_CONV("Abort: Bad 'DITL' resource!"), /* errGetANDlogItems */
+    P_STRING_CONV("Abort: Bad Dialog Allocation!"), /* errGetANDialog */
+    P_STRING_CONV("Abort: Bad Menu Allocation!"),   /* errANNewMenu */
 };
 static menuListPtr pMenuList[2];
 static short theMenubar = mbarDA; /* force initial update */
@@ -547,7 +547,7 @@ mac_askname()
 
     /* Initialize the role popup menu */
     if (!(askmenu[RSRC_ASK_ROLE] = NewMenu(RSRC_ASK_ROLE, "\x00")))
-        fatal("\x17Cannot create role menu");
+        fatal("Cannot create role menu");
     for (i = 0; roles[i].name.m; i++) {
         ask_restring(roles[i].name.m, str);
         AppendMenu(askmenu[RSRC_ASK_ROLE], str);
@@ -561,7 +561,7 @@ mac_askname()
 
     /* Initialize the race popup menu */
     if (!(askmenu[RSRC_ASK_RACE] = NewMenu(RSRC_ASK_RACE, "\x00")))
-        fatal("\x17Cannot create race menu");
+        fatal("Cannot create race menu");
     for (i = 0; races[i].noun; i++) {
         ask_restring(races[i].noun, str);
         AppendMenu(askmenu[RSRC_ASK_RACE], str);
@@ -574,7 +574,7 @@ mac_askname()
 
     /* Initialize the gender popup menu */
     if (!(askmenu[RSRC_ASK_GEND] = NewMenu(RSRC_ASK_GEND, "\x00")))
-        fatal("\x19Cannot create gender menu");
+        fatal("Cannot create gender menu");
     for (i = 0; i < ROLE_GENDERS; i++) {
         ask_restring(genders[i].adj, str);
         AppendMenu(askmenu[RSRC_ASK_GEND], str);
@@ -589,7 +589,7 @@ mac_askname()
 
     /* Initialize the alignment popup menu */
     if (!(askmenu[RSRC_ASK_ALIGN] = NewMenu(RSRC_ASK_ALIGN, "\x00")))
-        fatal("\x1cCannot create alignment menu");
+        fatal("Cannot create alignment menu");
     for (i = 0; i < ROLE_ALIGNS; i++) {
         ask_restring(aligns[i].adj, str);
         AppendMenu(askmenu[RSRC_ASK_ALIGN], str);
@@ -602,10 +602,10 @@ mac_askname()
 
     /* Initialize the mode popup menu */
     if (!(askmenu[RSRC_ASK_MODE] = NewMenu(RSRC_ASK_MODE, "\x00")))
-        fatal("\x17Cannot create mode menu");
-    AppendMenu(askmenu[RSRC_ASK_MODE], "\x06Normal");
-    AppendMenu(askmenu[RSRC_ASK_MODE], "\x07Explore");
-    AppendMenu(askmenu[RSRC_ASK_MODE], "\x05Debug");
+        fatal("Cannot create mode menu");
+    AppendMenu(askmenu[RSRC_ASK_MODE], P_STRING_CONV("Normal"));
+    AppendMenu(askmenu[RSRC_ASK_MODE], P_STRING_CONV("Explore"));
+    AppendMenu(askmenu[RSRC_ASK_MODE], P_STRING_CONV("Debug"));
     InsertMenu(askmenu[RSRC_ASK_MODE], hierMenu);
     currmode = 0;
 
@@ -911,7 +911,9 @@ AdjustMenus(short dimMenubar)
         newMenubar = mbarNoWindows;
     else if (GetWindowKind(win) < 0)
         newMenubar = mbarDA;
-    else if (!IsWindowVisible(_mt_window))
+    else if (WIN_MAP == WIN_ERR
+             || !theWindows[WIN_MAP].its_window
+             || !IsWindowVisible(theWindows[WIN_MAP].its_window))
         newMenubar = mbarNoMap;
 
     if (newMenubar != mbarRegular)
@@ -922,7 +924,7 @@ AdjustMenus(short dimMenubar)
         if (kAdjustWizardMenu) {
             kAdjustWizardMenu = 0;
 
-            SetMenuItemText(MHND_FILE, menuFilePlayMode, "\x05Debug");
+            SetMenuItemText(MHND_FILE, menuFilePlayMode, P_STRING_CONV("Debug"));
         }
     }
 
@@ -932,7 +934,7 @@ AdjustMenus(short dimMenubar)
         if (kAdjustWizardMenu) {
             kAdjustWizardMenu = 0;
 
-            SetMenuItemText(MHND_FILE, menuFilePlayMode, "\x07Explore");
+            SetMenuItemText(MHND_FILE, menuFilePlayMode, P_STRING_CONV("Explore"));
 
             for (i = CountMenuItems(MHND_WIZ); i > menuWizardAttributes; i--)
                 DeleteMenuItem(MHND_WIZ, i);
@@ -1064,6 +1066,7 @@ DoMenuEvt(long menuEntry)
             break;
 
         case menuFileTileMode: {
+            extern void docrt(void);   /* src/display.c */
             NhWindow *map = (WIN_MAP != WIN_ERR) ? &theWindows[WIN_MAP] : NULL;
             if (!map) break;
             Boolean newOn = !macmap_get_mode(map);
@@ -1076,6 +1079,11 @@ DoMenuEvt(long menuEntry)
             SetItemMark(MHND_FILE, menuFileTileMode,
                         newOn ? checkMark : noMark);
             iflags.wc_tiled_map = newOn;
+            /* Force NetHack core to re-emit print_glyph for every visible
+               cell so the new-mode cache populates. Without this, the cache
+               is stale and the post-toggle window shows nothing. */
+            if (program_state.in_moveloop)
+                docrt();
             break;
         }
         }

@@ -17,11 +17,29 @@ KeyDown(unsigned short code)
 void
 mac_dprintf(char *format, ...)
 {
+    static FILE *log_fp = NULL;
+    static int   log_tried = 0;
     char buffer[512];
     va_list list;
     int doit;
 #define DO_DEBUGSTR 1
 #define DO_PLINE 2
+
+    /* Always write to dprintf.log in the app dir for diagnostic capture.
+       Open lazily, once. If fopen fails, give up silently. */
+    if (!log_tried) {
+        log_tried = 1;
+        log_fp = fopen("dprintf.log", "w");
+    }
+    if (log_fp) {
+        va_start(list, format);
+        vsnprintf(buffer, sizeof buffer, format, list);
+        va_end(list);
+        fputs(buffer, log_fp);
+        if (buffer[0] && buffer[strlen(buffer) - 1] != '\n')
+            fputc('\n', log_fp);
+        fflush(log_fp);
+    }
 
     if (flags.debug) {
         doit = 0;

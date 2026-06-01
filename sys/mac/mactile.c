@@ -12,6 +12,7 @@ static GWorldPtr     gTileSheet     = NULL;
 static PaletteHandle gTilePalette   = NULL;
 static short         gSheetDepth    = 0;
 static short         gSheetCols     = 0;   /* tiles across in the sheet */
+static short         gSheetRows     = 0;   /* tiles down in the sheet */
 
 /* --- helper: load a PICT resource into an offscreen GWorld --- */
 static Boolean
@@ -54,6 +55,7 @@ load_tile_pict(short pict_id, short depth)
     }
     gSheetDepth = depth;
     gSheetCols  = (frame.right - frame.left) / 16;
+    gSheetRows  = (frame.bottom - frame.top) / 16;
     return true;
 }
 
@@ -106,6 +108,15 @@ void
 mactile_blit_to(GWorldPtr dst, int tile_idx, short dst_x, short dst_y)
 {
     if (!gTileSheet || !dst) return;
+    /* Guard against generated tile.c expecting more tiles than the sheet
+       actually contains (e.g., a divergence between tile2pict's output and
+       tilemap.c's emitted indices). Out-of-bounds source rect would read
+       stray PixMap memory. */
+    if (tile_idx < 0 || tile_idx >= (int) gSheetCols * (int) gSheetRows) {
+        mac_dprintf("mactile: tile_idx %d out of sheet (max %d)\n",
+                    tile_idx, (int) gSheetCols * (int) gSheetRows - 1);
+        return;
+    }
     short sx = (tile_idx % gSheetCols) * 16;
     short sy = (tile_idx / gSheetCols) * 16;
     Rect src = { sy, sx, sy + 16, sx + 16 };
@@ -113,7 +124,15 @@ mactile_blit_to(GWorldPtr dst, int tile_idx, short dst_x, short dst_y)
 
     PixMapHandle spm = GetGWorldPixMap(gTileSheet);
     PixMapHandle dpm = GetGWorldPixMap(dst);
-    LockPixels(spm); LockPixels(dpm);
+    if (!LockPixels(spm)) {
+        mac_dprintf("mactile: LockPixels(sheet) failed (purged?)\n");
+        return;
+    }
+    if (!LockPixels(dpm)) {
+        mac_dprintf("mactile: LockPixels(dst) failed (purged?)\n");
+        UnlockPixels(spm);
+        return;
+    }
     GWorldPtr saveW; GDHandle saveD;
     GetGWorld(&saveW, &saveD);
     SetGWorld(dst, NULL);
@@ -127,13 +146,21 @@ void
 mactile_blit_to_window(WindowPtr dst, int tile_idx, short dst_x, short dst_y)
 {
     if (!gTileSheet || !dst) return;
+    if (tile_idx < 0 || tile_idx >= (int) gSheetCols * (int) gSheetRows) {
+        mac_dprintf("mactile: tile_idx %d out of sheet (max %d)\n",
+                    tile_idx, (int) gSheetCols * (int) gSheetRows - 1);
+        return;
+    }
     short sx = (tile_idx % gSheetCols) * 16;
     short sy = (tile_idx / gSheetCols) * 16;
     Rect src = { sy, sx, sy + 16, sx + 16 };
     Rect dr  = { dst_y, dst_x, dst_y + 16, dst_x + 16 };
 
     PixMapHandle spm = GetGWorldPixMap(gTileSheet);
-    LockPixels(spm);
+    if (!LockPixels(spm)) {
+        mac_dprintf("mactile: LockPixels(sheet) failed (purged?)\n");
+        return;
+    }
     GrafPtr saveP; GetPort(&saveP);
     SetPort(dst);
     CopyBits((BitMap *) *spm,

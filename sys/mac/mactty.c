@@ -144,7 +144,6 @@ allocate_offscreen_world(tty_record *record)
     if (other < mem_here + MEMORY_MARGIN) {
         mem_here = other - MEMORY_MARGIN;
     }
-    mac_dprintf("Heap %ld Required %ld", mem_here, required_mem);
     if (required_mem > mem_here) {
         mem_there = required_mem;
         if (required_mem > TempMaxMem(&mem_there)) {
@@ -160,7 +159,6 @@ allocate_offscreen_world(tty_record *record)
         select_offscreen_port(record);
         SetOrigin(0, 0);
         select_onscreen_window(record);
-        mac_dprintf("New GWorld @ %lx;dm", gw);
     }
     return s_err;
 }
