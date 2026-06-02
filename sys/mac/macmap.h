@@ -24,7 +24,7 @@ extern void    macmap_curs(NhWindow *map, int x, int y);
 /* Mac event callbacks. */
 extern void    macmap_update_event(NhWindow *map);
 extern void    macmap_grow_event(NhWindow *map, long newSize);
-extern void    macmap_click(NhWindow *map, Point pt, UInt32 modifiers);
+extern Boolean macmap_click(NhWindow *map, Point pt, UInt32 modifiers);
 
 /* Viewport queries. */
 extern void    macmap_pixel_to_cell(NhWindow *map, Point pt,

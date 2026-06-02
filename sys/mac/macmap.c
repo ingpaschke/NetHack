@@ -7,6 +7,7 @@
 #include <Resources.h>
 #include <QDOffscreen.h>
 #include <Palettes.h>
+#include <Controls.h>
 
 /* From src/tile.c (generated). NetHack 3.7 with default config (no
    STATUES_DONT_LOOK_LIKE_MONSTERS) reserves a per-monster tile slot for
@@ -49,11 +50,45 @@ typedef struct {
        un-invert it before highlighting the new one. */
     Boolean        cursor_on;
     short          cursor_x, cursor_y;
+    ControlHandle  vscroll, hscroll;   /* decorative (inert) scrollbars */
+    Boolean        decorated;          /* documentProc with chrome/strips */
+    short          inset_r, inset_b;   /* reserved strip widths (0 = borderless) */
 } MacMapState;
 
 static MacMapState gMap = {0};
 
 static void repaint_full_viewport(void);   /* forward declaration */
+
+/* Drawable map area inside the window = port bounds minus the decorated
+   scrollbar strips (0 insets when borderless). */
+static void
+map_content_bounds(Rect *out)
+{
+    if (!gMap.owner || !gMap.owner->its_window) { SetRect(out, 0, 0, 0, 0); return; }
+    GetWindowPortBounds(gMap.owner->its_window, out);
+    out->right  -= gMap.inset_r;
+    out->bottom -= gMap.inset_b;
+}
+
+/* Position the inert scrollbar controls into the right/bottom strips.
+   Call after any SizeWindow on the map window (no-op when borderless).
+   The vscroll bottom / hscroll right stop at b.* - 14 (not -15) so the two
+   bars don't overlap; that 1px seam is the grow-box corner DrawGrowIcon fills. */
+static void
+layout_scroll_controls(void)
+{
+    Rect b;
+    if (!gMap.decorated || !gMap.vscroll || !gMap.hscroll || !gMap.owner
+        || !gMap.owner->its_window)
+        return;
+    GetWindowPortBounds(gMap.owner->its_window, &b);
+    HideControl(gMap.vscroll); HideControl(gMap.hscroll);
+    MoveControl(gMap.vscroll, b.right - 15, b.top - 1);
+    SizeControl(gMap.vscroll, 16, (b.bottom - 14) - (b.top - 1));
+    MoveControl(gMap.hscroll, b.left - 1, b.bottom - 15);
+    SizeControl(gMap.hscroll, (b.right - 14) - (b.left - 1), 16);
+    ShowControl(gMap.vscroll); ShowControl(gMap.hscroll);
+}
 
 /* NetHack color indices to RGB. Values are 16-bit per channel (Mac
    QuickDraw convention; 8-bit values multiplied by 257 for full range). */
@@ -204,13 +239,30 @@ macmap_create(NhWindow *map)
     map->its_window = w;
     ShowWindow(w);
 
+    gMap.owner     = map;   /* set early so map_content_bounds is usable */
+    gMap.decorated = !small_screen;
+    gMap.inset_r   = gMap.decorated ? 15 : 0;
+    gMap.inset_b   = gMap.decorated ? 15 : 0;
+    if (gMap.decorated) {
+        Rect b, vr, hr;
+        GetWindowPortBounds(w, &b);
+        SetRect(&vr, b.right - 15, b.top - 1,  b.right + 1, b.bottom - 14);
+        SetRect(&hr, b.left - 1,  b.bottom - 15, b.right - 14, b.bottom + 1);
+        /* nominal range so a thumb draws; never TrackControl'd (inert).
+           procID 16 == scrollBarProc (matches macwin.c's literal usage). */
+        gMap.vscroll = NewControl(w, &vr, "\p", true, 0, 0, 1, 16, 0);
+        gMap.hscroll = NewControl(w, &hr, "\p", true, 0, 0, 1, 16, 0);
+    } else {
+        gMap.vscroll = gMap.hscroll = NULL;
+    }
+
     /* placement is owned by SanePositions() */
     /* Apply saved text-mode size from NHDeflts (iflags); position deferred. */
     if (iflags.mac_map_text_w && iflags.mac_map_text_h) {
         SizeWindow(w, iflags.mac_map_text_w, iflags.mac_map_text_h, false);
     }
+    layout_scroll_controls();   /* match controls to the (possibly resized) window */
 
-    gMap.owner       = map;
     gMap.tile_mode   = false;
     gMap.backing     = NULL;
     gMap.palette     = NULL;
@@ -238,7 +290,7 @@ macmap_finalize(NhWindow *map)
     if (map->char_width  > 0) gMap.cell_w = map->char_width;
     if (map->row_height  > 0) gMap.cell_h = map->row_height;
     {
-        Rect cr; GetWindowPortBounds(map->its_window, &cr);
+        Rect cr; map_content_bounds(&cr);
         gMap.vis_cols = (cr.right - cr.left) / gMap.cell_w;
         gMap.vis_rows = (cr.bottom - cr.top) / gMap.cell_h;
         if (gMap.vis_cols < 1) gMap.vis_cols = 1;
@@ -261,6 +313,8 @@ macmap_destroy(NhWindow *map)
     if (gMap.backing) { DisposeGWorld(gMap.backing); gMap.backing = NULL; }
     if (gMap.palette) { DisposePalette(gMap.palette); gMap.palette = NULL; }
     if (map->its_window) {
+        /* DisposeWindow disposes attached controls; just drop our handles. */
+        gMap.vscroll = gMap.hscroll = NULL;
         DisposeWindow(map->its_window);
         map->its_window = NULL;
     }
@@ -290,11 +344,12 @@ macmap_set_mode(NhWindow *map, Boolean tile_mode)
             SizeWindow(map->its_window,
                        iflags.mac_map_tile_w, iflags.mac_map_tile_h, false);
         }
+        layout_scroll_controls();   /* keep controls matched to window size */
         /* Always derive vis_cols/vis_rows from the actual window size — the
            edge-margin and scroll math depend on these matching what the user
            can really see, not a hardcoded "30x21". */
         if (map->its_window) {
-            Rect cr; GetWindowPortBounds(map->its_window, &cr);
+            Rect cr; map_content_bounds(&cr);
             gMap.vis_cols = (cr.right - cr.left) / gMap.cell_w;
             gMap.vis_rows = (cr.bottom - cr.top) / gMap.cell_h;
         }
@@ -329,8 +384,9 @@ macmap_set_mode(NhWindow *map, Boolean tile_mode)
             SizeWindow(map->its_window,
                        iflags.mac_map_text_w, iflags.mac_map_text_h, false);
         }
+        layout_scroll_controls();   /* keep controls matched to window size */
         if (map->its_window) {
-            Rect cr; GetWindowPortBounds(map->its_window, &cr);
+            Rect cr; map_content_bounds(&cr);
             gMap.vis_cols = (cr.right - cr.left) / gMap.cell_w;
             gMap.vis_rows = (cr.bottom - cr.top) / gMap.cell_h;
         }
@@ -595,7 +651,7 @@ macmap_update_event(NhWindow *map)
         blit_backing_to_window(&bbox, &dst);
     } else {
         /* Fallback: cache-replay redraw. */
-        Rect content; GetWindowPortBounds(map->its_window, &content);
+        Rect content; map_content_bounds(&content);
         EraseRect(&content);
         int r, c;
         for (r = gMap.scroll_row; r < gMap.scroll_row + gMap.vis_rows && r < ROWNO; ++r)
@@ -609,6 +665,13 @@ macmap_update_event(NhWindow *map)
                     if (ch != 0) draw_cell_text(c, r, ch, col);
                 }
             }
+    }
+
+    /* Decorated windows: draw the inert scrollbar controls and grow box on
+       top of the blit, inside the chrome strips reserved by the insets. */
+    if (gMap.decorated) {
+        DrawControls(map->its_window);
+        DrawGrowIcon(map->its_window);
     }
 
     SetPort(saveP);
@@ -635,7 +698,7 @@ macmap_clear(NhWindow *map)
     if (map->its_window) {
         GrafPtr saveP; GetPort(&saveP);
         SetPort(map->its_window);
-        Rect content; GetWindowPortBounds(map->its_window, &content);
+        Rect content; map_content_bounds(&content);
         EraseRect(&content);
         SetPort(saveP);
     }
@@ -819,18 +882,22 @@ macmap_grow_event(NhWindow *map, long newSize)
 {
     if (!map || gMap.owner != map || !map->its_window) return;
     SizeWindow(map->its_window, (short)(newSize & 0xffff), (short)(newSize >> 16), true);
-    Rect cr; GetWindowPortBounds(map->its_window, &cr);
+    /* Reposition the inert scrollbar controls into the new strips before
+       deriving content bounds. */
+    layout_scroll_controls();
+    Rect full; GetWindowPortBounds(map->its_window, &full);
+    Rect cr; map_content_bounds(&cr);
     gMap.vis_cols = (cr.right - cr.left) / gMap.cell_w;
     gMap.vis_rows = (cr.bottom - cr.top) / gMap.cell_h;
     if (gMap.vis_cols < 1) gMap.vis_cols = 1;
     if (gMap.vis_rows < 1) gMap.vis_rows = 1;
-    /* Persist the new size to iflags so NHDeflts can save it. */
+    /* Persist the FULL new window size to iflags so NHDeflts can save it. */
     if (gMap.tile_mode) {
-        iflags.mac_map_tile_w = (short)(cr.right - cr.left);
-        iflags.mac_map_tile_h = (short)(cr.bottom - cr.top);
+        iflags.mac_map_tile_w = (short)(full.right - full.left);
+        iflags.mac_map_tile_h = (short)(full.bottom - full.top);
     } else {
-        iflags.mac_map_text_w = (short)(cr.right - cr.left);
-        iflags.mac_map_text_h = (short)(cr.bottom - cr.top);
+        iflags.mac_map_text_w = (short)(full.right - full.left);
+        iflags.mac_map_text_h = (short)(full.bottom - full.top);
     }
     if (!allocate_backing()) {
         mac_dprintf("macmap: backing realloc failed on grow\n");
@@ -845,7 +912,30 @@ macmap_grow_event(NhWindow *map, long newSize)
     }
 }
 
-void    macmap_click(NhWindow *m UNUSED, Point p UNUSED, UInt32 mod UNUSED) { }
+/* Returns true if a window-LOCAL click landed on the decorative chrome
+   (either scrollbar control, or the reserved right/bottom strips + grow
+   corner) and should be swallowed.  Called from BaseClick so a click on the
+   inert scrollbars doesn't get interpreted as a click-to-move on the map.
+   Returns false for clicks in the real map area (let click-to-move proceed). */
+Boolean
+macmap_click(NhWindow *map, Point pt, UInt32 mod UNUSED)
+{
+    if (!gMap.decorated || !map || !map->its_window)
+        return false;
+    {
+        ControlHandle c; short part;
+        part = FindControl(pt, map->its_window, &c);
+        if (part && (c == gMap.vscroll || c == gMap.hscroll))
+            return true;   /* on a scrollbar control */
+    }
+    {   /* the reserved strips (incl. the grow-box corner) */
+        Rect b;
+        GetWindowPortBounds(map->its_window, &b);
+        if (pt.h >= b.right - gMap.inset_r || pt.v >= b.bottom - gMap.inset_b)
+            return true;
+    }
+    return false;
+}
 
 void
 macmap_pixel_to_cell(NhWindow *map, Point pt, int *col, int *row)

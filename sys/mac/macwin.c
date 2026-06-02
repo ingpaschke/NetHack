@@ -2488,6 +2488,8 @@ BaseClick(NhWindow *wind, Point pt, UInt32 modifiers)
 {
     int col, row;
     if (wind == &theWindows[WIN_MAP]) {
+        if (macmap_click(wind, pt, modifiers))
+            return;   /* click landed on the decorative scrollbars/grow box */
         macmap_pixel_to_cell(wind, pt, &col, &row);
     } else {
         col = pt.h / wind->char_width + 1;
