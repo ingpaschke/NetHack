@@ -57,10 +57,13 @@ typedef struct {
 
 static MacMapState gMap = {0};
 
-static void repaint_full_viewport(void);   /* forward declaration */
+/* action proc for live scrollbar tracking; created lazily in macmap_click */
+static ControlActionUPP gMapScrollUPP = NULL;
 
-/* Drawable map area inside the window = port bounds minus the decorated
-   scrollbar strips (0 insets when borderless). */
+static void repaint_full_viewport(void);
+static void scroll_viewport_to(short new_col, short new_row);
+
+/* Drawable map area = port bounds minus the scrollbar strips (0 when borderless). */
 static void
 map_content_bounds(Rect *out)
 {
@@ -850,29 +853,24 @@ repaint_strip(int col_start, int row_start, int col_end, int row_end)
             redraw_cell_from_cache(c, r);
 }
 
-void
-macmap_cliparound(NhWindow *map, int x, int y)
+/* Move the viewport to (new_col,new_row), clamped, repainting via soft-scroll
+   (small move) or full redraw (big jump / no backing). Updates the thumbs.
+   Shared by macmap_cliparound and the scrollbar handlers. */
+static void
+scroll_viewport_to(short new_col, short new_row)
 {
-    if (!map || gMap.owner != map)
-        return;
-
-    /* Don't scroll unless hero is within edge margin. */
-    short hero_in_view_x = (short) x - gMap.scroll_col;
-    short hero_in_view_y = (short) y - gMap.scroll_row;
-    if (hero_in_view_x >= MT_EDGE_MARGIN
-        && hero_in_view_x <  gMap.vis_cols - MT_EDGE_MARGIN
-        && hero_in_view_y >= MT_EDGE_MARGIN
-        && hero_in_view_y <  gMap.vis_rows - MT_EDGE_MARGIN) {
-        return;
-    }
-
     short old_col = gMap.scroll_col, old_row = gMap.scroll_row;
-    short new_col, new_row;
-    recompute_scroll_for_center(x, y, &new_col, &new_row);
+    short dx, dy;
+
+    /* clamp so col 0 never enters the viewport and the last row/col isn't passed */
+    if (new_col + gMap.vis_cols > COLNO) new_col = COLNO - gMap.vis_cols;
+    if (new_row + gMap.vis_rows > ROWNO) new_row = ROWNO - gMap.vis_rows;
+    if (new_col < 1) new_col = 1;
+    if (new_row < 0) new_row = 0;
     if (new_col == old_col && new_row == old_row) return;
 
-    short dx = new_col - old_col;
-    short dy = new_row - old_row;
+    dx = new_col - old_col;
+    dy = new_row - old_row;
 
     /* The repaint paths below blit the backing over the window, which
        wipes any software-cursor InvertRect. Mark the cursor as no longer
@@ -913,6 +911,27 @@ macmap_cliparound(NhWindow *map, int x, int y)
         Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
         blit_backing_to_window(&bbox, &bbox);
     }
+}
+
+void
+macmap_cliparound(NhWindow *map, int x, int y)
+{
+    if (!map || gMap.owner != map)
+        return;
+
+    /* don't scroll while the hero stays inside the edge margin */
+    short hero_in_view_x = (short) x - gMap.scroll_col;
+    short hero_in_view_y = (short) y - gMap.scroll_row;
+    if (hero_in_view_x >= MT_EDGE_MARGIN
+        && hero_in_view_x <  gMap.vis_cols - MT_EDGE_MARGIN
+        && hero_in_view_y >= MT_EDGE_MARGIN
+        && hero_in_view_y <  gMap.vis_rows - MT_EDGE_MARGIN) {
+        return;
+    }
+
+    short new_col, new_row;
+    recompute_scroll_for_center(x, y, &new_col, &new_row);
+    scroll_viewport_to(new_col, new_row);
 }
 
 void
@@ -983,11 +1002,48 @@ macmap_fit(short avail_w, short avail_h)
     macmap_grow_event(gMap.owner, ((long) h << 16) | ((long) w & 0xffffL));
 }
 
-/* Returns true if a window-LOCAL click landed on the decorative chrome
-   (either scrollbar control, or the reserved right/bottom strips + grow
-   corner) and should be swallowed.  Called from BaseClick so a click on the
-   inert scrollbars doesn't get interpreted as a click-to-move on the map.
-   Returns false for clicks in the real map area (let click-to-move proceed). */
+/* Set the viewport from the scrollbar values (vscroll=row, hscroll=col; scroll_col
+   is 1-based so +1). */
+static void
+apply_scroll_from_controls(void)
+{
+    short new_row, new_col;
+    if (!gMap.vscroll || !gMap.hscroll) return;
+    new_row = GetControlValue(gMap.vscroll);
+    new_col = GetControlValue(gMap.hscroll) + 1;
+    scroll_viewport_to(new_col, new_row);
+}
+
+/* TrackControl action proc: 1 cell per arrow, one page-minus-one per page click. */
+static pascal void
+macmap_scroll_action(ControlHandle ctl, short part)
+{
+    short now, max, page, amt, val;
+    Boolean vert;
+    if (!part || !ctl) return;
+    vert = (ctl == gMap.vscroll);
+    now  = GetControlValue(ctl);
+    max  = GetControlMaximum(ctl);
+    page = vert ? gMap.vis_rows : gMap.vis_cols;
+    if (page > 1) page -= 1;   /* keep a row/col of context across a page jump */
+    switch (part) {
+    case kControlUpButtonPart:   amt = -1;     break;
+    case kControlDownButtonPart: amt =  1;     break;
+    case kControlPageUpPart:     amt = -page;  break;
+    case kControlPageDownPart:   amt =  page;  break;
+    default: return;
+    }
+    val = now + amt;
+    if (val < 0)   val = 0;
+    if (val > max) val = max;
+    if (val == now) return;
+    SetControlValue(ctl, val);
+    apply_scroll_from_controls();
+}
+
+/* Handle a click on the map chrome: track the scrollbars and swallow strip/grow
+   clicks. Returns true if handled, so click-to-move is suppressed; false for the
+   real map area. Called from BaseClick. */
 Boolean
 macmap_click(NhWindow *map, Point pt, UInt32 mod UNUSED)
 {
@@ -996,8 +1052,21 @@ macmap_click(NhWindow *map, Point pt, UInt32 mod UNUSED)
     {
         ControlHandle c; short part;
         part = FindControl(pt, map->its_window, &c);
-        if (part && (c == gMap.vscroll || c == gMap.hscroll))
-            return true;   /* on a scrollbar control */
+        if (part && (c == gMap.vscroll || c == gMap.hscroll)) {
+            if (GetControlMaximum(c) > 0) {   /* only if there's a hidden range */
+                if (part == kControlIndicatorPart) {
+                    /* thumb: apply the landing value on release */
+                    if (TrackControl(c, pt, NULL) == kControlIndicatorPart)
+                        apply_scroll_from_controls();
+                } else {
+                    /* arrows / page gutters: scroll live via the action proc */
+                    if (!gMapScrollUPP)
+                        gMapScrollUPP = NewControlActionUPP(macmap_scroll_action);
+                    (void) TrackControl(c, pt, gMapScrollUPP);
+                }
+            }
+            return true;
+        }
     }
     {   /* the reserved strips (incl. the grow-box corner) */
         Rect b;
