@@ -120,6 +120,27 @@ OPTIONS=!fixinv,sortpack
 #OPTIONS=pushweapon
 
 
+### Menu colors ###
+# Color menu lines (e.g. inventory) by content. NOTE: this build matches with
+# pmatch (shell-style globs), not regular expressions, and against the whole
+# line -- so patterns need '*' wildcards (use *blessed*, not blessed) and are
+# case-insensitive. When several rules match one line, the LAST listed wins.
+OPTIONS=menucolors
+
+# Erosion/curse protection
+MENUCOLOR="*greased*"=cyan
+MENUCOLOR="*oilskin*"=cyan
+
+# Holy / unholy water
+MENUCOLOR="*holy water*"=cyan&bold
+MENUCOLOR="*unholy water*"=orange&bold
+
+# Beatitude (listed last so BUC status wins over the above)
+MENUCOLOR="*cursed*"=red
+MENUCOLOR="*uncursed*"=gray
+MENUCOLOR="*blessed*"=green
+
+
 ### Pets ###
 # What to call your starting pet, and its type
 OPTIONS=catname:Kaori,dogname:Hachi
