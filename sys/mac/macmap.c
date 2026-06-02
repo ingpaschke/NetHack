@@ -353,6 +353,10 @@ macmap_destroy(NhWindow *map)
         DisposeWindow(map->its_window);
         map->its_window = NULL;
     }
+    if (gMapScrollUPP) {   /* lazily recreated in macmap_click if needed */
+        DisposeControlActionUPP(gMapScrollUPP);
+        gMapScrollUPP = NULL;
+    }
     gMap.owner = NULL;
 }
 
