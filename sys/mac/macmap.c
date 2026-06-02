@@ -68,6 +68,15 @@ mark_dirty(const Rect *cell)
     else UnionRect(cell, &gMap.dirty, &gMap.dirty);
 }
 
+/* Mark the whole viewport dirty (a scroll/full repaint changed every pixel). */
+static void
+mark_dirty_all(void)
+{
+    SetRect(&gMap.dirty, 0, 0,
+            gMap.vis_cols * gMap.cell_w, gMap.vis_rows * gMap.cell_h);
+    gMap.has_dirty = true;
+}
+
 /* Drawable map area = port bounds minus the scrollbar strips (0 when borderless). */
 static void
 map_content_bounds(Rect *out)
@@ -776,12 +785,10 @@ repaint_full_viewport(void)
     for (r = gMap.scroll_row; r < gMap.scroll_row + gMap.vis_rows && r < ROWNO; ++r)
         for (c = c_first; c < c_last; ++c)
             redraw_cell_from_cache(c, r);
-    /* Final viewport blit if we're using backing. */
-    if (gMap.backing && gMap.owner->its_window) {
-        Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
-        blit_backing_to_window(&bbox, &bbox);
-        gMap.has_dirty = false;   /* per-cell marks above are now on screen */
-    }
+    /* Mark the whole viewport dirty (incl. erased empty cells); macmap_flush
+       blits it. Callers not followed by a core flush call macmap_flush themselves. */
+    if (gMap.backing)
+        mark_dirty_all();
 }
 
 static void
@@ -870,11 +877,8 @@ scroll_viewport_to(short new_col, short new_row)
         repaint_strip(new_col, new_row,
                       new_col + gMap.vis_cols, old_row);
 
-    if (gMap.backing && gMap.owner->its_window) {
-        Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
-        blit_backing_to_window(&bbox, &bbox);
-        gMap.has_dirty = false;   /* exposed-strip marks are now on screen */
-    }
+    /* the self-scroll shifted every pixel, so the whole viewport is dirty */
+    mark_dirty_all();
 }
 
 void
@@ -930,6 +934,7 @@ macmap_grow_event(NhWindow *map, long newSize)
         repaint_full_viewport();
     }
     update_scroll_controls();
+    macmap_flush();   /* a grow isn't followed by a core frame flush */
 }
 
 /* Size the map window to fit as much map as fits in avail_w x avail_h, snapped
@@ -970,6 +975,7 @@ apply_scroll_from_controls(void)
     new_row = GetControlValue(gMap.vscroll);
     new_col = GetControlValue(gMap.hscroll) + 1;
     scroll_viewport_to(new_col, new_row);
+    macmap_flush();   /* live scrollbar feedback; not followed by a core flush */
 }
 
 /* TrackControl action proc: 1 cell per arrow, one page-minus-one per page click. */
