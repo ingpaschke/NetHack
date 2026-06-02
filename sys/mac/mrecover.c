@@ -23,18 +23,6 @@
  *   short macsbug symbols
  */
 
-/*
- * To do (maybe, just maybe):
- * - Merge with the code in util/recover.c.
- * - Document launch (e.g. GUI equivalent of 'recover basename').
- * - Drag and drop.
- * - Internal memory tweaks (stack and heap usage).
- * - Use status file to allow resuming aborted recoveries.
- * - Bundle 'LEVL' files with recover (easier document launch).
- * - Prohibit recovering games "in progress".
- * - Share AppleEvents with NetHack to auto-recover crashed games.
- */
-
 #include "config.h"
 
 /**** Toolbox defines ****/

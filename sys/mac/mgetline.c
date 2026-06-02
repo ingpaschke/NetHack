@@ -41,22 +41,14 @@ topl_getlin(const char *query, char *bufp, Boolean ext)
     leave_topl_mode(bufp);
 }
 
-/*
- * Read a line closed with '\n' into the array char bufp[BUFSZ].
- * (The '\n' is not stored. The string is closed with a '\0'.)
- * Reading can be interrupted by an escape ('\033') - now the
- * resulting string is "\033".
- */
+/* Read a line into bufp[BUFSZ]; escape interrupts, yielding "\033". */
 void
 mac_getlin(const char *query, char *bufp)
 {
     topl_getlin(query, bufp, false);
 }
 
-/* Read in an extended command - doing command line completion for
- * when enough characters have been entered to make a unique command.
- * This is just a modified getlin() followed by a lookup.   -jsb
- */
+/* Read an extended command: getlin followed by lookup in extcmdlist. */
 int
 mac_get_ext_cmd()
 {

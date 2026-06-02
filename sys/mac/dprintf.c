@@ -25,8 +25,7 @@ mac_dprintf(char *format, ...)
 #define DO_DEBUGSTR 1
 #define DO_PLINE 2
 
-    /* Always write to dprintf.log in the app dir for diagnostic capture.
-       Open lazily, once. If fopen fails, give up silently. */
+    /* Log to dprintf.log; open lazily once, give up silently on failure. */
     if (!log_tried) {
         log_tried = 1;
         log_fp = fopen("dprintf.log", "w");

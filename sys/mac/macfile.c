@@ -23,11 +23,6 @@
 
 #include "dlb.h"
 
-/*
- * We should get the default dirID and volRefNum (from name) from prefs and
- * the situation at startup... For now, this will have to do.
- */
-
 /* The HandleFiles are resources built into the application which are treated
    as read-only files: if we fail to open a file we look for a resource */
 
@@ -250,11 +245,6 @@ macopen(const char *name, int flags, long fileType)
 		}
 #endif
     }
-    /*
-     * Here, we should check for file type, maybe a SFdialog if
-     * we fail with default, etc. etc. Besides, we should use HOpen
-     * and permissions.
-     */
     if ((flags & O_RDWR) == O_RDWR) {
         perm = fsRdWrPerm;
     } else if ((flags & O_WRONLY) == O_WRONLY) {
@@ -454,7 +444,7 @@ rsrc_dlb_fgets(char *buf, int len, dlb *dp)
 
         hfp->mark += n;
         if (n != 0)
-            buf[n] = '\0'; /* null terminate result */
+            buf[n] = '\0';
     }
 
     return n ? buf : NULL;

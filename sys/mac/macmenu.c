@@ -107,31 +107,14 @@ enum {
 };
 
 /*
- * menuListRec data (preloaded and locked) specifies the number of menus in
- * the menu bar, the number of hierarchal or submenus and the menu IDs of
- * all of those menus.  menus that go into in the menu bar are specified by
- * 'MNU#' 128 and submenus are specified by 'MNU#' 129.  the fields of the
- * menuListRec are:
- * firstMenuID - the menu ID (not resource ID) of the 1st menu.  subsequent
- *     menus in the list are _forced_ to have consecutively incremented IDs.
- * numMenus - the total count of menus in a given list (and the extent of
- *     valid menu IDs).
- * mref[] - initially the MENU resource ID is stored in the placeholder for
- *     the resource handle.  after loading (GetResource), the menu handle
- *     is stored and the menu ID, in memory, is set as noted above.
+ * menuListRec fields (preloaded and locked from 'MNU#' 128 menubar / 129 submenus):
+ * firstMenuID - menu ID of the 1st menu; subsequent menus are _forced_ to
+ *     consecutively incremented IDs.
+ * numMenus - count of menus in the list.
+ * mref[] - holds the MENU resource ID until GetResource, then the menu handle.
  *
- * NOTE: a ResEdit template editor is supplied to edit the 'MNU#' resources.
- *
- * NOTE: the resource IDs do not need to match the menu IDs in a menu list
- * record although they have been originally set that way.
- *
- * NOTE: the menu ID's of menus in the submenu list record may be reset, as
- * noted above.  it is the programmers responsibility to make sure that
- * submenu references/IDs are valid.
- *
- * WARNING: the existence of the submenu list record is assumed even if the
- * number of submenus is zero.  also, no error checking is done on the
- * extents of the menu IDs.  this must be correctly setup by the programmer.
+ * WARNING: the submenu list record must exist even with zero submenus, and no
+ * bounds checking is done on menu IDs.
  */
 
 #define ID1_MBAR pMenuList[listMenubar]->firstMenuID
@@ -284,7 +267,6 @@ ask_enable(DialogRef wind, short item, int enable)
     Handle handle;
     Rect rect;
 
-    /* Enable or disable the appropriate item */
     GetDialogItem(wind, item, &type, &handle, &rect);
     if (enable)
         type &= ~itemDisable;
@@ -303,7 +285,6 @@ ask_redraw(DialogRef wind, DialogItemIndex item)
     Rect rect;
     static char *modechar = "NED";
 
-    /* Which item shall we redraw? */
     GetDialogItem(wind, item, &type, &handle, &rect);
     switch (item) {
     case RSRC_ASK_DEFAULT:
@@ -324,7 +305,7 @@ ask_redraw(DialogRef wind, DialogItemIndex item)
         TextMode(srcOr);
         EraseRect(&rect);
 
-        /* Draw the frame and drop shadow */
+        /* frame and drop shadow */
         rect.right--;
         rect.bottom--;
         FrameRect(&rect);
@@ -332,7 +313,7 @@ ask_redraw(DialogRef wind, DialogItemIndex item)
         LineTo(rect.right, rect.bottom);
         LineTo(rect.left + 1, rect.bottom);
 
-        /* Draw the menu character */
+        /* menu character */
         MoveTo(rect.left + 4, rect.top + 12);
         switch (item) {
         case RSRC_ASK_ROLE:
@@ -352,7 +333,7 @@ ask_redraw(DialogRef wind, DialogItemIndex item)
             break;
         }
 
-        /* Draw the popup symbol */
+        /* popup symbol */
         MoveTo(rect.right - 16, rect.top + 5);
         LineTo(rect.right - 6, rect.top + 5);
         LineTo(rect.right - 11, rect.top + 10);
@@ -363,27 +344,25 @@ ask_redraw(DialogRef wind, DialogItemIndex item)
         LineTo(rect.right - 10, rect.top + 7);
         LineTo(rect.right - 11, rect.top + 8);
 
-        /* Draw the shadow */
+        /* shadow */
         InsetRect(&rect, 1, 1);
         if (macFlags.color) {
             RGBColor color;
 
-            /* Save the foreground color */
             GetForeColor(&color);
 
-            /* Draw the top and left */
+            /* top and left */
             RGBForeColor(&lightcolor);
             MoveTo(rect.left, rect.bottom - 1);
             LineTo(rect.left, rect.top);
             LineTo(rect.right - 1, rect.top);
 
-            /* Draw the bottom and right */
+            /* bottom and right */
             RGBForeColor(&darkcolor);
             MoveTo(rect.right - 1, rect.top + 1);
             LineTo(rect.right - 1, rect.bottom - 1);
             LineTo(rect.left + 1, rect.bottom - 1);
 
-            /* Restore the foreground color */
             RGBForeColor(&color);
         }
         break;
@@ -404,19 +383,18 @@ ask_redraw(DialogRef wind, DialogItemIndex item)
         FrameRect(&rect);
         InsetRect(&rect, -2, -2);
         if (macFlags.color) {
-            /* Draw the top and left */
+            /* top and left */
             RGBForeColor(&darkcolor);
             MoveTo(rect.left, rect.bottom - 1);
             LineTo(rect.left, rect.top);
             LineTo(rect.right - 1, rect.top);
 
-            /* Draw the bottom and right */
+            /* bottom and right */
             RGBForeColor(&lightcolor);
             MoveTo(rect.right - 1, rect.top + 1);
             LineTo(rect.right - 1, rect.bottom - 1);
             LineTo(rect.left + 1, rect.bottom - 1);
 
-            /* Restore the colors */
             RGBForeColor(&blackcolor);
             RGBBackColor(&backcolor);
         }
@@ -494,13 +472,11 @@ mac_askname()
     UserItemUPP redraw = NewUserItemUPP(ask_redraw);
     ModalFilterUPP filter = NewModalFilterUPP(ask_filter);
 
-    /* Create the dialog */
     if (!(askdialog = GetNewDialog(RSRC_ASK, NULL, (WindowRef) -1)))
         noresource('DLOG', RSRC_ASK);
     GetPort(&oldport);
     SetPortDialogPort(askdialog);
 
-    /* Initialize the name text item */
     ask_restring(svp.plname, str);
     if (svp.plname[0]) {
         GetDialogItem(askdialog, RSRC_ASK_NAME, &type, &handle, &rect);
@@ -609,13 +585,12 @@ mac_askname()
     InsertMenu(askmenu[RSRC_ASK_MODE], hierMenu);
     currmode = 0;
 
-    /* Set the redraw procedures */
+    /* install per-item redraw procs */
     for (item = RSRC_ASK_DEFAULT; item <= RSRC_ASK_MODE; item++) {
         GetDialogItem(askdialog, item, &type, &handle, &rect);
         SetDialogItem(askdialog, item, type, (Handle) redraw, &rect);
     }
 
-    /* Handle dialog events */
     do {
         /* Adjust the Play button */
         ask_enable(askdialog, RSRC_ASK_PLAY,
@@ -738,7 +713,6 @@ mac_askname()
         }
     } while ((item != RSRC_ASK_PLAY) && (item != RSRC_ASK_QUIT));
 
-    /* Process the name */
     GetDialogItem(askdialog, RSRC_ASK_NAME, &type, &handle, &rect);
     GetDialogItemText(handle, str);
     if (str[0] > PL_NSIZ - 1)
@@ -746,7 +720,6 @@ mac_askname()
     BlockMove(&str[1], svp.plname, str[0]);
     svp.plname[str[0]] = '\0';
 
-    /* Destroy the dialog */
     for (i = RSRC_ASK_ROLE; i <= RSRC_ASK_MODE; i++) {
         DeleteMenu(i);
         DisposeMenu(askmenu[i]);
@@ -756,7 +729,6 @@ mac_askname()
     DisposeModalFilterUPP(filter);
     DisposeUserItemUPP(redraw);
 
-    /* Process the mode */
     wizard = discover = 0;
     switch (currmode) {
     case 0: /* Normal */
@@ -772,17 +744,10 @@ mac_askname()
         ExitToShell();
     }
 
-    /* Process the role */
     strcpy(svp.pl_character, roles[currrole].name.m);
     flags.initrole = currrole;
-
-    /* Process the race */
     flags.initrace = currrace;
-
-    /* Process the gender */
     flags.female = flags.initgend = currgend;
-
-    /* Process the alignment */
     flags.initalign = curralign;
 
     return;
@@ -899,11 +864,6 @@ AdjustMenus(short dimMenubar)
     WindowRef win = FrontWindow();
     short i;
 
-    /*
-     *	if (windowprocs != mac_procs) {
-     *		return;
-     *	}
-     */
     /* determine the new menubar state */
     if (dimMenubar)
         newMenubar = mbarDim;
@@ -990,11 +950,8 @@ AdjustMenus(short dimMenubar)
             else
                 DisableMenuItem(MHND_FILE, menuFileEnterExplore);
 
-            /* Enable Tile Mode only if tiles are available, and sync the
-               check mark to the live tile_mode state. AdjustMenus runs
-               before menu pulldown, so this closes the gap where a
-               resume event forced tile mode off but the idle-driven
-               mactile_menu_refresh hasn't fired yet. */
+            /* Enable Tile Mode iff tiles available; sync check mark to live
+               state here since AdjustMenus runs before menu pulldown. */
             if (mactile_available())
                 EnableMenuItem(MHND_FILE, menuFileTileMode);
             else
@@ -1034,11 +991,6 @@ DoMenuEvt(long menuEntry)
 #endif
         break;
 
-    /*
-     * Those direct calls are ugly: they should be installed into cmd.c .
-     * Those AddToKeyQueue() calls are also ugly: they should be put into
-     * the 'STR#' resource.
-     */
     case menuFile:
         switch (menuItem) {
         case menuFileRedraw:
@@ -1051,9 +1003,8 @@ DoMenuEvt(long menuEntry)
 
         case menuFileCleanup:
             (void) SanePositions();
-            /* Force a redraw: a synchronous docrt from the menu-handler
-               context doesn't take (window port unsettled), so queue ^R to
-               run it in the normal command loop (same as menuFileRedraw). */
+            /* queue ^R: synchronous redraw from menu-handler context doesn't
+               take (window port unsettled), so redraw in the command loop */
             AddToKeyQueue('R' & 0x1f, 1);
             break;
 
@@ -1082,12 +1033,8 @@ DoMenuEvt(long menuEntry)
             SetItemMark(MHND_FILE, menuFileTileMode,
                         newOn ? checkMark : noMark);
             iflags.wc_tiled_map = newOn;
-            /* Trigger a redraw by queueing ^R (the redraw command), exactly
-               like the File>Redraw item.  A redraw run synchronously from
-               this menu-handler context (docrt() here, or macmap_set_mode's
-               blit) doesn't take — the window isn't settled — so ^R was still
-               needed by hand.  Queued, doredraw()/docrt() runs in the normal
-               command loop and re-emits print_glyph for the new mode. */
+            /* queue ^R: synchronous redraw from menu-handler context doesn't
+               take; command-loop redraw re-emits print_glyph for the new mode */
             AddToKeyQueue('R' & 0x1f, 1);
             break;
         }
@@ -1121,7 +1068,7 @@ static void
 aboutNetHack()
 {
     if (theMenubar >= mbarRegular) {
-        (void) doversion(); /* is this necessary? */
+        (void) doversion();
     } else {
         unsigned char aboutStr[32];
         char tmp[32];
@@ -1193,16 +1140,12 @@ askQuit()
         }
     }
     if (doQuit) {
-        /* MWM -- forgive me lord, an even uglier kludge to deal with
-           differences
-                in command input handling
-         */
+        /* command input handling differs between the mac and tty window ports */
         if (winMac)
             quitinput = "#quit\r";
         else
             quitinput = "#q\r";
 
-        /* KMH -- Ugly kludge */
         while (*quitinput)
             AddToKeyQueue(*quitinput++, 1);
         if (doYes) {

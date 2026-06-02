@@ -63,10 +63,7 @@ main(void)
 
     getlock();
 
-/*
- * First, try to find and restore a save file for specified character.
- * We'll return here if new game player_selection() renames the hero.
- */
+/* try to restore a save file; re-entered if player_selection() renames the hero */
 attempt_restore:
     if (*svp.plname && (nhfp = restore_saved_game()) != 0) {
 #ifdef NEWS
@@ -78,7 +75,7 @@ attempt_restore:
         pline("Restoring save file...");
         mark_synch(); /* flush output */
         if (dorecover(nhfp)) {
-            resuming = TRUE; /* not starting new game */
+            resuming = TRUE;
             if (discover)
                 You("are in non-scoring discovery mode.");
             if (discover || wizard) {
@@ -92,17 +89,13 @@ attempt_restore:
     }
 
     if (!resuming) {
-        /* new game:  start by choosing role, race, etc;
-           player might change the hero's name while doing that,
-           in which case we try to restore under the new name
-           and skip selection this time if that didn't succeed */
+        /* new game: a rename during role selection re-attempts restore under
+           the new name */
         if (!iflags.renameinprogress) {
             player_selection();
             if (iflags.renameinprogress) {
-                /* player has renamed the hero while selecting role;
-                   discard current lock file and create another for
-                   the new character name */
-                delete_levelfile(0); /* remove empty lock file */
+                /* renamed during selection: drop lock file, relock under new name */
+                delete_levelfile(0);
                 getlock();
                 goto attempt_restore;
             }
@@ -113,7 +106,7 @@ attempt_restore:
     }
 
     set_savefile_name(TRUE); /* ensure SAVEF is set for dosave */
-    UndimMenuBar(); /* Yes, this is the place for it (!) */
+    UndimMenuBar();
 
     moveloop(resuming);
 
@@ -239,11 +232,8 @@ static void
 finder_file_request(void)
 {
     if (macFlags.hasAE) {
-        /* we're capable of handling Apple Events, so let's see if we have any
-         */
         EventRecord event;
-        long toWhen = TickCount()
-                      + 20; /* wait a third of a second for all initial AE */
+        long toWhen = TickCount() + 20; /* ~1/3 sec to collect initial Apple Events */
 
         while (TickCount() < toWhen) {
             if (WaitNextEvent(highLevelEventMask, &event, 3L, 0)) {
@@ -259,7 +249,6 @@ finder_file_request(void)
 boolean
 authorize_wizard_mode(void)
 {
-    /* other ports validate user name or character name here */
     return TRUE;
 }
 

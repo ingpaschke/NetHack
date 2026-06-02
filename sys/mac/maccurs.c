@@ -55,7 +55,7 @@ InitWinFile(void)
     }
     len = sizeof(savePos);
     if (FSRead(ref, &len, savePos) && len == 0) {
-        /* Read failed and got nothing — leave savePos uninitialized */
+        /* short or empty read: zero the buffer rather than use stale data */
         memset(savePos, 0, sizeof savePos);
     }
     winFileInit = 1; /* don't retry on every call */

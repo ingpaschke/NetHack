@@ -107,15 +107,13 @@ mactile_sheet_ctable(void)
     return (**GetGWorldPixMap(gTileSheet)).pmTable;
 }
 
-/* Index of a bright, NON-white tile-palette color for the farlook cursor.
-   Scored R+G-B so it favors bright/warm (yellow) and deprioritizes white and
-   blue; near-white entries are skipped outright (the white CLUT slot triggers
-   a reorg).  Cached.  Callers use PmForeColor(index) — index-direct, no render.
-   Returns -1 if no sheet/ctable or no usable color. */
+/* CLUT index of a bright, non-white tile color (scored R+G-B, favors yellow)
+   for the farlook cursor; near-white skipped as the white slot triggers a CLUT
+   reorg.  Cached.  Returns -1 if no sheet/ctable or no usable color. */
 short
 mactile_cursor_clut_index(void)
 {
-    if (gCursorClutIdx == -2) {            /* -2 = not yet computed */
+    if (gCursorClutIdx == -2) {
         gCursorClutIdx = -1;
         CTabHandle ct = mactile_sheet_ctable();
         if (ct && *ct) {
@@ -138,10 +136,8 @@ void
 mactile_blit_to(GWorldPtr dst, int tile_idx, short dst_x, short dst_y)
 {
     if (!gTileSheet || !dst) return;
-    /* Guard against generated tile.c expecting more tiles than the sheet
-       actually contains (e.g., a divergence between tile2pict's output and
-       tilemap.c's emitted indices). Out-of-bounds source rect would read
-       stray PixMap memory. */
+    /* Bounds-check tile_idx: an out-of-sheet source rect would read stray
+       PixMap memory. */
     if (tile_idx < 0 || tile_idx >= (int) gSheetCols * (int) gSheetRows) {
         mac_dprintf("mactile: tile_idx %d out of sheet (max %d)\n",
                     tile_idx, (int) gSheetCols * (int) gSheetRows - 1);

@@ -48,13 +48,7 @@ topl_yn_function(const char *query, const char *resp, char def)
     return c;
 }
 
-/*
- *   Generic yes/no function. 'def' is the default (returned by space or
- *   return; 'esc' returns 'q', or 'n', or the default, depending on
- *   what's in the string. The 'query' string is printed before the user
- *   is asked about the string.
- *   If resp is NULL, any single character is accepted and returned.
- */
+/* Generic yes/no prompt; if resp is NULL, any single character is accepted. */
 char
 mac_yn_function(const char *query, const char *resp, char def)
 {

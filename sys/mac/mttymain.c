@@ -27,12 +27,7 @@ struct WinDesc *wins[MAXWIN];
 winid BASE_WINDOW;
 #endif
 
-/*
- * Names:
- *
- * Statics are prefixed _
- * Mac-tty becomes mt_
- */
+/* naming: statics are prefixed _, mac-tty becomes mt_ */
 
 static long _mt_attrs[5][2] = {
     { 0x000000, 0xffffff }, /* Normal */
@@ -214,11 +209,8 @@ _mt_init_stuff(void)
         LI -= 1;
     }
 
-    /*
-     * If there is at least one screen CAPABLE of color, and if
-     * 32-bit QD is there, we use color. 32-bit QD is needed for the
-     * offscreen GWorld
-     */
+    /* use color if a color-capable screen exists and 32-bit QD is present
+     * (32-bit QD is required for the offscreen GWorld) */
     if (!Gestalt(gestaltQuickdrawVersion, &resp) && resp > 0x1ff) {
         GDHandle gdh = GetDeviceList();
         while (gdh) {
@@ -293,17 +285,12 @@ _mt_init_stuff(void)
         /* update the window proc has_color table */
         int i, setting = 0;
         Rect r;
-//	Point p = {0, 0};
         GDHandle gh = (GDHandle) 0;
 
         if (_mt_in_color) {
             GetWindowBounds(_mt_window, kWindowContentRgn, &r);
-//          SetPortWindowPort(_mt_window);
-//          LocalToGlobal (&p);
-//          OffsetRect (&r, p.h, p.v);
             gh = GetMaxDevice(&r);
-            /* > 4 bpp */
-            setting = ((*((*gh)->gdPMap))->pixelSize > 4) ? 1 : 0;
+            setting = ((*((*gh)->gdPMap))->pixelSize > 4) ? 1 : 0; /* > 4 bpp */
     	}
 
         for (i = 0; i < CLR_MAX ; ++i) {
