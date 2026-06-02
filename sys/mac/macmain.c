@@ -26,6 +26,7 @@
 
 static void finder_file_request(void);
 int main(void);
+extern void macalloc_stats(char *tag); /* profiling hook; no-op unless NHMAC_ALLOC_STATS */
 
 #if defined(__SC__) || defined(__MRC__)
 QDGlobals qd;
@@ -41,12 +42,14 @@ main(void)
     early_init(argc, (char **) 0);
     choose_windows("mac");
     InitMac();
+    macalloc_stats("boot");   /* baseline; ignore its dt */
 
     gh.hname = "Mac Hack";
     svh.hackpid = getpid();
     init_nhwindows(&argc, (char **) &gh.hname);
 
     initoptions();
+    macalloc_stats("initoptions");
     iflags.bgcolors = TRUE;
     iflags.use_background_glyph = TRUE;
 
@@ -57,6 +60,7 @@ main(void)
 
     vision_init();
     init_sound_disp_gamewindows();
+    macalloc_stats("gamewindows");   /* map window + tile-sheet load (if any) */
     set_playmode();
     plnamesuffix();
     iflags.renameallowed = TRUE;
@@ -100,7 +104,9 @@ attempt_restore:
                 goto attempt_restore;
             }
         }
+        macalloc_stats("selection");   /* dt incl. user think-time; resets base */
         newgame();
+        macalloc_stats("NEWGAME");     /* <-- the post-selection pause */
         if (discover)
             You("are in non-scoring discovery mode.");
     }
@@ -108,6 +114,7 @@ attempt_restore:
     set_savefile_name(TRUE); /* ensure SAVEF is set for dosave */
     UndimMenuBar();
 
+    macalloc_stats("premoveloop");
     moveloop(resuming);
 
     exit(EXIT_SUCCESS);

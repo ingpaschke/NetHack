@@ -591,7 +591,8 @@ MAC68K_COMMON_FLAGS = -m68020 -msoft-float \
 	-ffunction-sections -fdata-sections
 override TARGET_CFLAGS = -c -O2 $(MAC68K_COMMON_FLAGS)
 LUA_TARGET_CFLAGS = -c -O2 -DLUA_32BITS $(MAC68K_COMMON_FLAGS)
-override TARGET_LFLAGS = -Wl,--gc-sections
+override TARGET_LFLAGS = -Wl,--gc-sections \
+	-Wl,--wrap=malloc -Wl,--wrap=free -Wl,--wrap=realloc   # macalloc.c pool
 override TARGET_LIBS += -lm -lInterface
 
 override SYSSRC = ../sys/mac/macmain.c ../sys/mac/macwin.c \
@@ -603,6 +604,7 @@ override SYSSRC = ../sys/mac/macmain.c ../sys/mac/macwin.c \
 		../sys/mac/dprintf.c \
 		../sys/mac/mactile.c \
 		../sys/mac/macmap.c \
+		../sys/mac/macalloc.c \
 		../win/tty/wintty.c ../win/tty/topl.c \
 		../win/tty/getline.c
 override SYSOBJ = $(TARGETPFX)macmain.o $(TARGETPFX)macwin.o \
@@ -614,6 +616,7 @@ override SYSOBJ = $(TARGETPFX)macmain.o $(TARGETPFX)macwin.o \
 		$(TARGETPFX)dprintf.o \
 		$(TARGETPFX)mactile.o \
 		$(TARGETPFX)macmap.o \
+		$(TARGETPFX)macalloc.o \
 		$(TARGETPFX)tile.o \
 		$(TARGETPFX)wintty.o $(TARGETPFX)topl.o \
 		$(TARGETPFX)getline.o
