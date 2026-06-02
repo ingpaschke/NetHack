@@ -670,9 +670,18 @@ SanePositions(void)
         short title_h = small_screen ? 0 : 20;   /* title bar + small gap */
         short y = mbar_height + (small_screen ? 2 : 4);
         short msg_top, map_top, stat_top, avail_map_h, avail_map_w;
+        /* Honor saved window positions only on large screens, where windows
+           are movable. Small (borderless) screens always get the clean stack
+           since the windows can't be dragged/saved anyway. */
+        Boolean honor = !small_screen;
 
         /* Message is a few rows tall. */
         msg_h = 4 * theWindows[WIN_MESSAGE].row_height + 4;   /* ~4 lines */
+        /* DrawScrollbar() hides the message scrollbar when the window is no
+           taller than 50+SBARHEIGHT; on a decorated (scrollbar-bearing)
+           message, make sure we clear that threshold so it stays visible. */
+        if (theWindows[WIN_MESSAGE].scrollBar && msg_h <= 50 + SBARHEIGHT)
+            msg_h = 50 + SBARHEIGHT + 2;
 
         /* Fit the map into the space left after the menu bar, the message and
            status windows, and their title bars — so the whole stack fits on
@@ -691,14 +700,20 @@ SanePositions(void)
         content_left = (screenArea.right - content_w) / 2;
         if (content_left < 0) content_left = 0;
 
-        /* Messages on top. */
-        MoveWindow(msgw, content_left, msg_top, 1);
+        /* Messages on top (honor a saved position on large screens). */
+        if (!(honor && RetrievePosition(kMessageWindow, &top, &left))) {
+            top = msg_top; left = content_left;
+        }
+        MoveWindow(msgw, left, top, 1);
         SizeWindow(msgw, content_w, msg_h, 1);
         if (theWindows[WIN_MESSAGE].scrollBar)
             DrawScrollbar(&theWindows[WIN_MESSAGE]);
 
         /* Map in the middle. */
-        MoveWindow(mapw, content_left, map_top, 1);
+        if (!(honor && RetrievePosition(kMapWindow, &top, &left))) {
+            top = map_top; left = content_left;
+        }
+        MoveWindow(mapw, left, top, 1);
 
         /* Status on the bottom; keep it on-screen. */
         stat_top = map_top + map_h + 2 + title_h;
@@ -706,7 +721,10 @@ SanePositions(void)
             stat_top = screenArea.bottom - stat_h - 2;
         if (stat_top < mbar_height + 2)
             stat_top = mbar_height + 2;
-        MoveWindow(statw, content_left, stat_top, 1);
+        if (!(honor && RetrievePosition(kStatusWindow, &top, &left))) {
+            top = stat_top; left = content_left;
+        }
+        MoveWindow(statw, left, top, 1);
         /* Match the map width so the status' right edge aligns with the map.
            stat_h already carries the +2 frame allowance from creation; we only
            override the width here (the status line is shorter than the map, so

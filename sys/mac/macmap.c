@@ -90,6 +90,31 @@ layout_scroll_controls(void)
     ShowControl(gMap.vscroll); ShowControl(gMap.hscroll);
 }
 
+/* Reflect the current viewport position in the (inert) scrollbars so the
+   thumb shows where the visible area sits within the whole map. No-op when
+   borderless; when the whole map fits, the range is 0 (thumb fills, inactive).
+   Vertical = rows 0..ROWNO; horizontal = cols 1..COLNO-1 (col 0 unused). */
+static void
+update_scroll_controls(void)
+{
+    short vmax, vval, hmax, hval;
+    if (!gMap.decorated || !gMap.vscroll || !gMap.hscroll) return;
+    vmax = ROWNO - gMap.vis_rows;
+    if (vmax < 0) vmax = 0;
+    vval = gMap.scroll_row;
+    if (vval > vmax) vval = vmax;
+    if (vval < 0) vval = 0;
+    SetControlMaximum(gMap.vscroll, vmax);
+    SetControlValue(gMap.vscroll, vval);
+    hmax = (COLNO - 1) - gMap.vis_cols;
+    if (hmax < 0) hmax = 0;
+    hval = gMap.scroll_col - 1;   /* scroll_col is 1-based (col 0 unused) */
+    if (hval > hmax) hval = hmax;
+    if (hval < 0) hval = 0;
+    SetControlMaximum(gMap.hscroll, hmax);
+    SetControlValue(gMap.hscroll, hval);
+}
+
 /* NetHack color indices to RGB. Values are 16-bit per channel (Mac
    QuickDraw convention; 8-bit values multiplied by 257 for full range). */
 #define R16(v) ((unsigned short)((v) * 257))
@@ -274,6 +299,16 @@ macmap_create(NhWindow *map)
     gMap.vis_rows    = 21;
     gMap.scroll_col  = 1;   /* NetHack col 0 is unused */
     gMap.scroll_row  = 0;
+    /* Mark the whole tile cache "empty" (-1) up front: tile index 0 is a real
+       tile (the giant ant), so a zero-initialized cache would paint ants until
+       NetHack draws real glyphs. A repaint can run (via SanePositions ->
+       macmap_fit) before the first print_glyph, so seed this here. */
+    {
+        int rr, cc;
+        for (rr = 0; rr < ROWNO; ++rr)
+            for (cc = 0; cc < COLNO; ++cc)
+                gMap.tile_cache[rr][cc] = -1;
+    }
     /* Backing + tile-mode init deferred to macmap_finalize. */
 
     return true;
@@ -569,7 +604,8 @@ redraw_cell_from_cache(int col, int row)
     if (col < 1 || col >= COLNO || row < 0 || row >= ROWNO) return;
     if (gMap.tile_mode) {
         short idx = gMap.tile_cache[row][col];
-        draw_cell_tile(col, row, (int) idx);
+        if (idx >= 0)                  /* -1 = no glyph yet; 0 is a real tile */
+            draw_cell_tile(col, row, (int) idx);
     } else {
         char ch  = (char) gMap.text_cache[row][col];
         int  color = (int) gMap.text_color[row][col];
@@ -658,7 +694,7 @@ macmap_update_event(NhWindow *map)
             for (c = gMap.scroll_col; c < gMap.scroll_col + gMap.vis_cols && c < COLNO; ++c) {
                 if (gMap.tile_mode) {
                     short idx = gMap.tile_cache[r][c];
-                    if (idx) draw_cell_tile(c, r, (int) idx);
+                    if (idx >= 0) draw_cell_tile(c, r, (int) idx);
                 } else {
                     char ch  = (char) gMap.text_cache[r][c];
                     int  col = (int)  gMap.text_color[r][c];
@@ -670,6 +706,7 @@ macmap_update_event(NhWindow *map)
     /* Decorated windows: draw the inert scrollbar controls and grow box on
        top of the blit, inside the chrome strips reserved by the insets. */
     if (gMap.decorated) {
+        update_scroll_controls();
         DrawControls(map->its_window);
         DrawGrowIcon(map->its_window);
     }
@@ -686,7 +723,7 @@ macmap_clear(NhWindow *map)
         for (c = 0; c < COLNO; ++c) {
             gMap.text_cache[r][c] = ' ';
             gMap.text_color[r][c] = 8; /* NO_COLOR */
-            gMap.tile_cache[r][c] = 0;
+            gMap.tile_cache[r][c] = -1;  /* -1 = no glyph (tile 0 is the ant) */
         }
     /* Reset scroll so the next print_glyph for the hero forces a recenter
        (otherwise the prior level's viewport may still happen to contain the
@@ -845,6 +882,7 @@ macmap_cliparound(NhWindow *map, int x, int y)
 
     gMap.scroll_col = new_col;
     gMap.scroll_row = new_row;
+    update_scroll_controls();   /* reflect new viewport position in the thumbs */
 
     /* Big-jump path or no-backing fallback: full redraw. */
     if (!gMap.backing
@@ -910,6 +948,7 @@ macmap_grow_event(NhWindow *map, long newSize)
     } else {
         repaint_full_viewport();
     }
+    update_scroll_controls();   /* thumbs reflect the new viewport size */
 }
 
 /* Size the map window to show as much of the map as fits in avail_w x avail_h,

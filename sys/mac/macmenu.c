@@ -1051,6 +1051,10 @@ DoMenuEvt(long menuEntry)
 
         case menuFileCleanup:
             (void) SanePositions();
+            /* Force a redraw: a synchronous docrt from the menu-handler
+               context doesn't take (window port unsettled), so queue ^R to
+               run it in the normal command loop (same as menuFileRedraw). */
+            AddToKeyQueue('R' & 0x1f, 1);
             break;
 
         case menuFileEnterExplore:
