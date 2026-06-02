@@ -101,6 +101,7 @@ static void GeneralCursor(EventRecord *, WindowPtr, RgnHandle);
 #endif
 
 static void TextUpdate(NhWindow *wind);
+static void MenwUpdate(NhWindow *wind);
 
 NhWindow *theWindows = (NhWindow *) 0;
 Cursor qdarrow;
@@ -2871,6 +2872,56 @@ macUpdateMessage(EventRecord *theEvent, WindowPtr theWindow)
  *	Menu windows
  */
 
+/* Bulk selection commands for a PICK_ANY menu, mirroring the tty/Amiga menu
+   keys (standard defaults): '.' select all, '-' deselect all, '@' invert all;
+   ',' '\' '~' do the same for just the visible page. Updates the selection data
+   for the affected items, then repaints via MenwUpdate. Returns true if ch was a
+   selection command (handled), false to let normal accelerator handling run. */
+static Boolean
+MenwSelectCmd(NhWindow *wind, char ch)
+{
+    int act;          /* +1 = select, 0 = deselect, -1 = invert */
+    Boolean page;     /* limit to the currently visible page */
+    int i, vis_rows = 0;
+
+    if (!wind || wind->how != PICK_ANY || !wind->menuInfo)
+        return false;
+    switch (ch) {
+    case '.':  act = +1; page = false; break;
+    case '-':  act =  0; page = false; break;
+    case '@':  act = -1; page = false; break;
+    case ',':  act = +1; page = true;  break;
+    case '\\': act =  0; page = true;  break;
+    case '~':  act = -1; page = true;  break;
+    default:   return false;
+    }
+
+    if (page && wind->its_window) {
+        Rect cr;
+        GetWindowBounds(wind->its_window, kWindowContentRgn, &cr);
+        vis_rows = (cr.bottom - cr.top) / wind->row_height;
+    }
+
+    HLock((char **) wind->menuInfo);
+    for (i = 0; i < wind->miLen; i++) {
+        int cur, want;
+        if (page) {
+            int row = (*wind->menuInfo)[i].line - wind->scrollPos;
+            if (row <= 0 || row > vis_rows)
+                continue;   /* not on the visible page */
+        }
+        cur  = (ListItemSelected(wind, i) >= 0);
+        want = (act < 0) ? !cur : act;
+        if (want != cur)
+            ToggleMenuListItemSelected(wind, i);
+    }
+    HUnlock((char **) wind->menuInfo);
+
+    SetPortWindowPort(wind->its_window);
+    MenwUpdate(wind);   /* repaint text + re-hilite from the updated selection */
+    return true;
+}
+
 static void
 MenwKey(NhWindow *wind, char ch)
 {
@@ -2886,6 +2937,8 @@ MenwKey(NhWindow *wind, char ch)
     }
 
     if (!wind || !wind->menuInfo)
+        return;
+    if (MenwSelectCmd(wind, ch))
         return;
     HLock((char **) wind->menuInfo);
     for (i = 0, mi = *wind->menuInfo; i < wind->miLen; i++, mi++) {
