@@ -437,6 +437,7 @@ InitMac(void)
     if (i == 0)
         i = kFontIDMonaco;
     win_fonts[NHW_BASE] = win_fonts[NHW_MAP] = win_fonts[NHW_STATUS] = i;
+    win_fonts[NHW_MENU] = i;   /* fixed-width so menu columns line up */
     GetFNum("\x0aPSHackFont", &i);
     if (i == 0)
         i = kFontIDGeneva;
@@ -956,6 +957,10 @@ got1:
             TEActivate(top_line);
             TextFace(normal);
         }
+    } else if (kind == NHW_MENU) {
+        aWin->font_number = win_fonts[NHW_MENU];   /* fixed-width for alignment */
+        aWin->font_size = iflags.wc_fontsiz_menu ? iflags.wc_fontsiz_menu
+                          : iflags.wc_fontsiz_text ? iflags.wc_fontsiz_text : 9;
     } else {
         aWin->font_number = win_fonts[NHW_TEXT];
         aWin->font_size = iflags.wc_fontsiz_text ? iflags.wc_fontsiz_text : 9;
