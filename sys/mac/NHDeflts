@@ -13,6 +13,12 @@
 # Color
 OPTIONS=color
 
+# Map display: graphical tiles (the default) or ASCII text. You can switch any
+# time in-game with the Tile Mode menu item; this only sets the startup default.
+# Tiles need a color-capable screen (>=4-bit); B&W screens always use ASCII.
+# Uncomment for ASCII by default even on large color screens:
+#OPTIONS=!tiled_map
+
 # Fonts
 #OPTIONS=font_map:NewHackFont,font_size_map:9
 #OPTIONS=font_menu:geneva,font_size_menu:9
