@@ -1459,6 +1459,7 @@ mac_display_nhwindow(winid win, boolean f)
             SelectWindow(theWindow);
             ShowWindow(theWindow);
         }
+        macmap_flush();   /* per-frame flush: blit the batched cell draws once */
         return;
     }
 

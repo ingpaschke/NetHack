@@ -38,7 +38,9 @@ load_tile_pict(short pict_id, short depth)
     }
     PixMapHandle pm = GetGWorldPixMap(gTileSheet);
     NoPurgePixels(pm);   /* tile sheet stays resident */
-    LockPixels(pm);
+    LockPixels(pm);      /* kept locked for the sheet's lifetime (per-blit locking
+                            this resident pixmap thousands of times per redraw is
+                            pure overhead); released by DisposeGWorld in shutdown */
     GWorldPtr saveW; GDHandle saveD;
     GetGWorld(&saveW, &saveD);
     SetGWorld(gTileSheet, NULL);
@@ -46,7 +48,6 @@ load_tile_pict(short pict_id, short depth)
     DrawPicture(ph, &frame);
     QDErr draw_err = QDError();           /* capture while gTileSheet is current */
     SetGWorld(saveW, saveD);
-    UnlockPixels(pm);
     ReleaseResource((Handle) ph);
 
     if (draw_err != noErr) {
@@ -148,15 +149,10 @@ mactile_blit_to(GWorldPtr dst, int tile_idx, short dst_x, short dst_y)
     Rect src = { sy, sx, sy + 16, sx + 16 };
     Rect dr  = { dst_y, dst_x, dst_y + 16, dst_x + 16 };
 
-    PixMapHandle spm = GetGWorldPixMap(gTileSheet);
+    PixMapHandle spm = GetGWorldPixMap(gTileSheet);   /* sheet stays locked */
     PixMapHandle dpm = GetGWorldPixMap(dst);
-    if (!LockPixels(spm)) {
-        mac_dprintf("mactile: LockPixels(sheet) failed (purged?)\n");
-        return;
-    }
     if (!LockPixels(dpm)) {
         mac_dprintf("mactile: LockPixels(dst) failed (purged?)\n");
-        UnlockPixels(spm);
         return;
     }
     GWorldPtr saveW; GDHandle saveD;
@@ -165,7 +161,7 @@ mactile_blit_to(GWorldPtr dst, int tile_idx, short dst_x, short dst_y)
     CopyBits((BitMap *) *spm, (BitMap *) *dpm,
              &src, &dr, srcCopy, NULL);
     SetGWorld(saveW, saveD);
-    UnlockPixels(dpm); UnlockPixels(spm);
+    UnlockPixels(dpm);
 }
 
 void
@@ -182,16 +178,11 @@ mactile_blit_to_window(WindowPtr dst, int tile_idx, short dst_x, short dst_y)
     Rect src = { sy, sx, sy + 16, sx + 16 };
     Rect dr  = { dst_y, dst_x, dst_y + 16, dst_x + 16 };
 
-    PixMapHandle spm = GetGWorldPixMap(gTileSheet);
-    if (!LockPixels(spm)) {
-        mac_dprintf("mactile: LockPixels(sheet) failed (purged?)\n");
-        return;
-    }
+    PixMapHandle spm = GetGWorldPixMap(gTileSheet);   /* sheet stays locked */
     GrafPtr saveP; GetPort(&saveP);
     SetPort(dst);
     CopyBits((BitMap *) *spm,
              GetPortBitMapForCopyBits(GetWindowPort(dst)),
              &src, &dr, srcCopy, NULL);
     SetPort(saveP);
-    UnlockPixels(spm);
 }

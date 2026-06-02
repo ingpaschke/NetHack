@@ -44,6 +44,11 @@ typedef struct {
     ControlHandle  vscroll, hscroll;   /* functional scrollbars (decorated only) */
     Boolean        decorated;          /* documentProc with chrome/strips */
     short          inset_r, inset_b;   /* reserved strip widths (0 = borderless) */
+    /* Per-cell draws paint the backing and union this dirty rect; macmap_flush
+       blits it to the window once per frame (at display_nhwindow / curs) instead
+       of one CopyBits per cell. Coords are backing/window-local. */
+    Rect           dirty;
+    Boolean        has_dirty;
 } MacMapState;
 
 static MacMapState gMap = {0};
@@ -53,6 +58,15 @@ static ControlActionUPP gMapScrollUPP = NULL;
 
 static void repaint_full_viewport(void);
 static void scroll_viewport_to(short new_col, short new_row);
+static void draw_cursor_border(int col, int row);
+
+/* Union a backing-local cell rect into the pending dirty region. */
+static void
+mark_dirty(const Rect *cell)
+{
+    if (!gMap.has_dirty) { gMap.dirty = *cell; gMap.has_dirty = true; }
+    else UnionRect(cell, &gMap.dirty, &gMap.dirty);
+}
 
 /* Drawable map area = port bounds minus the scrollbar strips (0 when borderless). */
 static void
@@ -443,7 +457,7 @@ draw_cell_text(int col, int row, char ch, int color)
     RGBColor white = {0xFFFF, 0xFFFF, 0xFFFF};
 
     if (gMap.backing) {
-        /* Paint into backing first, then blit cell to window. */
+        /* paint into backing; macmap_flush blits the dirty region once */
         PixMapHandle pm = GetGWorldPixMap(gMap.backing);
         if (!LockPixels(pm)) {
             mac_dprintf("macmap: draw_cell_text: LockPixels failed\n");
@@ -465,7 +479,7 @@ draw_cell_text(int col, int row, char ch, int color)
 
         SetGWorld(saveW, saveD);
         UnlockPixels(pm);
-        blit_backing_to_window(&cell, &cell);
+        mark_dirty(&cell);
     } else {
         /* fallback: direct to window */
         GrafPtr saveP; GetPort(&saveP);
@@ -500,7 +514,7 @@ draw_cell_tile(int col, int row, int tile_idx)
     if (gMap.backing) {
         mactile_blit_to(gMap.backing, tile_idx, dx, dy);
         Rect cell = { dy, dx, dy + 16, dx + 16 };
-        blit_backing_to_window(&cell, &cell);
+        mark_dirty(&cell);
     } else {
         mactile_blit_to_window(gMap.owner->its_window, tile_idx, dx, dy);
     }
@@ -565,20 +579,40 @@ redraw_cell_from_cache(int col, int row)
     }
 }
 
+/* Blit the accumulated dirty region to the window in one CopyBits, then draw
+   the hero/cursor highlight on top (it's a window-only overlay, never in the
+   backing, so the blit would otherwise erase it). Called at the per-frame flush
+   boundary (display_nhwindow / curs); a no-op blit when nothing is dirty. */
+void
+macmap_flush(void)
+{
+    if (!gMap.owner || !gMap.owner->its_window) return;
+    if (gMap.has_dirty && gMap.backing) {
+        Rect r = gMap.dirty, b;
+        SetRect(&b, 0, 0, gMap.vis_cols * gMap.cell_w, gMap.vis_rows * gMap.cell_h);
+        if (SectRect(&r, &b, &r))
+            blit_backing_to_window(&r, &r);
+    }
+    gMap.has_dirty = false;
+    if (gMap.cursor_on)
+        draw_cursor_border(gMap.cursor_x, gMap.cursor_y);
+}
+
 void
 macmap_curs(NhWindow *map, int x, int y)
 {
     if (!map || gMap.owner != map) return;
-    /* erase the old cursor border */
+    /* repaint the old cursor cell from cache so the flush erases its border */
     if (gMap.cursor_on
         && (gMap.cursor_x != x || gMap.cursor_y != y)) {
         redraw_cell_from_cache(gMap.cursor_x, gMap.cursor_y);
     }
-    /* frame the new cell (its glyph is already drawn) */
-    draw_cursor_border(x, y);
     gMap.cursor_x  = (short) x;
     gMap.cursor_y  = (short) y;
     gMap.cursor_on = true;
+    /* blit any pending cells and draw the new border on top (immediate so
+       interactive cursor moves in getpos/farlook show without a frame flush) */
+    macmap_flush();
 }
 
 void
@@ -647,6 +681,8 @@ macmap_update_event(NhWindow *map)
             }
     }
 
+    gMap.has_dirty = false;   /* the full-backing blit subsumes any pending dirty */
+
     /* draw the scrollbars and grow box on top of the blit */
     if (gMap.decorated) {
         update_scroll_controls();
@@ -672,6 +708,7 @@ macmap_clear(NhWindow *map)
     gMap.scroll_col = 1;
     gMap.scroll_row = 0;
     gMap.cursor_on  = false;
+    gMap.has_dirty  = false;
     if (map->its_window) {
         GrafPtr saveP; GetPort(&saveP);
         SetPort(map->its_window);
@@ -743,6 +780,7 @@ repaint_full_viewport(void)
     if (gMap.backing && gMap.owner->its_window) {
         Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
         blit_backing_to_window(&bbox, &bbox);
+        gMap.has_dirty = false;   /* per-cell marks above are now on screen */
     }
 }
 
@@ -835,6 +873,7 @@ scroll_viewport_to(short new_col, short new_row)
     if (gMap.backing && gMap.owner->its_window) {
         Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
         blit_backing_to_window(&bbox, &bbox);
+        gMap.has_dirty = false;   /* exposed-strip marks are now on screen */
     }
 }
 
