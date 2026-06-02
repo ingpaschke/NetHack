@@ -1114,12 +1114,20 @@ static Boolean
 in_topl_mode(void)
 {
     Rect rect;
+    WindowPtr w;
 
-    GetWindowBounds(theWindows[WIN_MESSAGE].its_window, kWindowContentRgn,
-                    &rect);
+    /* Validate BEFORE dereferencing: on exit mac_destroy_nhwindow sets
+       WIN_MESSAGE = WIN_ERR (-1), and this is still reached from the event
+       loop; theWindows[-1].its_window then reads garbage and GetWindowBounds
+       faults (bus error in in_topl_mode). */
+    if (WIN_MESSAGE == WIN_ERR || !top_line)
+        return FALSE;
+    w = theWindows[WIN_MESSAGE].its_window;
+    if (!w)
+        return FALSE;
+    GetWindowBounds(w, kWindowContentRgn, &rect);
     OffsetRect(&rect, -rect.left, -rect.top);
-    return (WIN_MESSAGE != WIN_ERR && top_line
-            && (*top_line)->viewRect.left < rect.right);
+    return ((*top_line)->viewRect.left < rect.right);
 }
 
 #define BTN_IND 2
