@@ -102,6 +102,7 @@ static void GeneralCursor(EventRecord *, WindowPtr, RgnHandle);
 
 static void TextUpdate(NhWindow *wind);
 static void MenwUpdate(NhWindow *wind);
+static void record_menu_line_style(NhWindow *, short, short, int, int);
 
 NhWindow *theWindows = (NhWindow *) 0;
 Cursor qdarrow;
@@ -838,6 +839,7 @@ got1:
     aWin->scrollBar = (ControlHandle) 0;
     aWin->menuInfo = 0;
     aWin->menuSelected = 0;
+    aWin->menuStyle = 0;
     aWin->miLen = 0;
     aWin->miSize = 0;
     aWin->menuChar = 'a';
@@ -902,7 +904,16 @@ got1:
         short res_id = (kind == NHW_MESSAGE && small_screen)
                            ? kWindMsgBorderless
                            : (WIN_BASE_RES + kind);
-        aWin->its_window = GetNewWindow(res_id, (WindowPtr) 0L, (WindowPtr) -1L);
+        /* Menus need a color (CGrafPort) window so menucolors render; a plain
+           GetNewWindow makes a 1-bit GrafPort where RGBForeColor is a no-op
+           (TextFace still works, which is why headings were bold but color
+           never showed). On a B&W screen a color window just draws B&W. */
+        if (kind == NHW_MENU)
+            aWin->its_window =
+                (WindowPtr) GetNewCWindow(res_id, (WindowPtr) 0L, (WindowPtr) -1L);
+        else
+            aWin->its_window =
+                GetNewWindow(res_id, (WindowPtr) 0L, (WindowPtr) -1L);
         if (!aWin->its_window) {
             error("cre_win: GetNewWindow %d failed", res_id);
             return WIN_ERR;
@@ -1065,6 +1076,10 @@ mac_clear_nhwindow(winid win)
         if (aWin->menuSelected) {
             DisposeHandle((Handle) aWin->menuSelected);
             aWin->menuSelected = NULL;
+        }
+        if (aWin->menuStyle) {
+            DisposeHandle(aWin->menuStyle);
+            aWin->menuStyle = NULL;
         }
         aWin->menuChar = 'a';
         aWin->miSelLen = 0;
@@ -1552,6 +1567,10 @@ mac_destroy_nhwindow(winid win)
         DisposeWindow(theWindow);
         if (aWin->windowText) {
             DisposeHandle(aWin->windowText);
+        }
+        if (aWin->menuStyle) {
+            DisposeHandle(aWin->menuStyle);
+            aWin->menuStyle = (Handle) 0;
         }
         aWin->its_window = (WindowPtr) 0;
         aWin->windowText = (Handle) 0;
@@ -2132,10 +2151,11 @@ mac_start_menu(winid win, unsigned long mbehavior)
 void
 mac_add_menu(winid win, const glyph_info *glyphinfo UNUSED,
              const anything *any, char menuChar,
-             char groupAcc, int attr, int clr UNUSED,
+             char groupAcc, int attr, int clr,
              const char *inStr, unsigned int itemflags)
 {
     NhWindow *aWin = &theWindows[win];
+    short line0;
     const char *str;
     char locStr[4 + BUFSZ];
     MacMHMenuItem *item;
@@ -2206,7 +2226,11 @@ mac_add_menu(winid win, const glyph_info *glyphinfo UNUSED,
     } else
         str = inStr;
 
+    line0 = aWin->y_size;
     putstr(win, attr, str);
+    /* record the style for the line(s) putstr just appended so the menu
+       renderer can draw headings bold and apply menucolors */
+    record_menu_line_style(aWin, line0, aWin->y_size, attr, clr);
 }
 
 /* End an NHW_MENU window; morestr is an optional prompt (window title). */
@@ -3020,13 +3044,179 @@ MenwClick(NhWindow *wind, Point pt)
     return;
 }
 
+/* NetHack color index -> RGB for menu text on the WHITE menu background.
+   (Same values as the map's table; the white-bg adjustments are in
+   set_menu_text_color, not here.) */
+static const RGBColor menuColorRGB[16] = {
+    {0x0000, 0x0000, 0x0000},   /* 0  black   */
+    {0xC0C0, 0x0000, 0x0000},   /* 1  red     */
+    {0x0000, 0x8080, 0x0000},   /* 2  green   */
+    {0x8080, 0x8080, 0x0000},   /* 3  brown   */
+    {0x0000, 0x0000, 0xC0C0},   /* 4  blue    */
+    {0x8080, 0x0000, 0x8080},   /* 5  magenta */
+    {0x0000, 0x8080, 0x8080},   /* 6  cyan    */
+    {0x8080, 0x8080, 0x8080},   /* 7  gray    */
+    {0x0000, 0x0000, 0x0000},   /* 8  no color (unused; -> black) */
+    {0xFFFF, 0x8080, 0x0000},   /* 9  orange  */
+    {0x0000, 0xC0C0, 0x0000},   /* 10 bright green (darkened for white bg) */
+    {0x8080, 0x8080, 0x0000},   /* 11 yellow (darkened for white bg) */
+    {0x0000, 0x0000, 0xFFFF},   /* 12 bright blue */
+    {0xC0C0, 0x0000, 0xC0C0},   /* 13 bright magenta */
+    {0x0000, 0x8080, 0x8080},   /* 14 bright cyan (darkened for white bg) */
+    {0x0000, 0x0000, 0x0000}    /* 15 white (-> black on white bg) */
+};
+
+/* Map a NetHack menu attribute to a QuickDraw text face. Headings come through
+   as ATR_BOLD or (the default) ATR_INVERSE; both render bold here. */
+static short
+menu_attr_face(int attr)
+{
+    switch (attr) {
+    case ATR_BOLD:
+    case ATR_INVERSE: return bold;
+    case ATR_ULINE:   return underline;
+    default:          return normal;
+    }
+}
+
+/* Set the pen color for a menu line. The menu background is white, so NO_COLOR
+   and white become black, and on sub-4-bit screens colors are skipped. */
+static void
+set_menu_text_color(int color)
+{
+    RGBColor black = { 0, 0, 0 };
+    GDHandle gd = GetMainDevice();
+    short depth = gd ? (*(*gd)->gdPMap)->pixelSize : 1;
+
+    if (depth < 4 || color == NO_COLOR || color == CLR_WHITE
+        || color < 0 || color >= CLR_MAX)
+        RGBForeColor(&black);
+    else
+        RGBForeColor(&menuColorRGB[color]);
+}
+
+/* Store {attr,color} for menu lines [from,to). Grows the per-line style handle. */
+static void
+record_menu_line_style(NhWindow *aWin, short from, short to, int attr, int color)
+{
+    long need = (long) to * 2;
+    short l;
+    unsigned char *b;
+
+    if (to <= from)
+        return;
+    if (!aWin->menuStyle) {
+        aWin->menuStyle = NewHandle(need > 128 ? need : 128);
+        if (!aWin->menuStyle)
+            return;
+    } else if (GetHandleSize(aWin->menuStyle) < need) {
+        SetHandleSize(aWin->menuStyle, need + 128);
+        if (MemError())
+            return;
+    }
+    HLock(aWin->menuStyle);
+    b = (unsigned char *) *aWin->menuStyle;
+    for (l = from; l < to; l++) {
+        b[l * 2]     = (unsigned char) attr;
+        b[l * 2 + 1] = (unsigned char) color;
+    }
+    HUnlock(aWin->menuStyle);
+}
+
+/* Draw a menu's text line-by-line with per-line face (bold headings) and color
+   (menucolors), replacing TETextBox so each line can have its own style. */
+static void
+MenwDrawStyled(NhWindow *wind)
+{
+    Rect r, r2;
+    RgnHandle h = (RgnHandle) 0;
+    Boolean vis;
+    char *base;
+    long tlen, i, lineStart;
+    short lineIdx, row, vis_rows;
+
+    GetWindowBounds(wind->its_window, kWindowContentRgn, &r);
+    OffsetRect(&r, -r.left, -r.top);
+    r2 = r;
+    r2.left = r2.right - SBARWIDTH;
+    r2.right += 1;
+    r2.top -= 1;
+    vis = (r2.bottom > r2.top + 50);
+
+    EraseRect(&r);   /* clear old text/hilites (white background) */
+    draw_growicon_vert_only(wind->its_window);
+    DrawControls(wind->its_window);
+
+    /* clip text to exclude the scrollbar strip, preserving any update clip */
+    if (vis && (h = NewRgn())) {
+        RgnHandle tmp = NewRgn();
+        if (!tmp) {
+            DisposeRgn(h);
+            h = (RgnHandle) 0;
+        } else {
+            GetClip(h);
+            RectRgn(tmp, &r2);
+            DiffRgn(h, tmp, tmp);
+            SetClip(tmp);
+            DisposeRgn(tmp);
+        }
+    }
+
+    vis_rows = (r.bottom - r.top) / wind->row_height + 1;
+    TextMode(srcOr);
+
+    HLock(wind->windowText);
+    if (wind->menuStyle)
+        HLock(wind->menuStyle);
+    base = *wind->windowText;
+    tlen = wind->windowTextLen;
+    lineStart = 0;
+    lineIdx = 0;
+    for (i = 0; i <= tlen; i++) {
+        if (i == tlen || base[i] == CHAR_CR) {
+            long llen = i - lineStart;
+            row = lineIdx - wind->scrollPos;
+            if (row >= 0 && row <= vis_rows && llen > 0) {
+                int attr = ATR_NONE, color = NO_COLOR;
+                if (wind->menuStyle
+                    && (long) (lineIdx + 1) * 2 <= GetHandleSize(wind->menuStyle)) {
+                    unsigned char *sb = (unsigned char *) *wind->menuStyle;
+                    attr  = sb[lineIdx * 2];
+                    color = sb[lineIdx * 2 + 1];
+                }
+                TextFace(menu_attr_face(attr));
+                set_menu_text_color(color);
+                MoveTo(r.left, row * wind->row_height + wind->ascent_height);
+                DrawText(base, (short) lineStart, (short) llen);
+            }
+            lineStart = i + 1;
+            lineIdx++;
+            if (i == tlen)
+                break;
+        }
+    }
+    {
+        RGBColor black = { 0, 0, 0 };
+        TextFace(normal);
+        RGBForeColor(&black);
+    }
+    if (wind->menuStyle)
+        HUnlock(wind->menuStyle);
+    HUnlock(wind->windowText);
+
+    if (h) {
+        SetClip(h);
+        DisposeRgn(h);
+    }
+}
+
 static void
 MenwUpdate(NhWindow *wind)
 {
     int i, line;
     MacMHMenuItem *mi;
 
-    TextUpdate(wind);
+    MenwDrawStyled(wind);
     if (!wind->menuInfo || !wind->menuSelected || wind->miSelLen <= 0)
         return;
     HLock((Handle) wind->menuInfo);

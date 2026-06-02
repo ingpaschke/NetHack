@@ -133,6 +133,7 @@ typedef struct NhWindow {
     short **menuSelected;     /* list of selected elements from list */
     short miSelLen;           /* number of items selected */
     short how;                /* menu mode */
+    Handle menuStyle;         /* per-line {attr,color} bytes for styled menu draw */
 
     char drawn;
     Handle windowText;
