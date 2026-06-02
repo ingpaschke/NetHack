@@ -912,6 +912,38 @@ macmap_grow_event(NhWindow *map, long newSize)
     }
 }
 
+/* Size the map window to show as much of the map as fits in avail_w x avail_h,
+   snapped to whole cells (no dead space, last row/col not clipped) and never
+   larger than the full ROWNO x COLNO map. Reuses the grow path for the resize +
+   viewport/backing update. Placement is still owned by SanePositions(). */
+void
+macmap_fit(short avail_w, short avail_h)
+{
+    long full_w, full_h;
+    short w, h, cols, rows;
+    /* NetHack map column 0 is unused (the viewport starts at scroll_col=1), so
+       only COLNO-1 columns hold content; sizing for the full COLNO leaves one
+       blank column on the right. ROWNO rows are all used. */
+    short map_cols = COLNO - 1;
+    if (!gMap.owner || !gMap.owner->its_window) return;
+    if (gMap.cell_w < 1 || gMap.cell_h < 1) return;
+    if (avail_w < gMap.cell_w + gMap.inset_r) avail_w = gMap.cell_w + gMap.inset_r;
+    if (avail_h < gMap.cell_h + gMap.inset_b) avail_h = gMap.cell_h + gMap.inset_b;
+    full_w = (long) map_cols * gMap.cell_w + gMap.inset_r;
+    full_h = (long) ROWNO * gMap.cell_h + gMap.inset_b;
+    w = (full_w < (long) avail_w) ? (short) full_w : avail_w;
+    h = (full_h < (long) avail_h) ? (short) full_h : avail_h;
+    cols = (short) ((w - gMap.inset_r) / gMap.cell_w);
+    rows = (short) ((h - gMap.inset_b) / gMap.cell_h);
+    if (cols < 1) cols = 1;
+    if (cols > map_cols) cols = map_cols;
+    if (rows < 1) rows = 1;
+    if (rows > ROWNO) rows = ROWNO;
+    w = (short) (cols * gMap.cell_w + gMap.inset_r);
+    h = (short) (rows * gMap.cell_h + gMap.inset_b);
+    macmap_grow_event(gMap.owner, ((long) h << 16) | ((long) w & 0xffffL));
+}
+
 /* Returns true if a window-LOCAL click landed on the decorative chrome
    (either scrollbar control, or the reserved right/bottom strips + grow
    corner) and should be swallowed.  Called from BaseClick so a click on the

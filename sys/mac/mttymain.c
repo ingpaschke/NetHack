@@ -4,6 +4,7 @@
 
 #include "hack.h"
 #include "macwin.h"
+#include "macmap.h"
 #include "mttypriv.h"
 #include "mactty.h"
 #include "wintty.h"
@@ -233,11 +234,13 @@ _mt_init_stuff(void)
     }
 
     {
-        short err = create_tty(&_mt_window, WIN_BASE_KIND + NHW_MAP, _mt_in_color);
+        short statw_id = small_screen ? kWindStatusBorderless
+                                      : (WIN_BASE_KIND + NHW_MAP);
+        short err = create_tty(&_mt_window, statw_id, _mt_in_color);
         if (err != noErr) {
             /* Try again in B&W if color failed */
             _mt_in_color = 0;
-            err = create_tty(&_mt_window, WIN_BASE_KIND + NHW_MAP, 0);
+            err = create_tty(&_mt_window, statw_id, 0);
             if (err != noErr)
                 error("_mt_init_stuff: Couldn't create tty (err=%d).", (int)err);
         }

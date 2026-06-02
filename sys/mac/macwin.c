@@ -651,7 +651,7 @@ SanePositions(void)
     WindowPtr theWindow;
     WindowPtr msgw   = theWindows[WIN_MESSAGE].its_window;
     WindowPtr statw  = _mt_window;
-    Rect mr, msgr, statr;
+    Rect mr, statr;
     short msg_h, map_h, stat_h, content_left, content_w;
 
 #ifdef CROSS_TO_MAC68K
@@ -661,48 +661,66 @@ SanePositions(void)
 #endif
     OffsetRect(&screenArea, -screenArea.left, -screenArea.top);
 
-    /* Natural content sizes already set at creation. Read them back. */
-    GetWindowPortBounds(mapw,  &mr);
-    GetWindowPortBounds(msgw,  &msgr);
+    /* The status window was shrunk to its status rows at creation; read that
+       height. The map is fit below; the message is a fixed few rows. */
     GetWindowPortBounds(statw, &statr);
-    map_h  = mr.bottom  - mr.top;
-    msg_h  = msgr.bottom - msgr.top;
     stat_h = statr.bottom - statr.top;
-
-    /* Horizontal: center on the map width (expected to be the widest). */
-    content_w    = mr.right - mr.left;
-    content_left = (screenArea.right - content_w) / 2;
-    if (content_left < 0) content_left = 0;
 
     {
         short title_h = small_screen ? 0 : 20;   /* title bar + small gap */
         short y = mbar_height + (small_screen ? 2 : 4);
+        short msg_top, map_top, stat_top, avail_map_h, avail_map_w;
+
+        /* Message is a few rows tall. */
+        msg_h = 4 * theWindows[WIN_MESSAGE].row_height + 4;   /* ~4 lines */
+
+        /* Fit the map into the space left after the menu bar, the message and
+           status windows, and their title bars — so the whole stack fits on
+           screen and the map shows as many whole rows as possible (no dead
+           space). macmap_fit resizes the map window + its viewport/backing. */
+        msg_top = y + title_h;
+        map_top = msg_top + msg_h + 2 + title_h;
+        avail_map_h = screenArea.bottom - map_top - (title_h + stat_h + 2);
+        avail_map_w = screenArea.right - 4;
+        macmap_fit(avail_map_w, avail_map_h);
+
+        /* Re-read the fitted map size; center the stack on its width. */
+        GetWindowPortBounds(mapw, &mr);
+        map_h = mr.bottom - mr.top;
+        content_w = mr.right - mr.left;
+        content_left = (screenArea.right - content_w) / 2;
+        if (content_left < 0) content_left = 0;
 
         /* Messages on top. */
-        if (!RetrievePosition(kMessageWindow, &top, &left)) {
-            top = y + title_h; left = content_left;
-        }
-        MoveWindow(msgw, left, top, 1);
+        MoveWindow(msgw, content_left, msg_top, 1);
+        SizeWindow(msgw, content_w, msg_h, 1);
         if (theWindows[WIN_MESSAGE].scrollBar)
             DrawScrollbar(&theWindows[WIN_MESSAGE]);
-        y = top + msg_h + 2;
 
         /* Map in the middle. */
-        if (!RetrievePosition(kMapWindow, &top, &left)) {
-            top = y + title_h; left = content_left;
-        }
-        MoveWindow(mapw, left, top, 1);
-        y = top + map_h + 2;
+        MoveWindow(mapw, content_left, map_top, 1);
 
         /* Status on the bottom; keep it on-screen. */
-        if (!RetrievePosition(kStatusWindow, &top, &left)) {
-            top = y + title_h; left = content_left;
+        stat_top = map_top + map_h + 2 + title_h;
+        if (stat_top + stat_h > screenArea.bottom)
+            stat_top = screenArea.bottom - stat_h - 2;
+        if (stat_top < mbar_height + 2)
+            stat_top = mbar_height + 2;
+        MoveWindow(statw, content_left, stat_top, 1);
+        /* Match the map width so the status' right edge aligns with the map.
+           stat_h already carries the +2 frame allowance from creation; we only
+           override the width here (the status line is shorter than the map, so
+           the visible content area is not clipped on the screens we target). */
+        SizeWindow(statw, content_w, stat_h, 1);
+        /* MoveWindow reset the port origin; restore the 1px frame inset and
+           repaint so the status rows (offscreen 0..) stay visible. */
+        SetPortWindowPort(statw);
+        SetOrigin(-1, -1);
+        {
+            Rect sfull;
+            GetWindowPortBounds(statw, &sfull);
+            InvalWindowRect(statw, &sfull);
         }
-        if (top + stat_h > screenArea.bottom)
-            top = screenArea.bottom - stat_h - 2;
-        if (top < mbar_height + 2)      /* never overlap the menu bar */
-            top = mbar_height + 2;
-        MoveWindow(statw, left, top, 1);
     }
 
     /* Handle other windows (NHW_MENU / NHW_TEXT) */
@@ -749,7 +767,9 @@ SanePositions(void)
 void
 mac_init_nhwindows(int *argcp, char **argv)
 {
-    Rect r;
+#if !TARGET_API_MAC_CARBON
+    Rect r;   /* only used by the non-Carbon message-restore below */
+#endif
 
 #if !TARGET_API_MAC_CARBON
     {
@@ -781,11 +801,17 @@ mac_init_nhwindows(int *argcp, char **argv)
     tty_create_nhwindow(NHW_MESSAGE);
 
 #if !TARGET_API_MAC_CARBON
-    RetrievePosition(kMessageWindow, &r.top, &r.left);
-    RetrieveSize(kMessageWindow, r.top, r.left, &r.bottom, &r.right);
-    if (theWindows[NHW_MESSAGE].its_window) {
+    /* Only reposition/resize the message window when a SAVED position/size
+       exists. RetrievePosition/RetrieveSize leave their outputs UNTOUCHED on a
+       miss, so acting unconditionally would move/size to an uninitialized Rect
+       (garbage). Without a saved layout, leave the window at its WIND default;
+       SanePositions ("Clean Up Windows") establishes the stacked layout. */
+    if (theWindows[NHW_MESSAGE].its_window
+        && RetrievePosition(kMessageWindow, &r.top, &r.left)) {
         MoveWindow(theWindows[NHW_MESSAGE].its_window, r.left, r.top, false);
-        SizeWindow(theWindows[NHW_MESSAGE].its_window, r.right, r.bottom, true);
+        if (RetrieveSize(kMessageWindow, r.top, r.left, &r.bottom, &r.right))
+            SizeWindow(theWindows[NHW_MESSAGE].its_window, r.right, r.bottom,
+                       true);
     }
 #endif
     return;
@@ -868,58 +894,41 @@ got1:
         get_tty_metrics(aWin->its_window, &x_sz, &y_sz, &x_sz_p, &y_sz_p,
                         &aWin->font_number, &aWin->font_size,
                         &aWin->char_width, &aWin->row_height);
-        /* Status: shrink _mt_window to just the status rows (the map area
-           moved to the dedicated macmap window). Use SetOrigin so the bottom
-           rows of the existing offscreen blit into the visible content. */
+        /* Status: this window now shows ONLY the status lines (the map and
+           message live in their own windows, so _mt_window's offscreen is
+           otherwise unused). Draw the status at the TOP of the offscreen
+           (offy = 0) so a plain origin shows it — no SetOrigin slice and no
+           park-below-map; SanePositions owns placement. */
         if (kind == NHW_STATUS && wins[i]) {
             short row_h = aWin->row_height;
-            short off_y = (short) wins[i]->offy;       /* status top row */
             short rows  = (short) wins[i]->rows;       /* 2 or 3 */
-            short content_h = rows * row_h;
+            short content_h;
             short content_w = x_sz_p;
-            if (off_y <= 0) {
-                /* tty_create_nhwindow should have populated offy with the
-                   status row index (~ROWNO+1). If it's 0 here, something
-                   has changed the init order and the SetOrigin shift below
-                   will land on the empty top of the offscreen instead of
-                   the status text. */
-                mac_dprintf("status: off_y=%d, rows=%d — init order changed?\n",
-                            (int) off_y, (int) rows);
-            }
+            if (rows < 1) rows = 2;                    /* defensive */
+            content_h = rows * row_h;
+            wins[i]->offy = 0;     /* status renders at offscreen rows 0..rows-1 */
             SetPortWindowPort(_mt_window);
             SizeWindow(_mt_window, content_w + 2, content_h + 2, 1);
-            /* Park it just below the map window. Move first, then SetOrigin —
-               MoveWindow recomputes visRgn/portBits and we want the origin
-               shift applied to the final placement. */
-            if (WIN_MAP != WIN_ERR && theWindows[WIN_MAP].its_window) {
-                Rect mr;
-                GetWindowBounds(theWindows[WIN_MAP].its_window,
-                                kWindowContentRgn, &mr);
-                MoveWindow(_mt_window, mr.left, mr.bottom + 4, false);
-            }
-            /* SetOrigin so port-coord (0, off_y*row_h) maps to bitmap (1,1)
-               — i.e. the offscreen status rows blit directly into the visible
-               window area, with the existing 1px frame inset. */
-            SetPortWindowPort(_mt_window);
-            SetOrigin(-1, off_y * row_h - 1);
-            /* Queue a full repaint so the next update event re-blits status
-               into the now-visible area. (image_tty here would force a
-               CopyBits during early init — unsafe path on classic Mac.) */
+            SetOrigin(-1, -1);     /* 1px frame inset only (no off_y slice) */
             Rect full;
             GetWindowPortBounds(_mt_window, &full);
             InvalWindowRect(_mt_window, &full);
-            /* _mt_window is created from WIND 131 — the legacy tty "dungeon
-               map" window — but it's the status window now, so retitle it. */
+            /* _mt_window came from the legacy tty "dungeon map" WIND — it's the
+               status window now, so retitle it. */
             SetWTitle(_mt_window, P_STRING_CONV("Status"));
         }
         return i;
     }
 
-    aWin->its_window =
-        GetNewWindow(WIN_BASE_RES + kind, (WindowPtr) 0L, (WindowPtr) -1L);
-    if (!aWin->its_window) {
-        error("cre_win: GetNewWindow %d failed", WIN_BASE_RES + kind);
-        return WIN_ERR;
+    {
+        short res_id = (kind == NHW_MESSAGE && small_screen)
+                           ? kWindMsgBorderless
+                           : (WIN_BASE_RES + kind);
+        aWin->its_window = GetNewWindow(res_id, (WindowPtr) 0L, (WindowPtr) -1L);
+        if (!aWin->its_window) {
+            error("cre_win: GetNewWindow %d failed", res_id);
+            return WIN_ERR;
+        }
     }
     SetWindowKind(aWin->its_window, WIN_BASE_KIND + kind);
     SetWRefCon(aWin->its_window, (long) aWin);
@@ -984,7 +993,8 @@ got1:
     aWin->row_height = aWin->ascent_height + fi.descent;
     aWin->char_width = fi.widMax;
 
-    if (kind == NHW_MENU || kind == NHW_TEXT || kind == NHW_MESSAGE) {
+    if ((kind == NHW_MENU || kind == NHW_TEXT || kind == NHW_MESSAGE)
+        && !(kind == NHW_MESSAGE && small_screen)) {
         Rect r;
 
         GetWindowBounds(aWin->its_window, kWindowContentRgn, &r);
@@ -1035,7 +1045,8 @@ mac_clear_nhwindow(winid win)
         if (aWin->scrollPos
             == aWin->y_size - 1) /* if no change since last clear */
             return;              /* don't bother with redraw */
-        r.bottom -= SBARHEIGHT;
+        if (aWin->scrollBar)
+            r.bottom -= SBARHEIGHT;
         /* Trim old messages to msg_history limit.  Find the
            offset past the Nth CR from the start, then discard
            everything before it with a single BlockMove. */
@@ -1818,8 +1829,10 @@ mac_doprev_message(void)
     if (WIN_MESSAGE != WIN_ERR) {
         NhWindow *winToScroll = &theWindows[WIN_MESSAGE];
         mac_display_nhwindow(WIN_MESSAGE, FALSE);
-        SetPortWindowPort(winToScroll->its_window);
-        MoveScrollBar(winToScroll->scrollBar, kControlUpButtonPart);
+        if (winToScroll->scrollBar) {
+            SetPortWindowPort(winToScroll->its_window);
+            MoveScrollBar(winToScroll->scrollBar, kControlUpButtonPart);
+        }
     }
     return 0;
 }
@@ -2017,8 +2030,10 @@ mac_putstr(winid win, int attr, const char *str)
     GetWindowBounds(aWin->its_window, kWindowContentRgn, &r);
     OffsetRect(&r, -r.left, -r.top);
     if (win == WIN_MESSAGE) {
-        r.right -= SBARWIDTH;
-        r.bottom -= SBARHEIGHT;
+        if (aWin->scrollBar) {
+            r.right -= SBARWIDTH;
+            r.bottom -= SBARHEIGHT;
+        }
         if (flags.safe_wait
             && aWin->last_more_lin
                    <= aWin->y_size - (r.bottom - r.top) / aWin->row_height) {
@@ -2108,8 +2123,10 @@ mac_putstr(winid win, int attr, const char *str)
         short min = aWin->y_size - (r.bottom - r.top) / aWin->row_height;
         if (aWin->scrollPos < min) {
             aWin->scrollPos = min;
-            SetControlMaximum(aWin->scrollBar, aWin->y_size);
-            SetControlValue(aWin->scrollBar, min);
+            if (aWin->scrollBar) {
+                SetControlMaximum(aWin->scrollBar, aWin->y_size);
+                SetControlValue(aWin->scrollBar, min);
+            }
         }
         InvalWindowRect(aWin->its_window, &r);
     } else /* Message has a fixed width, other windows base on content */
@@ -2720,13 +2737,16 @@ MsgUpdate(NhWindow *wind)
     OffsetRect(&r, -r.left, -r.top);
 
     DrawControls(wind->its_window);
-    DrawGrowIcon(wind->its_window);
+    if (wind->scrollBar)
+        DrawGrowIcon(wind->its_window);
 
     /* Buttons are drawn at the end of MsgUpdate, after TETextBox,
        so they can't be overwritten by message text. */
 
-    r.right -= SBARWIDTH;
-    r.bottom -= SBARHEIGHT;
+    if (wind->scrollBar) {
+        r.right -= SBARWIDTH;
+        r.bottom -= SBARHEIGHT;
+    }
     /* Clip to the portrect - scrollbar/growicon *before* adjusting the rect
             to be larger than the size of the window (!) */
     RectRgn(clip, &r);

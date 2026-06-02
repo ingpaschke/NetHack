@@ -24,6 +24,7 @@ extern void    macmap_curs(NhWindow *map, int x, int y);
 /* Mac event callbacks. */
 extern void    macmap_update_event(NhWindow *map);
 extern void    macmap_grow_event(NhWindow *map, long newSize);
+extern void    macmap_fit(short avail_w, short avail_h);
 extern Boolean macmap_click(NhWindow *map, Point pt, UInt32 modifiers);
 
 /* Viewport queries. */
@@ -36,5 +37,7 @@ extern void    macmap_pixel_to_cell(NhWindow *map, Point pt,
 /* Reserved WIND resource IDs. */
 #define kWindMapDocument    200
 #define kWindMapBorderless  201
+#define kWindStatusBorderless 210
+#define kWindMsgBorderless    211
 
 #endif /* MACMAP_H */

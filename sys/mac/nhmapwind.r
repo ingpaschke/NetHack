@@ -31,3 +31,23 @@ resource 'WIND' (201, "Dungeon Map (borderless)", purgeable) {
     "",
     noAutoCenter
 };
+
+resource 'WIND' (210, "Status (borderless)", purgeable) {
+    {40, 0, 80, 480},
+    plainDBox,                  /* WDEF procID = 2 (no chrome) */
+    invisible,
+    noGoAway,
+    0x0,
+    "",
+    noAutoCenter
+};
+
+resource 'WIND' (211, "Messages (borderless)", purgeable) {
+    {40, 0, 120, 480},
+    plainDBox,
+    invisible,
+    noGoAway,
+    0x0,
+    "",
+    noAutoCenter
+};
