@@ -88,11 +88,13 @@ SilverLining driver — use `hmount`/`hcopy`/`humount` to update files in place.
 
 ### Resource merging note
 
-**Do NOT use `Rez --copy`** to merge resources. Rez reorganizes the data
-section and shifts CODE/DATA/RELA resources from their original offsets,
-which causes Bus Errors when the Retro68 runtime tries to load them.
-The build uses `append_rsrc.py` which appends new resources at the END
-of the data section, preserving all existing offsets.
+Resources are merged into the application fork with a single `Rez --copy`
+pass.  Gotcha: on a non-Mac host, Rez locates a file's resource fork via
+its sidecar conventions (`file` plus `.rsrc/file`); pass it a bare fork
+image and it silently reads an EMPTY fork and emits an app with no CODE
+resources, which crashes at launch.  Always hand `--copy` the data-fork
+path of a file whose fork lives in the `.rsrc/` sidecar, as the pipeline
+does.
 
 ---
 
@@ -115,13 +117,11 @@ of the data section, preserving all existing offsets.
 
 | Script | Purpose |
 |--------|---------|
-| `append_rsrc.py` | Merge resources into a resource fork preserving existing offsets |
 | `make_macbin.py` | Create MacBinary II files from data + resource forks |
 | `make_scsi_image2.py` | Wrap an HFS image with Apple Partition Map for SCSI |
 | `make_dc42.py` | Create Disk Copy 4.2 images (`NetHack.dsk` in the packaging step) |
-| `decode_hqx.py` | Decode BinHex 4.0 (.hqx) files to data + resource forks |
+| `decode_hqx.py` | Decode BinHex 4.0 (.hqx) files to data + resource forks; `--creator-fixup` renames the legacy signature/BNDL creator |
 | `dump_rsrc.py` | Dump resource fork contents (types, IDs, sizes) |
-| `verify_rela.py` | Verify RELA relocations by replaying them |
 
 ## Historical files
 
