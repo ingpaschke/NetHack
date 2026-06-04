@@ -366,7 +366,7 @@ InitMac(void)
     if (!gMouseRgn)
         error("InitMac: NewRgn (mouse region) failed");
     InitCursor();
-    GetQDGlobalsArrow(&qdarrow);
+    qdarrow = qd.arrow;
     ObscureCursor();
 
     MoveScrollUPP = NewControlActionUPP(MoveScrollBar);
@@ -455,8 +455,8 @@ DrawScrollbar(NhWindow *aWin)
 
     if (!aWin->scrollBar)
         return;
-    GetControlBounds(aWin->scrollBar, &crect);
-    GetWindowBounds(aWin->its_window, kWindowContentRgn, &wrect);
+    crect = (**aWin->scrollBar).contrlRect;
+    GetWindowPortBounds(aWin->its_window, &wrect);
     OffsetRect(&wrect, -wrect.left, -wrect.top);
     win_height = wrect.bottom - wrect.top;
 
@@ -517,11 +517,7 @@ SanePositions(void)
     Rect mr, statr;
     short msg_h, map_h, stat_h, content_left, content_w;
 
-#ifdef CROSS_TO_MAC68K
     screenArea = qd.screenBits.bounds;
-#else
-    screenArea = GetQDGlobalsScreenBits(&qbitmap)->bounds;
-#endif
     OffsetRect(&screenArea, -screenArea.left, -screenArea.top);
 
     /* status window was shrunk to its status rows at creation; read that height */
@@ -851,7 +847,7 @@ got1:
         && !(kind == NHW_MESSAGE && small_screen)) {
         Rect r;
 
-        GetWindowBounds(aWin->its_window, kWindowContentRgn, &r);
+        GetWindowPortBounds(aWin->its_window, &r);
         r.right -= (r.left - 1);
         r.left = r.right - SBARWIDTH;
         r.bottom -= (r.top + SBARHEIGHT);
@@ -888,7 +884,7 @@ mac_clear_nhwindow(winid win)
         return;
 
     SetPortWindowPort(theWindow);
-    GetWindowBounds(theWindow, kWindowContentRgn, &r);
+    GetWindowPortBounds(theWindow, &r);
     OffsetRect(&r, -r.left, -r.top);
     if (aWin->scrollBar)
         r.right -= SBARWIDTH;
@@ -979,14 +975,14 @@ in_topl_mode(void)
 
     /* Validate BEFORE dereferencing: on exit mac_destroy_nhwindow sets
        WIN_MESSAGE = WIN_ERR (-1), and this is still reached from the event
-       loop; theWindows[-1].its_window then reads garbage and GetWindowBounds
+       loop; theWindows[-1].its_window then reads garbage and GetWindowPortBounds
        faults (bus error in in_topl_mode). */
     if (WIN_MESSAGE == WIN_ERR || !top_line)
         return FALSE;
     w = theWindows[WIN_MESSAGE].its_window;
     if (!w)
         return FALSE;
-    GetWindowBounds(w, kWindowContentRgn, &rect);
+    GetWindowPortBounds(w, &rect);
     OffsetRect(&rect, -rect.left, -rect.top);
     return ((*top_line)->viewRect.left < rect.right);
 }
@@ -1000,8 +996,7 @@ topl_resp_rect(int resp_idx, Rect *r)
 {
     Rect rect;
 
-    GetWindowBounds(theWindows[WIN_MESSAGE].its_window, kWindowContentRgn,
-                    &rect);
+    GetWindowPortBounds(theWindows[WIN_MESSAGE].its_window, &rect);
     OffsetRect(&rect, -rect.left, -rect.top);
     r->left = (BTN_IND + BTN_W) * resp_idx + BTN_IND;
     r->right = r->left + BTN_W;
@@ -1460,7 +1455,7 @@ ToggleMenuSelect(NhWindow *aWin, int line)
 {
     Rect r;
 
-    GetWindowBounds(aWin->its_window, kWindowContentRgn, &r);
+    GetWindowPortBounds(aWin->its_window, &r);
     OffsetRect(&r, -r.left, -r.top);
     if (aWin->scrollBar)
         r.right -= SBARWIDTH;
@@ -1542,8 +1537,8 @@ MoveScrollBar(ControlHandle theBar, short part)
     if (!part)
         return;
 
-    theWin = GetControlOwner(theBar);
-    GetWindowBounds(theWin, kWindowContentRgn, &r);
+    theWin = (**theBar).contrlOwner;
+    GetWindowPortBounds(theWin, &r);
     OffsetRect(&r, -r.left, -r.top);
     winToScroll = (NhWindow *) (GetWRefCon(theWin));
     now = GetControlValue(theBar);
@@ -1602,7 +1597,7 @@ DoScrollBar(Point p, short code, ControlHandle theBar, NhWindow *aWin)
     if (!func) {
         if (aWin->scrollPos != GetControlValue(theBar)) {
             aWin->scrollPos = GetControlValue(theBar);
-            GetWindowBounds(aWin->its_window, kWindowContentRgn, &rect);
+            GetWindowPortBounds(aWin->its_window, &rect);
             OffsetRect(&rect, -rect.left, -rect.top);
             InvalWindowRect(aWin->its_window, &rect);
         }
@@ -1654,7 +1649,7 @@ draw_growicon_vert_only(WindowPtr wind)
     GetPort(&org_port);
     SetPortWindowPort(wind);
     GetClip(org_clip);
-    GetWindowBounds(wind, kWindowContentRgn, &r);
+    GetWindowPortBounds(wind, &r);
     OffsetRect(&r, -r.left, -r.top);
     r.left = r.right - SBARWIDTH;
     ClipRect(&r);
@@ -1810,7 +1805,7 @@ mac_putstr(winid win, int attr, const char *str)
     slen = strlen(str);
 
     SetPortWindowPort(aWin->its_window);
-    GetWindowBounds(aWin->its_window, kWindowContentRgn, &r);
+    GetWindowPortBounds(aWin->its_window, &r);
     OffsetRect(&r, -r.left, -r.top);
     if (win == WIN_MESSAGE) {
         if (aWin->scrollBar) {
@@ -2415,7 +2410,7 @@ MsgUpdate(NhWindow *wind)
         return;
     }
     GetClip(org_clip);
-    GetWindowBounds(wind->its_window, kWindowContentRgn, &r);
+    GetWindowPortBounds(wind->its_window, &r);
     OffsetRect(&r, -r.left, -r.top);
 
     DrawControls(wind->its_window);
@@ -2551,7 +2546,7 @@ MenwSelectCmd(NhWindow *wind, char ch)
 
     if (page && wind->its_window) {
         Rect cr;
-        GetWindowBounds(wind->its_window, kWindowContentRgn, &cr);
+        GetWindowPortBounds(wind->its_window, &cr);
         vis_rows = (cr.bottom - cr.top) / wind->row_height;
     }
 
@@ -2616,7 +2611,7 @@ MenwClick(NhWindow *wind, Point pt)
 {
     Rect wrect;
 
-    GetWindowBounds(wind->its_window, kWindowContentRgn, &wrect);
+    GetWindowPortBounds(wind->its_window, &wrect);
     OffsetRect(&wrect, -wrect.left, -wrect.top);
     if (inSelect != WIN_ERR && wind->how != PICK_NONE) {
         short currentRow = -1, previousRow = -1;
@@ -2762,7 +2757,7 @@ MenwDrawStyled(NhWindow *wind)
     long tlen, i, lineStart;
     short lineIdx, row, vis_rows;
 
-    GetWindowBounds(wind->its_window, kWindowContentRgn, &r);
+    GetWindowPortBounds(wind->its_window, &r);
     OffsetRect(&r, -r.left, -r.top);
     r2 = r;
     r2.left = r2.right - SBARWIDTH;
@@ -2923,7 +2918,7 @@ TextUpdate(NhWindow *wind)
     RgnHandle h;
     Boolean vis;
 
-    GetWindowBounds(wind->its_window, kWindowContentRgn, &r);
+    GetWindowPortBounds(wind->its_window, &r);
     OffsetRect(&r, -r.left, -r.top);
     r2 = r;
     r2.left = r2.right - SBARWIDTH;
@@ -3071,7 +3066,8 @@ HandleClick(EventRecord *theEvent)
     Rect r;
     Boolean not_inSelect;
 
-    InsetRect(GetRegionBounds(GetGrayRgn(), &r), 4, 4);
+    r = (*GetGrayRgn())->rgnBBox;
+    InsetRect(&r, 4, 4);
 
     code = FindWindow(theEvent->where, &theWindow);
     aWin = GetNhWin(theWindow);
@@ -3119,7 +3115,7 @@ HandleClick(EventRecord *theEvent)
                 SizeWindow(theWindow, l & 0xffff, l >> 16, FALSE);
                 SaveWindowSize(theWindow);
                 SetPortWindowPort(theWindow);
-                GetWindowBounds(theWindow, kWindowContentRgn, &r);
+                GetWindowPortBounds(theWindow, &r);
                 OffsetRect(&r, -r.left, -r.top);
                 InvalWindowRect(theWindow, &r);
                 if (aWin->scrollBar) {
@@ -3185,7 +3181,7 @@ HandleUpdate(EventRecord *theEvent)
     }
     BeginUpdate(theWindow);
     SetPortWindowPort(theWindow);
-    GetWindowBounds(theWindow, kWindowContentRgn, &r);
+    GetWindowPortBounds(theWindow, &r);
     OffsetRect(&r, -r.left, -r.top);
     EraseRect(&r);
     {

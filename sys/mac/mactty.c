@@ -15,7 +15,7 @@
 #include <Resources.h>
 
 /* declared here because macwin.h cannot be included without pulling in the world */
-extern void mac_mac_dprintf(char *, ...);
+extern void mac_dprintf(char *, ...); /* dprintf.c */
 
 extern WindowPtr _mt_window;
 

@@ -9,9 +9,7 @@
 #include "mactty.h"
 #include "wintty.h"
 
-#if !defined(CROSS_TO_MAC68K)
 #include <Palettes.h>
-#endif
 #include <Gestalt.h>
 
 #define MT_WINDOW 135
@@ -28,6 +26,8 @@ winid BASE_WINDOW;
 #endif
 
 /* naming: statics are prefixed _, mac-tty becomes mt_ */
+
+void msmsg(const char *, ...); /* shared with wintty.c (see winprocs/MICRO decls) */
 
 static long _mt_attrs[5][2] = {
     { 0x000000, 0xffffff }, /* Normal */
@@ -292,7 +292,7 @@ _mt_init_stuff(void)
         GDHandle gh = (GDHandle) 0;
 
         if (_mt_in_color) {
-            GetWindowBounds(_mt_window, kWindowContentRgn, &r);
+            GetWindowPortBounds(_mt_window, &r);
             gh = GetMaxDevice(&r);
             setting = ((*((*gh)->gdPMap))->pixelSize > 4) ? 1 : 0; /* > 4 bpp */
     	}

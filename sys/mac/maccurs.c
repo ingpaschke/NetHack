@@ -200,7 +200,7 @@ SaveWindowPos(WindowPtr win)
 {
     Rect r;
 
-    GetWindowBounds(win, kWindowContentRgn, &r);
+    GetWindowPortBounds(win, &r);
     SavePosition(GetWinKind(win), r.top, r.left);
 }
 
@@ -219,7 +219,7 @@ SaveWindowSize(WindowPtr win)
     short width, height;
     Rect r;
 
-    GetWindowBounds(win, kWindowContentRgn, &r);
+    GetWindowPortBounds(win, &r);
     width = r.right - r.left;
     height = r.bottom - r.top;
     SaveSize(GetWinKind(win), height, width);

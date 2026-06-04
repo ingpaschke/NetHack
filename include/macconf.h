@@ -119,6 +119,7 @@ extern boolean authorize_explore_mode(void);
 #endif
 /* implemented in sys/mac/macunix.c */
 extern void regularize(char *);
+extern void getlock(void);
 
 /* implemented in sys/mac/macfile.c */
 extern int maccreat(const char *, long);

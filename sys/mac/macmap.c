@@ -687,7 +687,7 @@ macmap_update_event(NhWindow *map)
     SetPort(map->its_window);
 
     if (gMap.backing) {
-        Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
+        Rect bbox; bbox = ((CGrafPtr) gMap.backing)->portRect;
         Rect dst = bbox;
         blit_backing_to_window(&bbox, &dst);
     } else {
@@ -750,7 +750,7 @@ macmap_clear(NhWindow *map)
             GWorldPtr saveW; GDHandle saveD;
             GetGWorld(&saveW, &saveD);
             SetGWorld(gMap.backing, NULL);
-            Rect bb; GetPortBounds((CGrafPtr) gMap.backing, &bb);
+            Rect bb; bb = ((CGrafPtr) gMap.backing)->portRect;
             EraseRect(&bb);
             SetGWorld(saveW, saveD);
             UnlockPixels(pm);
@@ -786,7 +786,7 @@ repaint_full_viewport(void)
     if (gMap.backing) {
         PixMapHandle pm = GetGWorldPixMap(gMap.backing);
         if (LockPixels(pm)) {
-            Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
+            Rect bbox; bbox = ((CGrafPtr) gMap.backing)->portRect;
             GWorldPtr saveW; GDHandle saveD;
             GetGWorld(&saveW, &saveD);
             SetGWorld(gMap.backing, NULL);
@@ -823,7 +823,7 @@ backing_self_scroll(int dx_cells, int dy_cells)
     GetGWorld(&saveW, &saveD);
     SetGWorld(gMap.backing, NULL);
 
-    Rect bbox; GetPortBounds((CGrafPtr) gMap.backing, &bbox);
+    Rect bbox; bbox = ((CGrafPtr) gMap.backing)->portRect;
     Rect src = bbox, dst = bbox;
     OffsetRect(&dst, (short)(-dx_cells * gMap.cell_w), (short)(-dy_cells * gMap.cell_h));
     CopyBits((BitMap *) *pm, (BitMap *) *pm, &src, &dst, srcCopy, NULL);

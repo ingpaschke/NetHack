@@ -562,10 +562,10 @@ mac_askname()
         i = j = currrace;
         do {
             if (validrace(currrole, j)) {
-                EnableMenuItem(askmenu[RSRC_ASK_RACE], j + 1);
+                EnableItem(askmenu[RSRC_ASK_RACE], j + 1);
                 CheckMenuItem(askmenu[RSRC_ASK_RACE], j + 1, currrace == j);
             } else {
-                DisableMenuItem(askmenu[RSRC_ASK_RACE], j + 1);
+                DisableItem(askmenu[RSRC_ASK_RACE], j + 1);
                 CheckMenuItem(askmenu[RSRC_ASK_RACE], j + 1, FALSE);
                 if ((currrace == j) && !races[++currrace].noun)
                     currrace = 0;
@@ -582,10 +582,10 @@ mac_askname()
         i = j = currgend;
         do {
             if (validgend(currrole, currrace, j)) {
-                EnableMenuItem(askmenu[RSRC_ASK_GEND], j + 1);
+                EnableItem(askmenu[RSRC_ASK_GEND], j + 1);
                 CheckMenuItem(askmenu[RSRC_ASK_GEND], j + 1, currgend == j);
             } else {
-                DisableMenuItem(askmenu[RSRC_ASK_GEND], j + 1);
+                DisableItem(askmenu[RSRC_ASK_GEND], j + 1);
                 CheckMenuItem(askmenu[RSRC_ASK_GEND], j + 1, FALSE);
                 if ((currgend == j) && (++currgend >= ROLE_GENDERS))
                     currgend = 0;
@@ -602,10 +602,10 @@ mac_askname()
         i = j = curralign;
         do {
             if (validalign(currrole, currrace, j)) {
-                EnableMenuItem(askmenu[RSRC_ASK_ALIGN], j + 1);
+                EnableItem(askmenu[RSRC_ASK_ALIGN], j + 1);
                 CheckMenuItem(askmenu[RSRC_ASK_ALIGN], j + 1, curralign == j);
             } else {
-                DisableMenuItem(askmenu[RSRC_ASK_ALIGN], j + 1);
+                DisableItem(askmenu[RSRC_ASK_ALIGN], j + 1);
                 CheckMenuItem(askmenu[RSRC_ASK_ALIGN], j + 1, FALSE);
                 if ((curralign == j) && (++curralign >= ROLE_ALIGNS))
                     curralign = 0;
@@ -703,13 +703,11 @@ mac_askname()
 static void
 alignAD(Rect *pRct, short vExempt)
 {
-    BitMap qbitmap;
-
-    GetQDGlobalsScreenBits(&qbitmap);
+    /* center on the main screen (qd.screenBits, valid after InitGraf) */
     (*pRct).right -= (*pRct).left; /* width */
     (*pRct).bottom -= (*pRct).top; /* height */
-    (*pRct).left = (qbitmap.bounds.right - (*pRct).right) / 2;
-    (*pRct).top = (qbitmap.bounds.bottom - (*pRct).bottom - vExempt) / 2;
+    (*pRct).left = (qd.screenBits.bounds.right - (*pRct).right) / 2;
+    (*pRct).top = (qd.screenBits.bounds.bottom - (*pRct).bottom - vExempt) / 2;
     (*pRct).top += vExempt;
     (*pRct).right += (*pRct).left;
     (*pRct).bottom += (*pRct).top;
@@ -777,7 +775,7 @@ InitMenuRes()
             }
 
             pMenuList[i]->mref[j].mhnd = menu;
-            SetMenuID(menu, j + (**mlHnd).firstMenuID); /* consecutive IDs */
+            (**menu).menuID = j + (**mlHnd).firstMenuID; /* consecutive IDs */
 
             /* expand apple menu */
             if ((i == listMenubar) && (j == menuApple)) {
@@ -792,7 +790,7 @@ InitMenuRes()
        The MENU resource only has items 1-10; this adds item 11 at runtime. */
     AppendMenu(MHND_FILE, P_STRING_CONV("Tile Mode"));
     /* Start disabled; mactile_menu_refresh() will enable when available. */
-    DisableMenuItem(MHND_FILE, menuFileTileMode);
+    DisableItem(MHND_FILE, menuFileTileMode);
 
     DrawMenuBar();
     return;
@@ -848,28 +846,28 @@ AdjustMenus(short dimMenubar)
         case mbarDim:
             /* disable all menus (except the apple menu) */
             for (i = menuFile; i < NUM_MBAR; i++)
-                DisableMenuItem(MBARHND(i), 0);
+                DisableItem(MBARHND(i), 0);
             break;
 
         case mbarNoWindows:
         case mbarDA:
         case mbarNoMap:
             /* enable the file menu, but ... */
-            EnableMenuItem(MHND_FILE, 0);
+            EnableItem(MHND_FILE, 0);
 
             /* ... disable the window commands! */
             for (i = menuFileRedraw; i <= menuFileEnterExplore; i++)
-                DisableMenuItem(MHND_FILE, i);
+                DisableItem(MHND_FILE, i);
 
             /* ... also disable Tile Mode (no map window yet) */
-            DisableMenuItem(MHND_FILE, menuFileTileMode);
+            DisableItem(MHND_FILE, menuFileTileMode);
 
             /* ... and disable the rest of the menus */
             for (i = menuEdit; i < NUM_MBAR; i++)
-                DisableMenuItem(MBARHND(i), 0);
+                DisableItem(MBARHND(i), 0);
 
             if (theMenubar == mbarDA)
-                EnableMenuItem(MHND_EDIT, 0);
+                EnableItem(MHND_EDIT, 0);
 
             break;
 
@@ -877,26 +875,26 @@ AdjustMenus(short dimMenubar)
         case mbarSpecial:
             /* enable all menus ... */
             for (i = menuFile; i < NUM_MBAR; i++)
-                EnableMenuItem(MBARHND(i), 0);
+                EnableItem(MBARHND(i), 0);
 
             /* ... except the unused Edit menu */
-            DisableMenuItem(MHND_EDIT, 0);
+            DisableItem(MHND_EDIT, 0);
 
             /* ... enable the window commands */
             for (i = menuFileRedraw; i <= menuFileEnterExplore; i++)
-                EnableMenuItem(MHND_FILE, i);
+                EnableItem(MHND_FILE, i);
 
             if (theMenubar == mbarRegular)
-                DisableMenuItem(MHND_FILE, menuFilePlayMode);
+                DisableItem(MHND_FILE, menuFilePlayMode);
             else
-                DisableMenuItem(MHND_FILE, menuFileEnterExplore);
+                DisableItem(MHND_FILE, menuFileEnterExplore);
 
             /* Enable Tile Mode iff tiles available; sync check mark to live
                state here since AdjustMenus runs before menu pulldown. */
             if (mactile_available())
-                EnableMenuItem(MHND_FILE, menuFileTileMode);
+                EnableItem(MHND_FILE, menuFileTileMode);
             else
-                DisableMenuItem(MHND_FILE, menuFileTileMode);
+                DisableItem(MHND_FILE, menuFileTileMode);
             {
                 NhWindow *_am_map = (WIN_MAP != WIN_ERR)
                                     ? &theWindows[WIN_MAP] : NULL;
@@ -1112,9 +1110,9 @@ mactile_menu_refresh(void)
     NhWindow *map = (WIN_MAP != WIN_ERR) ? &theWindows[WIN_MAP] : NULL;
     if (!map) return;
     if (mactile_available())
-        EnableMenuItem(MHND_FILE, menuFileTileMode);
+        EnableItem(MHND_FILE, menuFileTileMode);
     else
-        DisableMenuItem(MHND_FILE, menuFileTileMode);
+        DisableItem(MHND_FILE, menuFileTileMode);
     SetItemMark(MHND_FILE, menuFileTileMode,
                 macmap_get_mode(map) ? checkMark : noMark);
 }

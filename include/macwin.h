@@ -192,6 +192,10 @@ extern void mactile_menu_refresh(void);
 extern void process_openfile(short s_vol, long s_dir, Str255 fNm,
                              OSType ft);
 
+/* ### mttymain.c ### */
+
+extern void clear_screen(void);
+
 /* ### macwin.c ### */
 
 extern void AddToKeyQueue(unsigned char, Boolean);
@@ -205,6 +209,7 @@ void topl_set_resp(char *, char);
 Boolean topl_key(unsigned char, Boolean);
 E void HandleEvent(EventRecord *); /* used in mmodal.c */
 extern void port_help(void);
+extern int SanePositions(void);
 
 extern Boolean small_screen;
 
