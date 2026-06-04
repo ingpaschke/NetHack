@@ -243,7 +243,7 @@ do_set_port_font(tty_record *record)
 void
 tty_nhbell(void)
 {
-    Handle h = GetNamedResource('snd ', P_STRING_CONV("NetHack Bell"));
+    Handle h = GetNamedResource('snd ', P_STRING_CONV("Bell"));
 
     if (h) {
         HLock(h);

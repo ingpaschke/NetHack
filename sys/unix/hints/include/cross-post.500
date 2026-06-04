@@ -376,6 +376,12 @@ mac68kpkg: $(GAMEBIN)
 	python3 ../sys/mac/tools/decode_hqx.py \
 		../sys/mac/NHrsrc.hqx $(TARGETPFX)resources \
 		--creator-fixup nh31 nh50
+	@echo "=== Decoding sound resources ==="
+	python3 ../sys/mac/tools/decode_hqx.py \
+		../sys/mac/NHsound.hqx $(TARGETPFX)sounds
+	@mkdir -p $(TARGETPFX)sounds/.rsrc
+	@cp $(TARGETPFX)sounds/Sounds.rsrc.rsrc $(TARGETPFX)sounds/.rsrc/Sounds
+	@touch $(TARGETPFX)sounds/Sounds
 	@echo "=== Compiling SIZE resource ==="
 	$(RETRO68)/bin/Rez ../sys/mac/nhsize.r -o $(TARGETPFX)nhsize.rsrc
 	@echo "=== Compiling map WIND resources ==="
@@ -400,6 +406,7 @@ mac68kpkg: $(GAMEBIN)
 		--copy $(TARGETPFX)nhtiles.rsrc \
 		--copy $(TARGETPFX)nhsize.rsrc \
 		--copy $(TARGETPFX)resources/NHrsrc \
+		--copy $(TARGETPFX)sounds/Sounds \
 		--data $(TARGETPFX)NetHack \
 		-t APPL -c nh50 \
 		-o $(TARGETPFX)NetHack.bin \
