@@ -374,38 +374,36 @@ $(GAMEBIN) : $(HOBJ) $(LUACROSSLIB)
 mac68kpkg: $(GAMEBIN)
 	@echo "=== Decoding UI resources ==="
 	python3 ../sys/mac/tools/decode_hqx.py \
-		../sys/mac/NHrsrc.hqx $(TARGETPFX)resources
+		../sys/mac/NHrsrc.hqx $(TARGETPFX)resources \
+		--creator-fixup nh31 nh37
 	@echo "=== Compiling SIZE resource ==="
 	$(RETRO68)/bin/Rez ../sys/mac/nhsize.r -o $(TARGETPFX)nhsize.rsrc
 	@echo "=== Compiling map WIND resources ==="
 	$(RETRO68)/bin/Rez ../sys/mac/nhmapwind.r \
 		-I $(RETRO68)/multiversal/RIncludes \
 		-o $(TARGETPFX)nhmapwind.rsrc
-	@echo "=== Merging map WIND resources ==="
-	python3 ../sys/mac/tools/append_rsrc.py \
-		$(TARGETPFX).rsrc/NetHack \
-		$(TARGETPFX).rsrc/nhmapwind.rsrc
 	@echo "=== Generating tile PICT resources ==="
 	cd ../util && ./tile2pict $(abspath $(TARGETPFX)nhtiles_data.r)
 	@echo "=== Compiling tile resource ==="
 	$(RETRO68)/bin/Rez ../sys/mac/nhtiles_template.r \
 		-I $(abspath $(TARGETPFX)) \
 		-o $(TARGETPFX)nhtiles.rsrc
-	@echo "=== Merging tile resource ==="
-	python3 ../sys/mac/tools/append_rsrc.py \
-		$(TARGETPFX).rsrc/NetHack \
-		$(TARGETPFX).rsrc/nhtiles.rsrc
-	@echo "=== Merging resources ==="
-	python3 ../sys/mac/tools/append_rsrc.py \
-		$(TARGETPFX).rsrc/NetHack \
-		$(TARGETPFX).rsrc/nhsize.rsrc
-	python3 ../sys/mac/tools/append_rsrc.py \
-		$(TARGETPFX).rsrc/NetHack \
-		$(TARGETPFX)resources/NetHack.rsrc.rsrc
+	@echo "=== Merging resources (single Rez pass) ==="
+	@mkdir -p $(TARGETPFX)resources/.rsrc
+	@cp $(TARGETPFX)resources/NetHack.rsrc.rsrc $(TARGETPFX)resources/.rsrc/NHrsrc
+	@touch $(TARGETPFX)resources/NHrsrc
+	rm -f $(TARGETPFX)NetHackRsrc $(TARGETPFX).rsrc/NetHackRsrc
+	$(RETRO68)/bin/Rez \
+		--copy $(TARGETPFX)NetHack \
+		--copy $(TARGETPFX)nhmapwind.rsrc \
+		--copy $(TARGETPFX)nhtiles.rsrc \
+		--copy $(TARGETPFX)nhsize.rsrc \
+		--copy $(TARGETPFX)resources/NHrsrc \
+		-o $(TARGETPFX)NetHackRsrc
 	@echo "=== Creating MacBinary ==="
 	python3 ../sys/mac/tools/make_macbin.py \
 		$(TARGETPFX)NetHack \
-		$(TARGETPFX).rsrc/NetHack \
+		$(TARGETPFX).rsrc/NetHackRsrc \
 		$(TARGETPFX)NetHack.bin \
 		APPL nh37
 	@echo "=== Building HFS disk image ==="
@@ -436,7 +434,7 @@ mac68kpkg: $(GAMEBIN)
 	@rm -rf $(TARGETPFX)_sit_staging
 	@mkdir -p $(TARGETPFX)_sit_staging
 	cp $(TARGETPFX)NetHack $(TARGETPFX)_sit_staging/NetHack
-	cp $(TARGETPFX).rsrc/NetHack $(TARGETPFX)_sit_staging/NetHack.rsrc
+	cp $(TARGETPFX).rsrc/NetHackRsrc $(TARGETPFX)_sit_staging/NetHack.rsrc
 	python3 -c "import struct; name = bytes([7]) + b'NetHack' + b'\x00' * 56; info = b'\x00\x00' + name + b'APPL' + b'nh37' + b'\x00\x00' + b'\x00' * 8 + struct.pack('>I', 20) + struct.pack('>I', 0) + b'\x00' * 8; open('$(TARGETPFX)_sit_staging/NetHack.info', 'wb').write(info)"
 	cp ../dat/nhdat $(TARGETPFX)_sit_staging/nhdat
 	tr '\n' '\r' < ../doc/Guidebook.txt > $(TARGETPFX)_sit_staging/Guidebook

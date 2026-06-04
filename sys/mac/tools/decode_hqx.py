@@ -84,9 +84,54 @@ def parse_hqx_header(data):
 
     return name, ftype, creator, flags, datalen, rsrclen, pos
 
+def apply_creator_fixup(fork, old_creator, new_creator):
+    """Rename the signature resource type and patch the BNDL creator field.
+
+    The historic NHrsrc.hqx carries the NetHack 3.1-era creator code; the
+    application is built with a newer one, and the Finder only shows the
+    app's icons when the signature resource and BNDL agree with it."""
+    old_b, new_b = old_creator.encode(), new_creator.encode()
+    assert len(old_b) == 4 and len(new_b) == 4
+    data = bytearray(fork)
+    doff = struct.unpack('>I', data[0:4])[0]
+    moff = struct.unpack('>I', data[4:8])[0]
+    tl_off = struct.unpack('>H', data[moff+24:moff+26])[0]
+    tl_start = moff + tl_off
+    ntypes = struct.unpack('>H', data[tl_start:tl_start+2])[0] + 1
+    pos = tl_start + 2
+    for _ in range(ntypes):
+        rtype = bytes(data[pos:pos+4])
+        count = struct.unpack('>H', data[pos+4:pos+6])[0] + 1
+        roff = struct.unpack('>H', data[pos+6:pos+8])[0]
+        if rtype == old_b:
+            data[pos:pos+4] = new_b
+            print(f"Fixup:   signature resource type {old_creator} -> {new_creator}")
+        if rtype == b'BNDL':
+            ref_start = tl_start + roff
+            for j in range(count):
+                rp = ref_start + j * 12
+                ao = struct.unpack('>I', data[rp+4:rp+8])[0]
+                rdoff = ao & 0x00FFFFFF
+                abs_off = doff + rdoff
+                if bytes(data[abs_off+4:abs_off+8]) == old_b:
+                    data[abs_off+4:abs_off+8] = new_b
+                    print(f"Fixup:   BNDL creator {old_creator} -> {new_creator}")
+        pos += 8
+    return bytes(data)
+
+
 def main():
+    global creator_fixup
+    creator_fixup = None
+    args = sys.argv[1:]
+    if '--creator-fixup' in args:
+        i = args.index('--creator-fixup')
+        creator_fixup = (args[i+1], args[i+2])
+        del args[i:i+3]
+    sys.argv[1:] = args
     if len(sys.argv) < 2:
-        print(f"Usage: {sys.argv[0]} <file.hqx> [output_dir]")
+        print(f"Usage: {sys.argv[0]} <file.hqx> [output_dir]"
+              " [--creator-fixup OLD NEW]")
         sys.exit(1)
 
     hqx_file = sys.argv[1]
@@ -123,6 +168,8 @@ def main():
         print(f"Wrote:   {data_path} ({len(data_fork)} bytes)")
 
     if rsrclen > 0:
+        if creator_fixup:
+            rsrc_fork = apply_creator_fixup(rsrc_fork, *creator_fixup)
         rsrc_path = os.path.join(outdir, safe_name + '.rsrc')
         with open(rsrc_path, 'wb') as f:
             f.write(rsrc_fork)
