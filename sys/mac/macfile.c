@@ -9,14 +9,12 @@
 #include "hack.h"
 #include "macwin.h"
 
-#ifndef __MACH__
 #include <Files.h>
 #include <Errors.h>
 #include <Resources.h>
 #include <Memory.h>
 #include <TextUtils.h>
 #include <ToolUtils.h>
-#endif
 
 /* With Apple Universal Interfaces + libInterface.a, HRstFLock, CatMove,
    etc. are provided by the library. */
@@ -332,9 +330,6 @@ rsrc_dlb_cleanup(void)
 boolean
 rsrc_dlb_fopen(dlb *dp, const char *name, const char *mode)
 {
-#if defined(__SC__) || defined(__MRC__)
-#pragma unused(mode)
-#endif
     Str255 pname;
 
     C2P(name, pname);

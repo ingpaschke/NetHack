@@ -850,9 +850,6 @@ blink_cursor(WindowPtr window, long when)
 short
 image_tty(EventRecord *theEvent, WindowPtr window)
 {
-#if defined(__SC__) || defined(__MRC__)
-#pragma unused(theEvent)
-#endif
     RECORD_EXISTS(record);
 
     record->invalid_rect = record->its_bits.bounds;

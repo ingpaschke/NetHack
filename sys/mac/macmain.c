@@ -28,9 +28,6 @@ static void finder_file_request(void);
 int main(void);
 extern void macalloc_stats(const char *tag); /* profiling hook; no-op unless NHMAC_ALLOC_STATS */
 
-#if defined(__SC__) || defined(__MRC__)
-QDGlobals qd;
-#endif
 
 int
 main(void)

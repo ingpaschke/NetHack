@@ -32,9 +32,6 @@
 #include <OSUtils.h>
 #include <Resources.h>
 #include <Files.h>
-#ifdef applec
-#include <SysEqu.h>
-#endif
 #include <Menus.h>
 #include <Devices.h>
 #include <Events.h>
@@ -49,12 +46,6 @@
 #include <TextUtils.h>
 
 #include "maccompat.h" /* P_STRING_CONV */
-
-#ifdef THINK /* glue for System 7 Icon Family call (needed by Think C 5.0.4) \
-                */
-pascal OSErr GetIconSuite(Handle *theIconSuite, short theResID,
-                          long selector) = { 0x303C, 0x0501, 0xABC9 };
-#endif
 
 /**** Application defines ****/
 

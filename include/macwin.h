@@ -6,10 +6,8 @@
 #ifndef MACWIN_H
 #define MACWIN_H
 
-#ifndef __MACH__
 #include <Windows.h>
 #include <Dialogs.h>
-#endif
 
 #ifdef CROSS_TO_MAC68K
 #include "maccompat.h"

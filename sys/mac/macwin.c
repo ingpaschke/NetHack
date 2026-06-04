@@ -224,9 +224,6 @@ static pascal OSErr
 AppleEventHandler(const AppleEvent *inAppleEvent, AppleEvent *outAEReply,
                   long inRefCon)
 {
-#if defined(__SC__) || defined(__MRC__)
-#pragma unused(outAEReply, inRefCon)
-#endif
     Size actualSize;
     DescType typeCode;
     AEEventID EventID;
@@ -1409,9 +1406,6 @@ mac_destroy_nhwindow(winid win)
 void
 mac_number_pad(int pad)
 { /* no effect */
-#if defined(__SC__) || defined(__MRC__)
-#pragma unused(pad)
-#endif
     return;
 }
 
@@ -1698,11 +1692,6 @@ mac_nhgetch(void)
         ObscureCursor();
     else
         gClickedToMove = 0;
-
-#ifdef THINK_C
-    if (ch == '\r')
-        ch = '\n';
-#endif
 
     return (ch);
 }
@@ -2200,9 +2189,6 @@ mac_ctrl_nhwindow(winid win UNUSED, int request UNUSED,
 static void
 mac_suspend_nhwindows(const char *foo)
 {
-#if defined(__SC__) || defined(__MRC__)
-#pragma unused(foo)
-#endif
     /*	Can't really do that :-)		*/
 }
 
@@ -2968,9 +2954,6 @@ macDoNull(EventRecord *theEvent, WindowPtr theWindow)
 static void
 GeneralKey(EventRecord *theEvent, WindowPtr theWindow)
 {
-#if defined(__SC__) || defined(__MRC__)
-#pragma unused(theWindow)
-#endif
     unsigned char ch;
 
     if (theEvent->modifiers & optionKey) {
@@ -3172,9 +3155,6 @@ HandleUpdate(EventRecord *theEvent)
 static void
 GeneralCursor(EventRecord *theEvent, WindowPtr theWindow, RgnHandle mouseRgn)
 {
-#if defined(__SC__) || defined(__MRC__)
-#pragma unused(theWindow)
-#endif
     Rect r = { -1, -1, 2, 2 };
 
     SetCursor(&qdarrow);

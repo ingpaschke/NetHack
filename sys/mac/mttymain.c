@@ -389,9 +389,6 @@ term_attr_fixup(int attrmask)
 void
 term_end_attr(int attr)
 {
-#if defined(__SC__) || defined(__MRC__)
-#pragma unused(attr)
-#endif
     _mt_set_colors(_mt_attrs[0]);
 }
 
@@ -554,9 +551,6 @@ settty(const char *str)
 void
 tty_number_pad(int arg)
 {
-#if defined(__SC__) || defined(__MRC__)
-#pragma unused(arg)
-#endif
 }
 
 void

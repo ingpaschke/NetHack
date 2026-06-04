@@ -7,19 +7,9 @@
 #ifndef MACCONF_H
 #define MACCONF_H
 
-/*
- * Compiler selection is based on the following symbols:
- *
- *  __GNUC__        Retro68 GCC cross-compiler
- *  __SC__          sc, a MPW 68k compiler
- *  __MRC__         mrc, a MPW PowerPC compiler
- *  THINK_C         Think C compiler
- *  __MWERKS__      Metrowerks' Codewarrior compiler
- */
-
-#ifndef __powerc
-#define MAC68K /* 68K mac (non-powerpc) */
-#endif
+/* Built with the Retro68 GCC cross-toolchain (see sys/mac/BUILD.md).
+ * The MPW/Think C/CodeWarrior compilers of the original port are no
+ * longer supported. */
 
 /* No system-wide config file on classic Mac OS */
 #undef STATUS_HILITES  /* Mac port doesn't support terminal-based hilites;
@@ -31,9 +21,6 @@
 #ifndef TARGET_API_MAC_OS8
 #define TARGET_API_MAC_OS8 1
 #endif
-#ifndef TARGET_API_MAC_CARBON
-#define TARGET_API_MAC_CARBON 0
-#endif
 /* Use classic (non-opaque) toolbox structs and direct field access */
 #ifndef OPAQUE_TOOLBOX_STRUCTS
 #define OPAQUE_TOOLBOX_STRUCTS 0
@@ -42,13 +29,7 @@
 #define ACCESSOR_CALLS_ARE_FUNCTIONS 0
 #endif
 
-#if defined(__GNUC__) && defined(CROSSCOMPILE)
-/* Retro68 GCC cross-compiler — random() is provided */
-#else
-#ifndef __MACH__
-#define RANDOM
-#endif
-#endif
+/* newlib provides random(); RANDOM (sys/share/random.c) not needed */
 #define NO_SIGNAL /* You wouldn't believe our signals ... */
 #define FILENAME 256
 #define NO_TERMS /* For tty port (see wintty.h) */
@@ -68,18 +49,7 @@
  * Try and keep the number of files here to an ABSOLUTE minimum !
  * include the relevant files in the relevant .c files instead !
  */
-#if TARGET_API_MAC_CARBON
-# ifdef __GNUC__
-#  define __FP__
-#  include <Carbon/Carbon.h>
-# else
-#  define __FENV__
-#  include <machine/types.h>
-#  include <Carbon.h>
-# endif
-#else
-# include <MacTypes.h>
-#endif
+#include <MacTypes.h>
 
 /*
  * We could use the PSN under sys 7 here ...
@@ -99,21 +69,9 @@ extern short set_font_name(int, char *);
 extern boolean authorize_wizard_mode(void);
 extern boolean authorize_explore_mode(void);
 
-#if !defined(O_WRONLY)
-#if defined(__MWERKS__) && !TARGET_API_MAC_CARBON
-#include <unix.h>
-#endif
 #include <fcntl.h>
-#endif
 
-/*
- * Don't redefine these Unix IO functions when making LevComp or DgnComp for
- * MPW.  With MPW, we make them into MPW tools, which use unix IO.  SPEC_LEV
- * and DGN_COMP are defined when compiling for LevComp and DgnComp
- * respectively.
- */
-#if !((defined(__SC__) || defined(__MRC__) || defined(__MACH__)) \
-      && (defined(SPEC_LEV) || defined(DGN_COMP)))
+/* Route the Unix I/O calls through their HFS implementations. */
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
@@ -135,12 +93,6 @@ extern int macunlink(const char *);
 #define read macread
 #define write macwrite
 #define lseek macseek
-#ifdef __MWERKS__
-#define unlink _unlink
-#endif
-#endif
-
-#define YY_NEVER_INTERACTIVE 1
 
 #define TEXT_TYPE 'TEXT'
 #define LEVL_TYPE 'LEVL'
