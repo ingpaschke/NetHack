@@ -56,4 +56,11 @@ def dump_rsrc(path):
         pos += 8
 
 if __name__ == '__main__':
-    dump_rsrc(sys.argv[1])
+    if len(sys.argv) < 2:
+        print(f"Usage: {sys.argv[0]} <resource-fork-file>", file=sys.stderr)
+        sys.exit(1)
+    try:
+        dump_rsrc(sys.argv[1])
+    except (struct.error, IndexError):
+        print("Error: truncated or corrupt resource fork", file=sys.stderr)
+        sys.exit(1)

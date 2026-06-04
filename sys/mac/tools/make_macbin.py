@@ -3,7 +3,9 @@
 
 Usage: make_macbin.py <data_fork> <rsrc_fork> <output.bin> [type] [creator]
 """
+import os
 import struct
+import time
 import sys
 
 def crc_macbin(data):
@@ -21,7 +23,11 @@ def crc_macbin(data):
 
 def make_macbinary(name, ftype, creator, data_fork, rsrc_fork):
     """Build a MacBinary II file."""
-    name_bytes = name.encode('mac_roman')[:63]
+    name_bytes = name.encode('mac_roman')
+    if len(name_bytes) > 31:  # MacBinary II allows 63, but HFS stops at 31
+        print(f"Warning: filename {name!r} truncated to 31 chars (HFS limit)",
+              file=sys.stderr)
+        name_bytes = name_bytes[:31]
 
     header = bytearray(128)
     # Byte 0: old version (0)
@@ -51,7 +57,6 @@ def make_macbinary(name, ftype, creator, data_fork, rsrc_fork):
     struct.pack_into('>I', header, 87, len(rsrc_fork))
     # Bytes 91-94: creation date (seconds since 1904-01-01)
     # Bytes 95-98: modification date
-    import time
     mac_epoch = 2082844800  # seconds between 1904-01-01 and 1970-01-01
     now = int(time.time()) + mac_epoch
     struct.pack_into('>I', header, 91, now)
@@ -97,7 +102,7 @@ def main():
     with open(rsrc_path, 'rb') as f:
         rsrc_fork = f.read()
 
-    name = out_path.rsplit('/', 1)[-1]
+    name = os.path.basename(out_path)
     if name.endswith('.bin'):
         name = name[:-4]
 

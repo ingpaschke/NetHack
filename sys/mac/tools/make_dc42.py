@@ -9,7 +9,7 @@ import sys
 def dc42_checksum(data):
     """Compute Disk Copy 4.2 checksum (32-bit rotating add)."""
     cksum = 0
-    for i in range(0, len(data) - 1, 2):
+    for i in range(0, len(data), 2):  # data is validated 512-aligned, so always even
         cksum += (data[i] << 8) | data[i + 1]
         cksum = ((cksum >> 1) | (cksum << 31)) & 0xFFFFFFFF
     return cksum
@@ -31,7 +31,9 @@ def make_dc42(name, data):
     struct.pack_into('>I', header, 72, data_cksum)
     # Tag checksum
     struct.pack_into('>I', header, 76, 0)
-    # Disk format: 5 = custom/other
+    # Disk format: the spec only defines 0-3 (400K/800K/720K/1440K
+    # floppies); this is a hard-disk-sized image, and consumers of
+    # non-floppy DC42 files ignore the byte.  5 = "none of those".
     header[80] = 5
     # Format byte: 0x24 = HFS
     header[81] = 0x24
@@ -52,6 +54,11 @@ def main():
 
     with open(hfs_path, 'rb') as f:
         data = f.read()
+
+    if len(data) % 512 != 0:
+        print(f"Error: HFS image size {len(data)} is not a multiple of 512",
+              file=sys.stderr)
+        sys.exit(1)
 
     dc42 = make_dc42(vol_name, data)
 

@@ -16,17 +16,25 @@ import os
 BLOCK = 512
 
 def main():
+    if len(sys.argv) < 3:
+        print(f"Usage: {sys.argv[0]} <hfs_image> <output.img>", file=sys.stderr)
+        sys.exit(1)
     hfs_path = sys.argv[1]
     out_path = sys.argv[2]
 
     with open(hfs_path, 'rb') as f:
         hfs_data = f.read()
 
+    if len(hfs_data) % BLOCK != 0:
+        print(f"Error: HFS image size {len(hfs_data)} is not a multiple of"
+              f" {BLOCK}", file=sys.stderr)
+        sys.exit(1)
+
     hfs_blocks = len(hfs_data) // BLOCK
     hfs_start = 96  # match working image
     total_blocks = hfs_start + hfs_blocks
     # Round up to at least 8MB
-    min_blocks = 8 * 1024 * 1024 // BLOCK
+    min_blocks = 8 * 1024 * 1024 // BLOCK  # SCSI emulators reject tiny images; 8 MB floor
     if total_blocks < min_blocks:
         total_blocks = min_blocks
 

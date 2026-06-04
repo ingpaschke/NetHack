@@ -2,6 +2,7 @@
 """Decode BinHex 4.0 (.hqx) files into data fork + resource fork."""
 
 import sys
+import binascii
 import struct
 import os
 
@@ -18,6 +19,11 @@ def decode_hqx_stream(data):
     for line in lines:
         line = line.strip()
         if not in_data:
+            # Note: some encoders put the opening ':' at the end of the
+            # "(This file must be converted with BinHex 4.0)" intro line
+            # instead of on its own line.  That case still decodes
+            # correctly because non-alphabet characters are filtered
+            # below, and the section CRCs catch any genuine corruption.
             if line.startswith(':'):
                 in_data = True
                 content += line[1:]  # skip leading colon
@@ -54,6 +60,9 @@ def decode_hqx_stream(data):
                 if decoded:
                     last = decoded[-1]
                     decoded.extend([last] * count)
+                else:
+                    print("Warning: RLE run marker with no preceding byte;"
+                          " ignored", file=sys.stderr)
             i += 1
         else:
             decoded.append(raw[i])
@@ -76,13 +85,20 @@ def parse_hqx_header(data):
     pos += 4
     flags = struct.unpack('>H', data[pos:pos+2])[0]
     pos += 2
-    datalen = struct.unpack('>l', data[pos:pos+4])[0]
+    datalen = struct.unpack('>I', data[pos:pos+4])[0]
     pos += 4
-    rsrclen = struct.unpack('>l', data[pos:pos+4])[0]
+    rsrclen = struct.unpack('>I', data[pos:pos+4])[0]
     pos += 4
     pos += 2  # header CRC
 
     return name, ftype, creator, flags, datalen, rsrclen, pos
+
+def crc16_binhex(data):
+    """BinHex 4.0 section CRC: CRC-16/XMODEM (poly 0x1021, init 0) over the
+    section bytes, exactly binascii's crc_hqx (verified against the stored
+    CRCs in NHrsrc.hqx)."""
+    return binascii.crc_hqx(bytes(data), 0)
+
 
 def apply_creator_fixup(fork, old_creator, new_creator):
     """Rename the signature resource type and patch the BNDL creator field.
@@ -91,7 +107,8 @@ def apply_creator_fixup(fork, old_creator, new_creator):
     application is built with a newer one, and the Finder only shows the
     app's icons when the signature resource and BNDL agree with it."""
     old_b, new_b = old_creator.encode(), new_creator.encode()
-    assert len(old_b) == 4 and len(new_b) == 4
+    if len(old_b) != 4 or len(new_b) != 4:
+        raise ValueError("creator codes must be exactly 4 bytes")
     data = bytearray(fork)
     doff = struct.unpack('>I', data[0:4])[0]
     moff = struct.unpack('>I', data[4:8])[0]
@@ -99,12 +116,14 @@ def apply_creator_fixup(fork, old_creator, new_creator):
     tl_start = moff + tl_off
     ntypes = struct.unpack('>H', data[tl_start:tl_start+2])[0] + 1
     pos = tl_start + 2
+    found_sig = found_bndl = False
     for _ in range(ntypes):
         rtype = bytes(data[pos:pos+4])
         count = struct.unpack('>H', data[pos+4:pos+6])[0] + 1
         roff = struct.unpack('>H', data[pos+6:pos+8])[0]
         if rtype == old_b:
             data[pos:pos+4] = new_b
+            found_sig = True
             print(f"Fixup:   signature resource type {old_creator} -> {new_creator}")
         if rtype == b'BNDL':
             ref_start = tl_start + roff
@@ -115,8 +134,15 @@ def apply_creator_fixup(fork, old_creator, new_creator):
                 abs_off = doff + rdoff
                 if bytes(data[abs_off+4:abs_off+8]) == old_b:
                     data[abs_off+4:abs_off+8] = new_b
+                    found_bndl = True
                     print(f"Fixup:   BNDL creator {old_creator} -> {new_creator}")
         pos += 8
+    if not (found_sig and found_bndl):
+        print(f"Error: --creator-fixup found no"
+              f"{'' if found_sig else ' signature'}"
+              f"{'' if found_bndl else ' BNDL'}"
+              f" resource for creator {old_creator!r}", file=sys.stderr)
+        sys.exit(1)
     return bytes(data)
 
 
@@ -154,6 +180,21 @@ def main():
     data_end = data_start + datalen
     rsrc_start = data_end + 2  # skip data CRC
     rsrc_end = rsrc_start + rsrclen
+
+    # Verify all three section CRCs; a bad .hqx must not silently produce
+    # a corrupt resource fork.
+    hdr_crc = struct.unpack('>H', decoded[hdr_end-2:hdr_end])[0]
+    data_crc = struct.unpack('>H', decoded[data_end:data_end+2])[0]
+    rsrc_crc = struct.unpack('>H', decoded[rsrc_end:rsrc_end+2])[0]
+    for label, blob, want in (("header", decoded[0:hdr_end-2], hdr_crc),
+                              ("data fork", decoded[data_start:data_end], data_crc),
+                              ("resource fork", decoded[rsrc_start:rsrc_end], rsrc_crc)):
+        got = crc16_binhex(blob)
+        if got != want:
+            print(f"Error: {label} CRC mismatch"
+                  f" (stored {want:#06x}, computed {got:#06x})", file=sys.stderr)
+            sys.exit(1)
+    print("CRC:     header/data/rsrc verified")
 
     data_fork = decoded[data_start:data_end]
     rsrc_fork = decoded[rsrc_start:rsrc_end]
