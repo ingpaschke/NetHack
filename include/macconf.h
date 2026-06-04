@@ -117,6 +117,17 @@ extern boolean authorize_explore_mode(void);
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
+/* implemented in sys/mac/macunix.c */
+extern void regularize(char *);
+
+/* implemented in sys/mac/macfile.c */
+extern int maccreat(const char *, long);
+extern int macopen(const char *, int, long);
+extern int macclose(int);
+extern int macread(int, void *, unsigned);
+extern int macwrite(int, void *, unsigned);
+extern long macseek(int, long, short);
+extern int macunlink(const char *);
 #define creat maccreat
 #define open macopen
 #define close macclose
