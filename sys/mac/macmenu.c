@@ -34,14 +34,12 @@
 short gTileMenuNeedsUpdate = 0;
 
 /******** Toolbox Defines ********/
-#if !TARGET_API_MAC_CARBON
 #include <Menus.h>
 #include <Devices.h>
 #include <Resources.h>
 #include <TextUtils.h>
 #include <ToolUtils.h>
 #include <Sound.h>
-#endif
 
 /* Borrowed from the Mac tty port */
 extern WindowPtr _mt_window;
@@ -182,9 +180,7 @@ static short theMenubar = mbarDA; /* force initial update */
 static short kAdjustWizardMenu = 1;
 
 /******** Prototypes ********/
-#if !TARGET_API_MAC_CARBON
 static void alignAD(Rect *, short);
-#endif
 static void mustGetMenuAlerts(void);
 static void menuError(short);
 static void aboutNetHack(void);
@@ -238,8 +234,11 @@ static int askselect[RSRC_ASK_MAX];
 #define curralign askselect[RSRC_ASK_ALIGN]
 #define currmode askselect[RSRC_ASK_MODE]
 
+/* Dialog chrome colors for ask_redraw's RGBForeColor calls.  Safe from the
+   8bpp CLUT-rewrite hazard only because the askname dialog runs before the
+   tile palette is loaded; if this dialog is ever shown mid-game, switch to
+   palette-safe drawing (PmForeColor, see mactile_cursor_clut_index). */
 static RGBColor blackcolor = { 0x0000, 0x0000, 0x0000 },
-                //	indentcolor = {0x4000, 0x4000, 0x4000},
     darkcolor = { 0x8000, 0x8000, 0x8000 },
                 backcolor = { 0xdddd, 0xdddd, 0xdddd },
                 lightcolor = { 0xffff, 0xffff, 0xffff },
@@ -482,47 +481,10 @@ mac_askname()
         GetDialogItem(askdialog, RSRC_ASK_NAME, &type, &handle, &rect);
         SetDialogItemText(handle, str);
     }
-#if 0
-	{
-	Str32 pName;
-		pName [0] = 0;
-		if (svp.plname && svp.plname [0]) {
-			strcpy ((char *) pName, svp.plname);
-			c2pstr ((char *) pName);
-		} else {
-			Handle h;
-			h = GetResource ('STR ', -16096);
-			if (((Handle) 0 != h) && (GetHandleSize (h) > 0)) {
-				DetachResource (h);
-				HLock (h);
-				if (**h > 31) {
-					**h = 31;
-				}
-				BlockMove (*h, pName, **h + 1);
-				DisposeHandle (h);
-			}
-		}
-		if (pName [0]) {
-			GetDialogItem(askdialog, RSRC_ASK_NAME, &type, &handle, &rect);
-			SetDialogItemText(handle, pName);
-			if (pName [0] > 2 && pName [pName [0] - 1] == '-') {
-			    short role = (*pANR).anMenu[anRole];
-			    char suffix = (char) pName[pName[0]],
-				*sfxindx = strchr(pl_classes, suffix);
-
-			    if (sfxindx)
-				role = (short) (sfxindx - pl_classes);
-			    else if (suffix == '@')
-				role = (short) rn2((int) strlen(pl_classes));
-			    (*pANR).anMenu[anRole] = role;
-			}
-		}
-	}
-#endif
     SelectDialogItemText(askdialog, RSRC_ASK_NAME, 0, 32767);
 
     /* Initialize the role popup menu */
-    if (!(askmenu[RSRC_ASK_ROLE] = NewMenu(RSRC_ASK_ROLE, "\x00")))
+    if (!(askmenu[RSRC_ASK_ROLE] = NewMenu(RSRC_ASK_ROLE, P_EMPTY_STRING)))
         fatal("Cannot create role menu");
     for (i = 0; roles[i].name.m; i++) {
         ask_restring(roles[i].name.m, str);
@@ -536,7 +498,7 @@ mac_askname()
         currrole = randrole(FALSE);
 
     /* Initialize the race popup menu */
-    if (!(askmenu[RSRC_ASK_RACE] = NewMenu(RSRC_ASK_RACE, "\x00")))
+    if (!(askmenu[RSRC_ASK_RACE] = NewMenu(RSRC_ASK_RACE, P_EMPTY_STRING)))
         fatal("Cannot create race menu");
     for (i = 0; races[i].noun; i++) {
         ask_restring(races[i].noun, str);
@@ -549,7 +511,7 @@ mac_askname()
         currrace = randrace(currrole);
 
     /* Initialize the gender popup menu */
-    if (!(askmenu[RSRC_ASK_GEND] = NewMenu(RSRC_ASK_GEND, "\x00")))
+    if (!(askmenu[RSRC_ASK_GEND] = NewMenu(RSRC_ASK_GEND, P_EMPTY_STRING)))
         fatal("Cannot create gender menu");
     for (i = 0; i < ROLE_GENDERS; i++) {
         ask_restring(genders[i].adj, str);
@@ -564,7 +526,7 @@ mac_askname()
         currgend = randgend(currrole, currrace);
 
     /* Initialize the alignment popup menu */
-    if (!(askmenu[RSRC_ASK_ALIGN] = NewMenu(RSRC_ASK_ALIGN, "\x00")))
+    if (!(askmenu[RSRC_ASK_ALIGN] = NewMenu(RSRC_ASK_ALIGN, P_EMPTY_STRING)))
         fatal("Cannot create alignment menu");
     for (i = 0; i < ROLE_ALIGNS; i++) {
         ask_restring(aligns[i].adj, str);
@@ -577,7 +539,7 @@ mac_askname()
         curralign = randalign(currrole, currrace);
 
     /* Initialize the mode popup menu */
-    if (!(askmenu[RSRC_ASK_MODE] = NewMenu(RSRC_ASK_MODE, "\x00")))
+    if (!(askmenu[RSRC_ASK_MODE] = NewMenu(RSRC_ASK_MODE, P_EMPTY_STRING)))
         fatal("Cannot create mode menu");
     AppendMenu(askmenu[RSRC_ASK_MODE], P_STRING_CONV("Normal"));
     AppendMenu(askmenu[RSRC_ASK_MODE], P_STRING_CONV("Explore"));
@@ -692,23 +654,6 @@ mac_askname()
             InvalWindowRect(GetDialogWindow(askdialog), &rect);
             break;
         case RSRC_ASK_NAME:
-#if 0
-	    /* limit the data here to 25 chars */
-	    {
-	    	short beepTEDelete = 1;
-
-	    	while ((**dRec.textH).teLength > 25)
-	    	{
-	    		if (beepTEDelete++ <= 3)
-	    			SysBeep(3);
-	    		TEKey('\b', dRec.textH);
-	    	}
-	    }
-
-	    /* special case filter (that doesn't plug all the holes!) */
-	    if (((**dRec.textH).teLength == 1) && (**((**dRec.textH).hText) < 32))
-	    	TEKey('\b', dRec.textH);
-#endif
             break;
         }
     } while ((item != RSRC_ASK_PLAY) && (item != RSRC_ASK_QUIT));
@@ -755,7 +700,6 @@ mac_askname()
 
 /*** Menu bar routines ***/
 
-#if !TARGET_API_MAC_CARBON
 static void
 alignAD(Rect *pRct, short vExempt)
 {
@@ -770,7 +714,6 @@ alignAD(Rect *pRct, short vExempt)
     (*pRct).right += (*pRct).left;
     (*pRct).bottom += (*pRct).top;
 }
-#endif
 
 static void
 mustGetMenuAlerts()
@@ -786,9 +729,7 @@ mustGetMenuAlerts()
             ExitToShell();
         }
 
-#if !TARGET_API_MAC_CARBON
         alignAD(*hRct, GetMBarHeight());
-#endif
     }
 }
 
@@ -800,7 +741,7 @@ menuError(short menuErr)
     for (i = 0; i < beepMenuAlertErr; i++)
         SysBeep(3);
 
-    ParamText(menuErrStr[menuErr], "\x00", "\x00", "\x00");
+    ParamText(menuErrStr[menuErr], P_EMPTY_STRING, P_EMPTY_STRING, P_EMPTY_STRING);
     (void) Alert(alrtMenuNote, (ModalFilterUPP) 0L);
 
     ExitToShell();
@@ -849,7 +790,7 @@ InitMenuRes()
 
     /* Append the "Tile Mode" toggle to the File menu (item menuFileTileMode).
        The MENU resource only has items 1-10; this adds item 11 at runtime. */
-    AppendMenu(MHND_FILE, "\x09Tile Mode");
+    AppendMenu(MHND_FILE, P_STRING_CONV("Tile Mode"));
     /* Start disabled; mactile_menu_refresh() will enable when available. */
     DisableMenuItem(MHND_FILE, menuFileTileMode);
 
@@ -981,14 +922,12 @@ DoMenuEvt(long menuEntry)
     case menuApple:
         if (menuItem == menuAppleAboutBox)
             aboutNetHack();
-#if !TARGET_API_MAC_CARBON
         else {
-            unsigned char daName[32];
+            Str255 daName; /* GetMenuItemText may write up to 256 bytes */
 
-            GetMenuItemText(MHND_APPLE, menuItem, *(Str255 *) daName);
+            GetMenuItemText(MHND_APPLE, menuItem, daName);
             (void) OpenDeskAcc(daName);
         }
-#endif
         break;
 
     case menuFile:
@@ -1042,9 +981,7 @@ DoMenuEvt(long menuEntry)
         break;
 
     case menuEdit:
-#if !TARGET_API_MAC_CARBON
         (void) SystemEdit(menuItem - 1);
-#endif
         break;
 
     default: /* get associated string and add to key queue */
@@ -1076,11 +1013,14 @@ aboutNetHack()
 
         slen = snprintf(tmp, sizeof tmp, "NetHack %d.%d.%d",
                         VERSION_MAJOR, VERSION_MINOR, PATCHLEVEL);
-        if (slen > 255) slen = 255;
-        aboutStr[0] = slen;
+        /* snprintf returns the untruncated length; clamp to what tmp
+           actually holds (and what fits aboutStr's Pascal body) */
+        if (slen > (int) sizeof(aboutStr) - 1)
+            slen = (int) sizeof(aboutStr) - 1;
+        aboutStr[0] = (unsigned char) slen;
         memcpy(&aboutStr[1], tmp, slen);
 
-        ParamText(aboutStr, "\x19\rdevteam@www.nethack.org", "\x00", "\x00");
+        ParamText(aboutStr, P_STRING_CONV("\rdevteam@www.nethack.org"), P_EMPTY_STRING, P_EMPTY_STRING);
         (void) Alert(alrtMenuNote, (ModalFilterUPP) 0L);
         ResetAlertStage();
     }
@@ -1095,7 +1035,7 @@ askSave()
     if (theMenubar < mbarRegular) {
         short itemHit;
 
-        ParamText("\x0cReally Save?", "\x00", "\x00", "\x00");
+        ParamText(P_STRING_CONV("Really Save?"), P_EMPTY_STRING, P_EMPTY_STRING, P_EMPTY_STRING);
         itemHit = Alert(alrtMenu_NY, (ModalFilterUPP) 0L);
         ResetAlertStage();
 
@@ -1129,7 +1069,7 @@ askQuit()
     if (theMenubar < mbarRegular) {
         short itemHit;
 
-        ParamText("\x0cReally Quit?", "\x00", "\x00", "\x00");
+        ParamText(P_STRING_CONV("Really Quit?"), P_EMPTY_STRING, P_EMPTY_STRING, P_EMPTY_STRING);
         itemHit = Alert(alrtMenu_NY, (ModalFilterUPP) 0L);
         ResetAlertStage();
 

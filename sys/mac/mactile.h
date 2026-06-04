@@ -7,6 +7,10 @@
 #include <Palettes.h>
 #include <QDOffscreen.h>
 
+/* Tile edge length in pixels.  Must match the sheet emitted by
+   util/tile2pict (TILE_X/TILE_Y in win/share/tile.h, currently 16). */
+#define MACTILE_DIM 16
+
 extern Boolean mactile_available(void);    /* depth >= 4bpp */
 extern Boolean mactile_init(void);         /* load PICT 1000/1001 into GWorld */
 extern void    mactile_shutdown(void);

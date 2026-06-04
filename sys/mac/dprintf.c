@@ -14,18 +14,27 @@ KeyDown(unsigned short code)
     return ((keys[code >> 3] >> (code & 7)) & 1) != 0;
 }
 
+enum { DO_NOTHING, DO_DEBUGSTR, DO_PLINE };
+
+/* Debug diagnostics sink, active only in wizard mode (flags.debug) so a
+   release game never creates files or interrupts play.  In wizard mode every
+   message is appended to dprintf.log in the game folder; in addition, with
+   Caps Lock down it is sent to the debugger (DebugStr), or with Control down
+   pline()d into the message window. */
 void
 mac_dprintf(char *format, ...)
 {
     static FILE *log_fp = NULL;
     static int   log_tried = 0;
     char buffer[512];
+    size_t plen;
     va_list list;
     int doit;
-#define DO_DEBUGSTR 1
-#define DO_PLINE 2
 
-    /* Log to dprintf.log; open lazily once, give up silently on failure. */
+    if (!flags.debug)
+        return;
+
+    /* open lazily once, give up silently on failure */
     if (!log_tried) {
         log_tried = 1;
         log_fp = fopen("dprintf.log", "w");
@@ -40,26 +49,27 @@ mac_dprintf(char *format, ...)
         fflush(log_fp);
     }
 
-    if (flags.debug) {
-        doit = 0;
-        if (macFlags.hasDebugger && KeyDown(0x39)) { /* Caps Lock */
-            doit = DO_DEBUGSTR;
-        } else if (KeyDown(0x3B) && iflags.window_inited && /* Control */
-                   (WIN_MESSAGE != -1)
-                   && theWindows[WIN_MESSAGE].its_window) {
-            doit = DO_PLINE;
-        }
+    doit = DO_NOTHING;
+    if (macFlags.hasDebugger && KeyDown(0x39)) { /* Caps Lock */
+        doit = DO_DEBUGSTR;
+    } else if (KeyDown(0x3B) && iflags.window_inited && /* Control */
+               (WIN_MESSAGE != -1)
+               && theWindows[WIN_MESSAGE].its_window) {
+        doit = DO_PLINE;
+    }
 
-        if (doit) {
-            va_start(list, format);
-            vsnprintf(&buffer[1], sizeof buffer - 1, format, list);
-            va_end(list);
+    if (doit != DO_NOTHING) {
+        va_start(list, format);
+        vsnprintf(&buffer[1], sizeof buffer - 1, format, list);
+        va_end(list);
 
-            if (doit == DO_DEBUGSTR) {
-                buffer[0] = strlen(&buffer[1]);
-                DebugStr((uchar *) buffer);
-            } else if (doit == DO_PLINE)
-                pline("%s", &buffer[1]);
-        }
+        if (doit == DO_DEBUGSTR) {
+            plen = strlen(&buffer[1]);
+            if (plen > 255) /* Str255 length byte */
+                plen = 255;
+            buffer[0] = (char) plen;
+            DebugStr((uchar *) buffer);
+        } else if (doit == DO_PLINE)
+            pline("%s", &buffer[1]);
     }
 }

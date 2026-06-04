@@ -92,6 +92,12 @@
 
 #define Rand random
 extern void error(const char *, ...);
+/* macwin.c; called from options.c under #ifdef MACOS9 */
+extern short set_font_name(int, char *);
+/* macmain.c; called from options.c (other ports declare these in their
+   *conf.h as well) */
+extern boolean authorize_wizard_mode(void);
+extern boolean authorize_explore_mode(void);
 
 #if !defined(O_WRONLY)
 #if defined(__MWERKS__) && !TARGET_API_MAC_CARBON

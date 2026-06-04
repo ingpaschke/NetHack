@@ -7,14 +7,12 @@
 #include "macwin.h"
 #include "macmap.h"
 
-#if 1 /*!TARGET_API_MAC_CARBON*/
 #include <Folders.h>
 #include <TextUtils.h>
 #include <Resources.h>
-#endif
 
 static Boolean winFileInit = 0;
-static unsigned char winFileName[32] = "\x13NetHack Preferences";
+static unsigned char winFileName[32]; /* Pascal string; set in InitWinFile */
 static long winFileDir;
 static short winFileVol;
 
@@ -45,17 +43,20 @@ InitWinFile(void)
         winFileVol = 0;
         winFileDir = 0;
     }
+    C2P("NetHack Preferences", winFileName); /* default; STR 128 overrides */
     sh = GetString(128);
-    if (sh && *sh) {
-        BlockMove(*sh, winFileName, **sh + 1);
+    if (sh) {
+        if (*sh && **sh < sizeof(winFileName))
+            BlockMove(*sh, winFileName, **sh + 1);
         ReleaseResource((Handle) sh);
     }
     if (HOpen(winFileVol, winFileDir, winFileName, fsRdPerm, &ref)) {
         return;
     }
     len = sizeof(savePos);
-    if (FSRead(ref, &len, savePos) && len == 0) {
-        /* short or empty read: zero the buffer rather than use stale data */
+    if (FSRead(ref, &len, savePos) != noErr || len < (long) sizeof(savePos)) {
+        /* error or short read (e.g. prefs from an older layout):
+           don't trust partial data */
         memset(savePos, 0, sizeof savePos);
     }
     winFileInit = 1; /* don't retry on every call */

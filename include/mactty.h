@@ -44,9 +44,7 @@
 #undef red /* undef internal color const strings from decl */
 #undef green
 #undef blue
-#if 1 /*!TARGET_API_MAC_CARBON*/
 #include <Windows.h>
-#endif
 
 #ifdef CROSS_TO_MAC68K
 #include "maccompat.h"
@@ -77,13 +75,6 @@
 #define CHAR_DELETE ((char) 127)
 
 /* game_active replaced by iflags.window_inited */
-/*
- * If you want some fancy operations that not a normal TTY device normally
- * supports, use EXTENDED_SUPPORT. For frames, area erases and area scrolls,
- * plus bitmap graphics - RESOLUTION DEPENDENT, be sure to call
- * get_tty_metrics and use those limits.
- */
-#define EXTENDED_SUPPORT 0
 /*
  * if you print a lot of single characters, accumulating each one in a
  * clipping region will take too much time. Instead, define this, which
@@ -306,43 +297,5 @@ extern short clear_tty_window(WindowPtr window, short from_row,
  */
 extern short get_invalid_region(WindowPtr window, Rect *inval_rect);
 extern short set_invalid_region(WindowPtr window, Rect *inval_rect);
-
-
-#if EXTENDED_SUPPORT
-
-/*
- * Various versions of delete character/s, insert line/s etc can be handled by
- * this general-purpose function. Negative num_ means delete, positive means
- * insert, and you can never be sure which of row and col operations come
- * first
- * if you specify both...
- */
-extern short mangle_tty_rows_columns(WindowPtr window, short from_row,
-                                     short num_rows, short from_col,
-                                     short num_cols);
-
-/*
- * For framing an area without using grahpics characters.
- * Note that the given limits are those used for framing, you should not
- * draw in them. frame_fatness should typically be 1-5, and may be clipped
- * if it is too large.
- */
-extern short frame_tty_window(WindowPtr window, short from_row,
-                              short from_col, short to_row, short to_col,
-                              short frame_fatness);
-
-/*
- * For inverting specific characters after the fact. May look funny in color.
- */
-extern short invert_tty_window(WindowPtr window, short from_row,
-                               short from_col, short to_row, short to_col);
-
-/*
- * For drawing lines on the tty - VERY DEVICE DEPENDENT. Use get_tty_metrics.
- */
-extern short draw_tty_line(WindowPtr window, short from_x, short from_y,
-                           short to_x, short to_y);
-
-#endif /* EXTENDED_SUPPORT */
 
 #endif /* _H_tty_public */

@@ -188,7 +188,10 @@ build_pict_8bpp(unsigned char **out_buf, size_t *out_len)
 
     /* PackBits-compressed pixel rows. rowBytes >= 250 -> 2-byte length prefix. */
     {
-        unsigned char *rowtmp = malloc((size_t) sheet_w * 2 + 16);
+        /* PackBits worst case: ceil(n/128) groups of 1 header + 128 bytes
+           (same formula as the 4bpp path) */
+        unsigned char *rowtmp =
+            malloc((size_t) (((sheet_w + 127) / 128) * 129 + 1));
         if (!rowtmp) {
             fprintf(stderr, "tile2pict: out of memory for row buffer\n");
             exit(1);

@@ -15,11 +15,9 @@
 #include "mactty.h"
 #endif
 
-#if !TARGET_API_MAC_CARBON
 #include <QDOffscreen.h>
 #include <Gestalt.h>
 #include <Errors.h>
-#endif
 
 #define TA_TO_RGB(ta, rgb)                       \
     (((rgb).red = (((ta) >> 16) & 0xff) * 257),  \

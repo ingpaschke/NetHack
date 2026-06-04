@@ -26,21 +26,6 @@
 /* resources */
 #define PLAYER_NAME_RES_ID 1001
 
-/* fake some things if we don't have universal headers.. */
-#if 0 /*ndef NewUserItemProc*/
-typedef pascal void (*UserItemProcPtr)(WindowPtr theWindow, short itemNo);
-typedef UserItemProcPtr UserItemUPP;
-#define NewUserItemProc(p) (UserItemUPP)(p)
-
-typedef pascal void (*ControlActionProcPtr)(ControlHandle theControl,
-                                            short partCode);
-typedef ControlActionProcPtr ControlActionUPP;
-#define NewControlActionProc(p) (ControlActionUPP)(p)
-
-typedef ModalFilterProcPtr ModalFilterUPP;
-#define DisposeRoutineDescriptor(p)
-#endif
-
 /* misc */
 #ifdef __MWERKS__
 #define ResumeProcPtr long /* for call to InitDialogs */
@@ -184,18 +169,9 @@ extern Boolean RetrieveWinPos(WindowPtr, short *, short *);
 extern void C2P(const char *c, unsigned char *p);
 extern void P2C(const unsigned char *p, char *c);
 
-/* Build a Pascal string from a C-string LITERAL at the call site, with the
-   length byte computed by sizeof() at compile time.  Constraints: (1)
-   literal-only -- sizeof must see the array, so a char* variable won't work;
-   (2) the result points at a compound literal with the enclosing block's
-   lifetime, so use it inline (e.g. as a call argument), never store it for use
-   after the block. */
-#define P_STRING_CONV(X)                                              \
-    _Generic((X) + 0,                                                 \
-             char *: (StringPtr) &((struct {                          \
-                 char len;                                            \
-                 char s[sizeof(X) - 1];                               \
-             }){ (char) (sizeof(X) - 1), (X) }).len)
+/* P_STRING_CONV (compile-time Pascal string from a C literal) lives in
+   maccompat.h, included above, so standalone tools (mrecover.c) and
+   light-include files (mactty.c) can use it without pulling in macwin.h. */
 
 /* ### macmenu.c ### */
 

@@ -35,9 +35,6 @@ typedef struct {
     short          tile_cache[ROWNO][COLNO];
     unsigned char  text_cache[ROWNO][COLNO];
     unsigned char  text_color[ROWNO][COLNO];
-    short          saved_text_w, saved_text_h;
-    short          saved_tile_w, saved_tile_h;
-    Point          saved_position;
     /* software cursor for getpos/farlook: track the framed cell to un-frame it */
     Boolean        cursor_on;
     short          cursor_x, cursor_y;
@@ -232,6 +229,10 @@ allocate_backing(void)
     return true;
 }
 
+/* Copy a rect from the backing GWorld to the map window.  The two share a
+   coordinate space -- both origin at the content top-left, one cell per
+   gMap.cell_w/cell_h -- which is why callers can pass the SAME rect for
+   src and dst. */
 static void
 blit_backing_to_window(const Rect *src_rect, const Rect *dst_rect)
 {
@@ -280,8 +281,8 @@ macmap_create(NhWindow *map)
         SetRect(&hr, b.left - 1,  b.bottom - 15, b.right - 14, b.bottom + 1);
         /* nominal range until update_scroll_controls sets the real one.
            procID 16 == scrollBarProc */
-        gMap.vscroll = NewControl(w, &vr, "\p", true, 0, 0, 1, 16, 0);
-        gMap.hscroll = NewControl(w, &hr, "\p", true, 0, 0, 1, 16, 0);
+        gMap.vscroll = NewControl(w, &vr, P_EMPTY_STRING, true, 0, 0, 1, 16, 0);
+        gMap.hscroll = NewControl(w, &hr, P_EMPTY_STRING, true, 0, 0, 1, 16, 0);
     } else {
         gMap.vscroll = gMap.hscroll = NULL;
     }
@@ -375,8 +376,8 @@ macmap_set_mode(NhWindow *map, Boolean tile_mode)
     gMap.tile_mode = tile_mode;
     map->tile_mode = tile_mode;   /* keep NhWindow field in sync for macwin/mactty */
     if (tile_mode) {
-        gMap.cell_w = 16;
-        gMap.cell_h = 16;
+        gMap.cell_w = MACTILE_DIM;
+        gMap.cell_h = MACTILE_DIM;
         if (iflags.mac_map_tile_w && iflags.mac_map_tile_h
             && map->its_window) {
             SizeWindow(map->its_window,
@@ -394,12 +395,19 @@ macmap_set_mode(NhWindow *map, Boolean tile_mode)
         if (!allocate_backing()) {
             mac_dprintf("macmap: backing alloc failed in tile mode; using fallback\n");
         }
-        /* 8bpp: attach a 32-entry pmTolerant palette so close colors don't
-           trash reserved system slots */
+        /* 8bpp: anchor the sheet's dominant colors with a pmTolerant palette
+           (tolerance 0x1000 of 0xFFFF, ~6%); colors beyond the first entries
+           map to their nearest match in the default CLUT.  32 entries -- not
+           256 -- so reserved system slots and other windows' colors survive. */
+#define TILE_PALETTE_ENTRIES 32
+#define TILE_PALETTE_TOLERANCE 0x1000
         if (mactile_sheet_depth() == 8) {
             if (!gMap.palette) {
                 CTabHandle ct = mactile_sheet_ctable();
-                if (ct) gMap.palette = NewPalette(32, ct, pmTolerant, 0x1000);
+                if (ct)
+                    gMap.palette = NewPalette(TILE_PALETTE_ENTRIES, ct,
+                                              pmTolerant,
+                                              TILE_PALETTE_TOLERANCE);
             }
             if (gMap.palette) {
                 SetPalette(map->its_window, gMap.palette, true);
@@ -526,7 +534,7 @@ draw_cell_tile(int col, int row, int tile_idx)
 
     if (gMap.backing) {
         mactile_blit_to(gMap.backing, tile_idx, dx, dy);
-        Rect cell = { dy, dx, dy + 16, dx + 16 };
+        Rect cell = { dy, dx, dy + gMap.cell_h, dx + gMap.cell_w };
         mark_dirty(&cell);
     } else {
         mactile_blit_to_window(gMap.owner->its_window, tile_idx, dx, dy);

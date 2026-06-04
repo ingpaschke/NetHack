@@ -1,4 +1,4 @@
-# Building NetHack 3.7 for Classic Mac OS (System 7, 68k)
+# Building NetHack for Classic Mac OS (System 7, 68k)
 
 Cross-compilation using [Retro68](https://github.com/autc04/Retro68) GCC
 toolchain targeting Motorola 68k Macs in 32-bit addressing mode.
@@ -24,9 +24,11 @@ Master) disk image:
     mkdir -p /opt/retro68/universal/CIncludes
     cp -r <mpw-gm>/Interfaces/CIncludes/* /opt/retro68/universal/CIncludes/
 
-    # Copy the Interface library (Pascal-calling-convention Toolbox glue)
-    cp <mpw-gm>/Libraries/Libraries/Interface.o \
-       /opt/retro68/m68k-apple-macos/lib/libInterface.a
+    # Wrap the Interface library (Pascal-calling-convention Toolbox glue)
+    # in a proper ar archive so -lInterface resolves it
+    /opt/retro68/bin/m68k-apple-macos-ar rcs \
+       /opt/retro68/m68k-apple-macos/lib/libInterface.a \
+       <mpw-gm>/Libraries/Libraries/Interface.o
 
 ### Host Tools
 
@@ -38,7 +40,14 @@ Master) disk image:
 
 ## Building
 
+From a fresh checkout, generate the Makefiles and fetch Lua first:
+
     cd NetHack
+    sys/unix/setup.sh sys/unix/hints/linux.500
+    make fetch-lua
+
+Then build:
+
     make CROSS_TO_MAC68K=1 all
 
 This produces:
@@ -48,7 +57,10 @@ This produces:
 
 ## Packaging
 
-    make CROSS_TO_MAC68K=1 mac68kpkg
+    make -C src CROSS_TO_MAC68K=1 mac68kpkg
+
+(Run from `src/`; the top-level Makefile's generated Lua paths break this
+target when invoked from the repository root.)
 
 This runs the full packaging pipeline:
 1. Compile SIZE resource with Rez
@@ -61,6 +73,8 @@ This runs the full packaging pipeline:
 Output:
 - `targets/mac68k/NetHack.img` — ready for QEMU or BlueSCSI
 - `targets/mac68k/NetHack.bin` — MacBinary for `hcopy -m` to existing disks
+- `targets/mac68k/NetHack.dsk` — Disk Copy 4.2 image for real floppies
+- `targets/mac68k/NetHack.sit` — StuffIt archive for upload/distribution
 
 ### Updating an existing disk (e.g. BlueSCSI)
 
@@ -104,6 +118,13 @@ of the data section, preserving all existing offsets.
 | `append_rsrc.py` | Merge resources into a resource fork preserving existing offsets |
 | `make_macbin.py` | Create MacBinary II files from data + resource forks |
 | `make_scsi_image2.py` | Wrap an HFS image with Apple Partition Map for SCSI |
+| `make_dc42.py` | Create Disk Copy 4.2 images (`NetHack.dsk` in the packaging step) |
 | `decode_hqx.py` | Decode BinHex 4.0 (.hqx) files to data + resource forks |
 | `dump_rsrc.py` | Dump resource fork contents (types, IDs, sizes) |
 | `verify_rela.py` | Verify RELA relocations by replaying them |
+
+## Historical files
+
+`sys/mac/README`, `Install.mw`, and `NHrsrc.hqx`/`NHsound.hqx` date from the
+original 1990s Macintosh port (Metrowerks/MPW).  They are retained for
+reference; only this file describes the Retro68 cross-compile.

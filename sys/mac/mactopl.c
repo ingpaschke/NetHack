@@ -11,7 +11,7 @@
 char
 queued_resp(char *resp)
 {
-    char buf[30];
+    char buf[QUEUE_LEN + 1]; /* try_key_queue's required minimum */
     if (try_key_queue(buf)) {
         if (!resp || strchr(resp, buf[0]))
             return buf[0];
@@ -26,7 +26,8 @@ queued_resp(char *resp)
 char
 topl_yn_function(const char *query, const char *resp, char def)
 {
-    char buf[30];
+    char buf[BUFSZ]; /* leave_topl_mode can write up to BUFSZ-1 chars,
+                        e.g. digits typed at a '#' numeric prompt */
     char c = queued_resp((char *) resp);
     if (!c) {
         enter_topl_mode((char *) query);

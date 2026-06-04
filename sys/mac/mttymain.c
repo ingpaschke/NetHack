@@ -9,7 +9,7 @@
 #include "mactty.h"
 #include "wintty.h"
 
-#if !TARGET_API_MAC_CARBON && !defined(CROSS_TO_MAC68K)
+#if !defined(CROSS_TO_MAC68K)
 #include <Palettes.h>
 #endif
 #include <Gestalt.h>
@@ -240,13 +240,16 @@ _mt_init_stuff(void)
     SetWindowKind(_mt_window, WIN_BASE_KIND + NHW_MAP);
     SelectWindow(_mt_window);
     SetPortWindowPort(_mt_window);
+    /* shift the origin so local (0,0) lands one pixel inside the window;
+       paired with the +2 in SizeWindow below this leaves a one-pixel
+       margin around the tty bitmap on all sides */
     SetOrigin(-1, -1);
 
     font_size = iflags.wc_fontsiz_map
                     ? iflags.wc_fontsiz_map
                     : (iflags.large_font && !small_screen) ? 12 : 9;
     {
-        short fnum = win_fonts[NHW_MAP] ? win_fonts[NHW_MAP] : 4; /* Monaco */
+        short fnum = win_fonts[NHW_MAP] ? win_fonts[NHW_MAP] : kFontIDMonaco;
         short err = init_tty_number(_mt_window, fnum, font_size, CO, LI);
         if (err != noErr)
             error("_mt_init_stuff: init tty err=%d font=%d sz=%d",
@@ -258,6 +261,7 @@ _mt_init_stuff(void)
                         &row_height))
         error("_mt_init_stuff: Couldn't get tty metrics.");
 
+    /* +2: one-pixel margin on each side, matching SetOrigin(-1, -1) above */
     SizeWindow(_mt_window, win_width + 2, win_height + 2, 1);
     if (RetrievePosition(kStatusWindow, &vert, &hor)) {
         MoveWindow(_mt_window, hor, vert, 1);
@@ -335,35 +339,6 @@ getreturn(char *str)
     (void) tgetch();
 }
 
-#if 0       /* this function is commented out */
-/* the tty has_color[] table is filled in during init above */
-int
-has_color(int color)
-{
-#if defined(__SC__) || defined(__MRC__)
-#pragma unused(color)
-#endif
-    Rect r;
-    //	Point p = {0, 0};
-    GDHandle gh;
-
-    if (!_mt_in_color)
-        return 0;
-
-    GetWindowBounds(_mt_window, kWindowContentRgn, &r);
-    //	SetPortWindowPort(_mt_window);
-    //	LocalToGlobal (&p);
-    //	OffsetRect (&r, p.h, p.v);
-
-    gh = GetMaxDevice(&r);
-    if (!gh) {
-        return 0;
-    }
-
-    return (*((*gh)->gdPMap))->pixelSize > 4; /* > 4 bpp */
-}
-#endif
-
 void
 tty_delay_output(void)
 {
@@ -396,13 +371,12 @@ nocmov(int x, int y)
 static void
 _mt_set_colors(long *colors)
 {
-    short err;
-
     if (!_mt_in_color) {
         return;
     }
-    err = set_tty_attrib(_mt_window, TTY_ATTRIB_FOREGROUND, colors[0]);
-    err = set_tty_attrib(_mt_window, TTY_ATTRIB_BACKGROUND, colors[1]);
+    /* can only fail for a null window or bad attrib index; neither here */
+    (void) set_tty_attrib(_mt_window, TTY_ATTRIB_FOREGROUND, colors[0]);
+    (void) set_tty_attrib(_mt_window, TTY_ATTRIB_BACKGROUND, colors[1]);
 }
 
 int

@@ -57,8 +57,8 @@ load_tile_pict(short pict_id, short depth)
         return false;
     }
     gSheetDepth = depth;
-    gSheetCols  = (frame.right - frame.left) / 16;
-    gSheetRows  = (frame.bottom - frame.top) / 16;
+    gSheetCols  = (frame.right - frame.left) / MACTILE_DIM;
+    gSheetRows  = (frame.bottom - frame.top) / MACTILE_DIM;
     return true;
 }
 
@@ -144,10 +144,10 @@ mactile_blit_to(GWorldPtr dst, int tile_idx, short dst_x, short dst_y)
                     tile_idx, (int) gSheetCols * (int) gSheetRows - 1);
         return;
     }
-    short sx = (tile_idx % gSheetCols) * 16;
-    short sy = (tile_idx / gSheetCols) * 16;
-    Rect src = { sy, sx, sy + 16, sx + 16 };
-    Rect dr  = { dst_y, dst_x, dst_y + 16, dst_x + 16 };
+    short sx = (tile_idx % gSheetCols) * MACTILE_DIM;
+    short sy = (tile_idx / gSheetCols) * MACTILE_DIM;
+    Rect src = { sy, sx, sy + MACTILE_DIM, sx + MACTILE_DIM };
+    Rect dr  = { dst_y, dst_x, dst_y + MACTILE_DIM, dst_x + MACTILE_DIM };
 
     PixMapHandle spm = GetGWorldPixMap(gTileSheet);   /* sheet stays locked */
     PixMapHandle dpm = GetGWorldPixMap(dst);
@@ -173,10 +173,10 @@ mactile_blit_to_window(WindowPtr dst, int tile_idx, short dst_x, short dst_y)
                     tile_idx, (int) gSheetCols * (int) gSheetRows - 1);
         return;
     }
-    short sx = (tile_idx % gSheetCols) * 16;
-    short sy = (tile_idx / gSheetCols) * 16;
-    Rect src = { sy, sx, sy + 16, sx + 16 };
-    Rect dr  = { dst_y, dst_x, dst_y + 16, dst_x + 16 };
+    short sx = (tile_idx % gSheetCols) * MACTILE_DIM;
+    short sy = (tile_idx / gSheetCols) * MACTILE_DIM;
+    Rect src = { sy, sx, sy + MACTILE_DIM, sx + MACTILE_DIM };
+    Rect dr  = { dst_y, dst_x, dst_y + MACTILE_DIM, dst_x + MACTILE_DIM };
 
     PixMapHandle spm = GetGWorldPixMap(gTileSheet);   /* sheet stays locked */
     GrafPtr saveP; GetPort(&saveP);

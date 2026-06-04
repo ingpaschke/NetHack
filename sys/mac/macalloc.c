@@ -206,7 +206,7 @@ __wrap_realloc(void *p, size_t n)
 /* Profiling hook: with NHMAC_ALLOC_STATS, log call/slab counts + elapsed ticks
    since the last call to dprintf.log; otherwise a no-op.  Called from macmain. */
 void
-macalloc_stats(char *tag)
+macalloc_stats(const char *tag)
 {
 #ifdef NHMAC_ALLOC_STATS
     long now = TickCount();

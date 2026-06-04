@@ -26,7 +26,7 @@
 
 static void finder_file_request(void);
 int main(void);
-extern void macalloc_stats(char *tag); /* profiling hook; no-op unless NHMAC_ALLOC_STATS */
+extern void macalloc_stats(const char *tag); /* profiling hook; no-op unless NHMAC_ALLOC_STATS */
 
 #if defined(__SC__) || defined(__MRC__)
 QDGlobals qd;
@@ -135,7 +135,11 @@ copy_file(short src_vol, long src_dir, short dst_vol, long dst_dir,
         err = (*opener)(dst_vol, dst_dir, fName, fsWrPerm, &dst_ref);
         if (err == noErr) {
             long file_len;
-            err = GetEOF(src_ref, &file_len);
+            /* truncate: the destination may exist from an earlier failed
+               copy, and a shorter source must not leave stale bytes */
+            err = SetEOF(dst_ref, 0L);
+            if (err == noErr)
+                err = GetEOF(src_ref, &file_len);
             if (err == noErr) {
                 Handle buf;
                 long count = MaxBlock();
@@ -164,9 +168,6 @@ copy_file(short src_vol, long src_dir, short dst_vol, long dst_dir,
                         file_len -= count;
                     }
                     HUnlock(buf);
-                    if (err == noErr && file_len == 0)
-                        err = noErr;
-
                     DisposeHandle(buf);
                 }
             }
@@ -195,7 +196,7 @@ process_openfile(short src_vol, long src_dir, Str255 fName, OSType ftype)
 
     if ((src_vol != theDirs.dataRefNum
          || src_dir != theDirs.dataDirID)
-               && CatMove(src_vol, src_dir, fName, theDirs.dataDirID, "\x01:")
+               && CatMove(src_vol, src_dir, fName, theDirs.dataDirID, P_STRING_CONV(":"))
                       != noErr) {
         HCreate(theDirs.dataRefNum, theDirs.dataDirID, fName, MAC_CREATOR,
                 SAVE_TYPE);

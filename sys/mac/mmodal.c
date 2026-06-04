@@ -2,13 +2,9 @@
 /* Copyright (c) Jon W{tte, Hao-Yang Wang, Jonathan Handler 1992. */
 /* NetHack may be freely redistributed.  See license for details. */
 
-#if 1 /*!TARGET_API_MAC_CARBON*/
 #include <Dialogs.h>
 #ifndef CROSS_TO_MAC68K
 #include <ControlDefinitions.h>
-#endif
-#else
-#include <Carbon/Carbon.h>
 #endif
 
 #include "macpopup.h"

@@ -1,8 +1,12 @@
-Welcome to NetHack 3.6 for MacOS 7.0 - 9.x
+Welcome to NetHack 5.0 for 68k Macintosh (System 7)
 
-Unfortunately, the 68k version is no longer supported.
+This is a revival of the classic Mac OS port, cross-compiled with
+Retro68.  It runs on 68020-or-better Macs; tiles need a 4-bit or
+8-bit color display (Quadra, or an SE/30 with a color card), and
+text-mode play works fine in black and white.
 
-This game is brought to you by Dean Luick, Kevin Hugo, and Mark Modrall.
+Based on the original Macintosh port by Dean Luick, Kevin Hugo,
+and Mark Modrall.
 
 Bug reports, suggestions, comments, etc., should be e-mailed to the
 Internet address nethack-bugs@nethack.org, or fill out our comment

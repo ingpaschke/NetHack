@@ -9,11 +9,9 @@
 
 #include "hack.h"
 #include "macwin.h"
-#if !TARGET_API_MAC_CARBON
 #include <Dialogs.h>
 #include <TextUtils.h>
 #include <Resources.h>
-#endif
 
 void
 error(const char *format, ...)
@@ -32,7 +30,7 @@ error(const char *format, ...)
         WindowPtr w;
         Rect r = {80, 40, 200, 472};
 
-        w = NewWindow(NULL, &r, "\pNetHack Error", true,
+        w = NewWindow(NULL, &r, P_STRING_CONV("NetHack Error"), true,
                       dBoxProc, (WindowPtr)-1, false, 0);
         if (w) {
             SetPortWindowPort(w);
@@ -40,9 +38,10 @@ error(const char *format, ...)
             if (len > 0)
                 DrawText(cbuf, 0, len);
             MoveTo(10, 60);
-            DrawString("\pClick to exit.");
+            DrawString(P_STRING_CONV("Click to exit."));
             while (!Button())
                 ;
+            DisposeWindow(w);
         }
     }
     ExitToShell();

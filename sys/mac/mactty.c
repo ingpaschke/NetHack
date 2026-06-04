@@ -10,10 +10,9 @@
 
 #include "hack.h" /* to get flags */
 #include "mttypriv.h"
-#if !TARGET_API_MAC_CARBON
+#include "maccompat.h" /* P_STRING_CONV */
 #include <Sound.h>
 #include <Resources.h>
-#endif
 
 /* declared here because macwin.h cannot be included without pulling in the world */
 extern void mac_mac_dprintf(char *, ...);
@@ -149,7 +148,6 @@ free_bits(tty_record *record)
 
     if (record->uses_gworld) {
         s_err = deallocate_gworld(record);
-#if !TARGET_API_MAC_CARBON
     } else {
         s_err = dispose_ptr(record->its_bits.baseAddr);
         if (!s_err) {
@@ -162,7 +160,6 @@ free_bits(tty_record *record)
                 }
             }
         }
-#endif
     }
     return s_err;
 }
@@ -185,15 +182,11 @@ create_tty(WindowRef *window, short resource_id, Boolean in_color)
 
     record = (tty_record *) NewPtrClear(sizeof(tty_record));
     if (!record) {
-#if !TARGET_API_MAC_CARBON
         if (was_allocated) {
             CloseWindow(*window);
         } else {
-#endif
             DisposeWindow(*window);
-#if !TARGET_API_MAC_CARBON
         }
-#endif
         return mem_err();
     }
     record->its_window = *window;
@@ -249,15 +242,11 @@ destroy_tty(WindowPtr window)
 
     s_err = free_bits(record);
     if (!s_err) {
-#if !TARGET_API_MAC_CARBON
         if (record->was_allocated) {
             CloseWindow(window);
         } else {
-#endif
             DisposeWindow(window);
-#if !TARGET_API_MAC_CARBON
         }
-#endif
         s_err = dispose_ptr(record);
     }
 
@@ -280,11 +269,12 @@ do_set_port_font(tty_record *record)
 void
 tty_nhbell(void)
 {
-    Handle h = GetNamedResource('snd ', "\x0cNetHack Bell");
+    Handle h = GetNamedResource('snd ', P_STRING_CONV("NetHack Bell"));
 
     if (h) {
         HLock(h);
-        SndPlay((SndChannelPtr) 0, (Handle) h, 0);
+        SndPlay((SndChannelPtr) 0, (Handle) h, 0); /* async=0: synchronous */
+        HUnlock(h);
         ReleaseResource(h);
     } else
         SysBeep(30);
@@ -320,7 +310,6 @@ alloc_bits(tty_record *record)
 
     if (record->uses_gworld) {
         s_err = allocate_offscreen_world(record);
-#if !TARGET_API_MAC_CARBON
     } else {
         s_err = alloc_ptr((void **) &(record->its_bits.baseAddr),
                           record->its_bits.rowBytes
@@ -335,7 +324,6 @@ alloc_bits(tty_record *record)
             ClipRect(&(record->its_bits.bounds));
             SetPortBits(&(record->its_bits));
         }
-#endif
     }
     return s_err;
 }
@@ -457,29 +445,6 @@ force_tty_coordinate_system_recalc(WindowPtr window)
     return clear_tty(window);
 }
 
-#if 0
-/*
- * Update TTY according to new color environment for the window
- */
-static short
-tty_environment_changed (tty_record *record) {
-Point p = {0, 0};
-Rect r_screen;
-
-	if (record->uses_gworld) {
-		r_screen = record->its_bits.bounds;
-		LocalToGlobal (&p);
-		OffsetRect (&r_screen, p.h, p.v);
-		UpdateGWorld (&(record->offscreen_world), 0, &r_screen,
-			(CTabHandle) 0, (GDHandle) 0, stretchPix);
-		select_offscreen_port (record);
-		SetOrigin (0, 0);
-		select_onscreen_window (record);
-	}
-	return 0;
-}
-#endif
-
 /* read metrics (size, font, char dimensions) from the current tty */
 short
 get_tty_metrics(WindowPtr window, short *x_size, short *y_size,
@@ -560,7 +525,13 @@ set_invalid_region(WindowPtr window, Rect *inval_rect)
     return noErr;
 }
 
-/* invert the cell at (x_pos, y_pos) to show/hide the cursor */
+/* Invert the cell at (x_pos, y_pos) to show/hide the cursor.
+
+   Invariant: the cursor is an ONSCREEN-ONLY overlay; it is never drawn into
+   the offscreen bitmap.  Every full blit (update_tty/image_tty) paints the
+   un-inverted cell from the bitmap and then re-inverts at the cursor
+   position, so the two stay consistent.  Keep it that way -- inverting the
+   offscreen copy as well would double-invert on the next blit. */
 static void
 curs_pos(tty_record *record, short x_pos, short y_pos, short to_state)
 {
@@ -677,7 +648,9 @@ do_add_cursor(tty_record *record, short x_pos)
             if (record->y_curs >= record->y_size) {
                 if (0L != (record->attribute[TTY_ATTRIB_FLAGS]
                            & TA_INHIBIT_VERT_SCROLL)) {
-                    record->y_curs = record->y_size;
+                    /* pin to the last valid row (y_size itself would be one
+                       row past the bitmap and draw out of bounds) */
+                    record->y_curs = record->y_size - 1;
                 } else {
                     scroll_tty(record->its_window, 0,
                                1 + record->y_curs - record->y_size);
@@ -736,8 +709,8 @@ do_control(tty_record *record, short character)
 short
 add_tty_char(WindowPtr window, short character)
 {
-    register char is_control;
-    char ch;
+    int is_control;
+    unsigned char ch;
     RECORD_EXISTS(record);
 
     if (!(record->attribute[TTY_ATTRIB_FLAGS] & TA_WRAP_AROUND)
@@ -747,8 +720,8 @@ add_tty_char(WindowPtr window, short character)
     if (record->curs_state != 0)
         curs_pos(record, record->x_curs, record->y_curs, 0);
 
-    ch = character;
-    is_control = (ch < sizeof(long) * 8) && ((s_control & (1 << ch)) != 0L);
+    ch = (unsigned char) character;
+    is_control = (ch < sizeof(long) * 8) && ((s_control & (1UL << ch)) != 0L);
     if (is_control)
         do_control(record, ch);
     else {
@@ -784,7 +757,7 @@ add_tty_string(WindowPtr window, const char *string)
         ch = *the_c;
         while (pos_x < max_x) {
             is_control =
-                (ch < sizeof(long) * 8) && ((s_control & (1 << ch)) != 0L);
+                (ch < sizeof(long) * 8) && ((s_control & (1UL << ch)) != 0L);
             if (is_control)
                 break;
             the_c++;
@@ -968,136 +941,3 @@ clear_tty_window(WindowPtr window, short from_x, short from_y, short to_x,
         select_onscreen_window(record);
     return noErr;
 }
-
-#if EXTENDED_SUPPORT
-/* insert/delete rows and columns; negative num_ means delete, zero no-op.
- * order of row vs column operations is unspecified */
-short
-mangle_tty_rows_columns(WindowPtr window, short from_row, short num_rows,
-                        short from_column, short num_columns)
-{
-    Rect r;
-    RgnHandle rh = NewRgn();
-    RECORD_EXISTS(record);
-
-    update_tty(window);
-    curs_pos(record, record->x_curs, record->y_curs, 0);
-
-    if (num_rows) {
-        pos_rect(record, &r, 0, from_row, record->x_size - 1,
-                 record->y_size - 1);
-        select_offscreen_port(record);
-        ScrollRect(&r, 0, num_rows * record->row_height, rh);
-        EraseRgn(rh);
-        SetEmptyRgn(rh);
-        select_onscreen_window(record);
-        ScrollRect(&r, 0, num_rows * record->row_height, rh);
-        EraseRgn(rh);
-        SetEmptyRgn(rh);
-    }
-    if (num_columns) {
-        pos_rect(record, &r, from_column, 0, record->x_size - 1,
-                 record->y_size - 1);
-        select_offscreen_port(record);
-        ScrollRect(&r, num_columns * record->char_width, 0, rh);
-        EraseRgn(rh);
-        SetEmptyRgn(rh);
-        select_onscreen_window(record);
-        ScrollRect(&r, num_columns * record->char_width, 0, rh);
-        EraseRgn(rh);
-        SetEmptyRgn(rh);
-    }
-    DisposeRgn(rh);
-    if (record->x_curs >= from_column) {
-        record->x_curs += num_columns;
-    }
-    if (record->y_curs >= from_row) {
-        record->y_curs += num_rows;
-    }
-    curs_pos(record, record->x_curs, record->y_curs, 1);
-
-    return noErr;
-}
-
-/* draw a frame around an area */
-short
-frame_tty_window(WindowPtr window, short from_x, short from_y, short to_x,
-                 short to_y, short frame_fatness)
-{
-    Rect r;
-    RECORD_EXISTS(record);
-
-    if (from_x > to_x || from_y > to_y) {
-        return general_failure;
-    }
-    pos_rect(record, &r, from_x, from_y, to_x, to_y);
-    select_offscreen_port(record);
-    PenSize(frame_fatness, frame_fatness);
-    FrameRect(&r);
-    PenNormal();
-    accumulate_rect(record, &r);
-    if (DRAW_DIRECT) {
-        update_tty(window);
-    } else
-        select_onscreen_window(record);
-}
-
-/* invert (highlight) a rectangular area of cells */
-short
-invert_tty_window(WindowPtr window, short from_x, short from_y, short to_x,
-                  short to_y)
-{
-    Rect r;
-    RECORD_EXISTS(record);
-
-    if (from_x > to_x || from_y > to_y) {
-        return general_failure;
-    }
-    pos_rect(record, &r, from_x, from_y, to_x, to_y);
-    select_offscreen_port(record);
-    InvertRect(&r);
-    accumulate_rect(record, &r);
-    if (DRAW_DIRECT) {
-        update_tty(window);
-    } else
-        select_onscreen_window(record);
-}
-
-static void
-canonical_rect(Rect *r, short x1, short y1, short x2, short y2)
-{
-    if (x1 < x2) {
-        if (y1 < y2) {
-            SetRect(r, x1, x2, y1, y2);
-        } else {
-            SetRect(r, x1, x2, y2, y1);
-        }
-    } else {
-        if (y1 < y2) {
-            SetRect(r, x2, x1, y1, y2);
-        } else {
-            SetRect(r, x2, x1, y2, y1);
-        }
-    }
-}
-
-/* draw a line in pixel coordinates */
-short
-draw_tty_line(WindowPtr window, short from_x, short from_y, short to_x,
-              short to_y)
-{
-    Rect r;
-    RECORD_EXISTS(record);
-
-    select_offscreen_port(record);
-    MoveTo(from_x, from_y);
-    LineTo(to_x, to_y);
-    canonical_rect(&r, from_x, from_y, to_x, to_y);
-    accumulate_rect(record, &r);
-    if (DRAW_DIRECT) {
-        update_tty(window);
-    } else
-        select_onscreen_window(record);
-}
-
-#endif /* EXTENDED_SUPPORT */

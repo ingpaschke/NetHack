@@ -141,7 +141,9 @@ SetHandleFilePos(int fd, short whence, long pos)
         curpos += pos;
         break;
     case SEEK_END:
-        curpos = theHandleFiles[fd].size - pos;
+        /* POSIX semantics: offset is added to EOF, so pos <= 0 seeks
+           backward from the end (then clamped to [0, size] below). */
+        curpos = theHandleFiles[fd].size + pos;
         break;
     default: /* set */
         curpos = pos;
@@ -180,23 +182,6 @@ P2C(const unsigned char *p, char *c)
     *c = '\0';
 }
 
-static void
-replace_resource(Handle new_res, ResType its_type, short its_id,
-                 Str255 its_name)
-{
-    Handle old_res;
-
-    SetResLoad(false);
-    old_res = Get1Resource(its_type, its_id);
-    SetResLoad(true);
-    if (old_res) {
-        RemoveResource(old_res);
-        DisposeHandle(old_res);
-    }
-
-    AddResource(new_res, its_type, its_id, its_name);
-}
-
 int
 maccreat(const char *name, long fileType)
 {
@@ -216,34 +201,6 @@ macopen(const char *name, int flags, long fileType)
                     fileType) && (flags & O_EXCL)) {
             return -1;
         }
-#if 0 /* Fails during makedefs */
-		if (fileType == SAVE_TYPE) {
-			short resRef;
-			HCreateResFile(theDirs.dataRefNum, theDirs.dataDirID, s);
-			resRef = HOpenResFile(theDirs.dataRefNum, theDirs.dataDirID, s,
-								  fsRdWrPerm);
-			if (resRef != -1) {
-				Handle name;
-				Str255 plnamep;
-
-				C2P(svp.plname, plnamep);
-				name = (Handle)NewString(plnamep);
-				if (name)
-					replace_resource(name, 'STR ', PLAYER_NAME_RES_ID,
-									P_STRING_CONV("Player Name"));
-
-				/* The application name resource.  See IM VI, page 9-21. */
-				name = (Handle)GetString(APP_NAME_RES_ID);
-				if (name) {
-					DetachResource(name);
-					replace_resource(name, 'STR ', APP_NAME_RES_ID,
-									 P_STRING_CONV("Application Name"));
-				}
-
-				CloseResFile(resRef);
-			}
-		}
-#endif
     }
     if ((flags & O_RDWR) == O_RDWR) {
         perm = fsRdWrPerm;
@@ -252,8 +209,19 @@ macopen(const char *name, int flags, long fileType)
     } else {
         perm = fsRdPerm;
     }
-    if (HOpen(theDirs.dataRefNum, theDirs.dataDirID, s, perm, &refNum)) {
-        return OpenHandleFile(s, fileType);
+    {
+        OSErr openErr = HOpen(theDirs.dataRefNum, theDirs.dataDirID, s, perm,
+                              &refNum);
+
+        if (openErr == fnfErr) {
+            /* No HFS file: fall back to a read-only copy embedded as a
+               resource in the application ('File' resources, see Files.r). */
+            return OpenHandleFile(s, fileType);
+        } else if (openErr != noErr) {
+            /* Locked, already open, etc.: a real error, not a cue to use
+               the resource copy. */
+            return -1;
+        }
     }
     if (flags & O_TRUNC) {
         if (SetEOF(refNum, 0L)) {
@@ -291,26 +259,6 @@ macread(int fd, void *ptr, unsigned len)
         return ((err == noErr) || (err == eofErr && len)) ? amt : -1;
     }
 }
-
-#if 0  /* this function isn't used, if you use it, uncomment prototype in \
-          macwin.h */
-char *
-macgets (int fd, char *ptr, unsigned len)
-{
-        int idx = 0;
-        char c;
-
-        while (-- len > 0) {
-                if (macread (fd, ptr + idx, 1) <= 0)
-                        return (char *)0;
-                c = ptr[idx++];
-                if (c  == '\n' || c == '\r')
-                        break;
-        }
-        ptr [idx] = '\0';
-        return ptr;
-}
-#endif /* 0 */
 
 int
 macwrite(int fd, void *ptr, unsigned len)
@@ -415,7 +363,8 @@ rsrc_dlb_fread(char *buf, int size, int quan, dlb *dp)
 int
 rsrc_dlb_fseek(dlb *dp, long pos, int whence)
 {
-    return SetHandleFilePos(dp->fd, whence, pos);
+    /* dlb_fseek contract is fseek-like: 0 on success, -1 on failure */
+    return SetHandleFilePos(dp->fd, whence, pos) < 0 ? -1 : 0;
 }
 
 char *
