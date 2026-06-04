@@ -9,10 +9,12 @@ toolchain targeting Motorola 68k Macs in 32-bit addressing mode.
 
 Install Retro68 to `/opt/retro68` (or set `RETRO68=` to your path).
 
-Three patches are required. Apply `sys/mac/tools/retro68_elf2mac.patch`
-to the Retro68 source tree and rebuild Elf2Mac. Additionally, rebuild
-`libretrocrt.a` with `StripAddress24` redefined as a no-op for 32-bit
-mode — see comments in the patch file for details.
+One patch is required: apply `sys/mac/tools/retro68_elf2mac.patch` to
+the Retro68 source tree and rebuild Elf2Mac.  It lets the linker accept
+NetHack's function-pointer tables in `.data` (cross-section jump-table
+references), which upstream Elf2Mac rejects with an assert.  Nothing
+else in the toolchain needs patching: the stock `libretrocrt` runtime
+works as-is in 32-bit addressing mode.
 
 ### Apple Universal Interfaces 3.4
 

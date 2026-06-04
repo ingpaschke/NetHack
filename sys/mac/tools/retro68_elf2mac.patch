@@ -1,15 +1,15 @@
-diff --git a/Elf2Mac/Elf2Mac.cc b/Elf2Mac/Elf2Mac.cc
-index 76b81a76a9..c5ed64a892 100644
---- a/Elf2Mac/Elf2Mac.cc
-+++ b/Elf2Mac/Elf2Mac.cc
-@@ -196,6 +196,7 @@ int main(int argc, char *argv[])
-         }
-  
-         args2.push_back("--no-warn-rwx-segments");
-+        args2.push_back("--emit-relocs");
-         args2.push_back("-o");
-         args2.push_back(outputFile + ".gdb");
-         args2.push_back("-T");
+Elf2Mac: handle cross-section jump-table references instead of aborting
+
+NetHack keeps function-pointer tables in .data (windowprocs, sound
+interface, ...).  Each entry is a relocation from .data into a code
+section; upstream Elf2Mac asserts that jump-table relocations stay
+within their own section and aborts the link.  Treat the cross-section
+case as a regular jump-table relocation.
+
+Not yet merged upstream (checked against autc04/Retro68 master,
+2026-06).  Apply to the Retro68 source tree and rebuild Elf2Mac; no
+other component of the toolchain needs patching or rebuilding.
+
 diff --git a/Elf2Mac/Section.cc b/Elf2Mac/Section.cc
 index eb0097cbf9..2842deda14 100644
 --- a/Elf2Mac/Section.cc
