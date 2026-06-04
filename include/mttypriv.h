@@ -22,8 +22,7 @@
 #define TA_TO_RGB(ta, rgb)                       \
     (((rgb).red = (((ta) >> 16) & 0xff) * 257),  \
      ((rgb).green = (((ta) >> 8) & 0xff) * 257), \
-     ((rgb).blue = ((ta) &0xff) * 257)),         \
-        rgb
+     ((rgb).blue = ((ta) & 0xff) * 257))
 
 typedef struct tty_record {
     WindowPtr its_window;
@@ -43,16 +42,11 @@ typedef struct tty_record {
     BitMap its_bits;
     GrafPtr offscreen_port;
     GWorldPtr offscreen_world;
-#if CLIP_RECT_ONLY
     Rect invalid_rect;
-#else
-    RgnHandle invalid_part;
-#endif
 
     long attribute[TTY_NUMBER_ATTRIBUTES];
     long last_cursor;
 
-    Boolean was_allocated;
     Boolean curs_state;
     Boolean uses_gworld;
 } tty_record;

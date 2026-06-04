@@ -6,12 +6,11 @@
 #include "hack.h"
 #include "mactty.h"
 #include "macwin.h"
-#include "macpopup.h"
 #include "func_tab.h"
 
 extern int extcmd_via_menu(void); /* cmd.c */
 
-int
+static int
 get_line_from_key_queue(char *bufp)
 {
     *bufp = 0;

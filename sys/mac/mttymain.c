@@ -468,10 +468,9 @@ void
 backsp(void)
 {
     char eraser[] = { CHAR_BS, CHAR_BLANK, CHAR_BS, 0 };
-    short err;
 
-    err = add_tty_string(_mt_window, eraser);
-    err = update_tty(_mt_window);
+    (void) add_tty_string(_mt_window, eraser);
+    (void) update_tty(_mt_window);
 }
 
 void

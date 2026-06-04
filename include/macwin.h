@@ -152,6 +152,10 @@ extern void P2C(const unsigned char *p, char *c);
    maccompat.h, included above, so standalone tools (mrecover.c) and
    light-include files (mactty.c) can use it without pulling in macwin.h. */
 
+/* ### mmodal.c ### */
+
+extern void FlashButton(DialogRef, short);
+
 /* ### macmenu.c ### */
 
 extern void DoMenuEvt(long);

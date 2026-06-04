@@ -6,9 +6,8 @@
 #include "hack.h"
 #include "mactty.h"
 #include "macwin.h"
-#include "macpopup.h"
 
-char
+static char
 queued_resp(char *resp)
 {
     char buf[QUEUE_LEN + 1]; /* try_key_queue's required minimum */
@@ -23,7 +22,7 @@ queued_resp(char *resp)
     return '\0';
 }
 
-char
+static char
 topl_yn_function(const char *query, const char *resp, char def)
 {
     char buf[BUFSZ]; /* leave_topl_mode can write up to BUFSZ-1 chars,

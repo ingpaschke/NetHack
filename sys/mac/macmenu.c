@@ -24,7 +24,6 @@
 #include "hack.h"
 #include "mactty.h"
 #include "macwin.h"
-#include "macpopup.h"
 #include "patchlevel.h"
 #include "mactile.h"
 #include "macmap.h"

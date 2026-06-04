@@ -7,7 +7,6 @@
 #include <ControlDefinitions.h>
 #endif
 
-#include "macpopup.h"
 
 #ifndef kControlButtonPart
 #define kControlButtonPart 10

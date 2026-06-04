@@ -20,6 +20,8 @@ extern void mac_dprintf(char *, ...); /* dprintf.c */
 extern WindowPtr _mt_window;
 
 static void select_onscreen_window(tty_record *record);
+static short force_tty_coordinate_system_recalc(WindowPtr window);
+static short scroll_tty(WindowPtr window, short delta_x, short delta_y);
 static void select_offscreen_port(tty_record *record);
 
 #define MEMORY_MARGIN 30000
@@ -191,7 +193,6 @@ create_tty(WindowRef *window, short resource_id, Boolean in_color)
     }
     record->its_window = *window;
     SetWRefCon(*window, (long) record);
-    record->was_allocated = was_allocated;
     record->its_bits.baseAddr = (char *) 0;
     record->curs_state = TRUE;
 
@@ -207,14 +208,7 @@ create_tty(WindowRef *window, short resource_id, Boolean in_color)
         record->its_window_world = (GWorldPtr) 0;
     }
 
-#if CLIP_RECT_ONLY
     empty_rect(&(record->invalid_rect));
-#else
-    record->invalid_part = NewRgn();
-    if (!record->invalid_part) {
-        return destroy_tty(*window);
-    }
-#endif
 
     return noErr;
 }
@@ -231,26 +225,6 @@ init_tty_number(WindowPtr window, short font_number, short font_size,
     record->y_size = y_size;
 
     return force_tty_coordinate_system_recalc(window);
-}
-
-/* destroy a window; only free its memory if we allocated it */
-short
-destroy_tty(WindowPtr window)
-{
-    short s_err;
-    RECORD_EXISTS(record);
-
-    s_err = free_bits(record);
-    if (!s_err) {
-        if (record->was_allocated) {
-            CloseWindow(window);
-        } else {
-            DisposeWindow(window);
-        }
-        s_err = dispose_ptr(record);
-    }
-
-    return s_err;
 }
 
 static void
@@ -421,7 +395,7 @@ erase_rect(tty_record *record UNUSED, Rect *area)
 }
 
 /* recalc window metrics for new size/font and re-allocate the bitmap */
-short
+static short
 force_tty_coordinate_system_recalc(WindowPtr window)
 {
     short s_err;
@@ -486,15 +460,7 @@ pos_rect(tty_record *record, Rect *r, short x_pos, short y_pos, short x_end,
 static void
 accumulate_rect(tty_record *record, Rect *rect)
 {
-#if CLIP_RECT_ONLY
     union_rect(rect, &(record->invalid_rect), &(record->invalid_rect));
-#else
-    RgnHandle rh = NewRgn();
-
-    RectRgn(rh, rect);
-    UnionRgn(record->invalid_part, rh, record->invalid_part);
-    DisposeRgn(rh);
-#endif
 }
 
 /* get/set the window's invalid region; used by HandleUpdateEvent in macwin.c */
@@ -502,18 +468,11 @@ short
 get_invalid_region(WindowPtr window, Rect *inval_rect)
 {
     RECORD_EXISTS(record);
-#if CLIP_RECT_ONLY
     if (record->invalid_rect.right <= record->invalid_rect.left
         || record->invalid_rect.bottom <= record->invalid_rect.top) {
         return general_failure;
     }
     *inval_rect = record->invalid_rect;
-#else
-    if (EmptyRgn(record->invalid_part)) {
-        return general_failure;
-    }
-    *inval_rect = (*(record->invalid_part))->rgnBBox;
-#endif
     return noErr;
 }
 
@@ -583,25 +542,14 @@ update_tty(WindowPtr window)
     Rect r;
     RECORD_EXISTS(record);
 
-#if CLIP_RECT_ONLY
     if (record->invalid_rect.right <= record->invalid_rect.left
         || record->invalid_rect.bottom <= record->invalid_rect.top) {
         return noErr;
     }
     r = record->invalid_rect;
-#else
-    if (EmptyRgn(record->invalid_part)) {
-        return noErr;
-    }
-    r = (*(record->invalid_part))->rgnBBox;
-#endif
     select_onscreen_window(record);
     copy_bits(record, &r, srcCopy, (RgnHandle) 0);
-#if CLIP_RECT_ONLY
     empty_rect(&(record->invalid_rect));
-#else
-    SetEmptyRgn(record->invalid_part);
-#endif
     if (record->curs_state) {
         pos_rect(record, &r, record->x_curs, record->y_curs, record->x_curs,
                  record->y_curs);
@@ -836,14 +784,13 @@ set_tty_attrib(WindowPtr window, tty_attrib attrib, long value)
 }
 
 /* scroll the window (positive = up/left); flushes pending output first */
-short
+static short
 scroll_tty(WindowPtr window, short delta_x, short delta_y)
 {
     RgnHandle rgn;
-    short s_err;
     RECORD_EXISTS(record);
 
-    s_err = update_tty(window);
+    (void) update_tty(window); /* flush pending output first */
 
     rgn = NewRgn();
     if (!rgn)
@@ -908,15 +855,7 @@ image_tty(EventRecord *theEvent, WindowPtr window)
 #endif
     RECORD_EXISTS(record);
 
-#if CLIP_RECT_ONLY
     record->invalid_rect = record->its_bits.bounds;
-#else
-    RgnHandle rh = NewRgn();
-
-    RectRgn(rh, record->its_bits.bounds);
-    UnionRgn(record->invalid_part, rh, record->invalid_part);
-    DisposeRgn(rh);
-#endif
     return update_tty(window);
 }
 
