@@ -24,6 +24,7 @@ system.  Expand it ON THE MAC with StuffIt Expander (expanding on
 another machine loses resource forks).  It contains:
 
     NetHack             the application
+    Recover             crash-recovery application
     nhdat               packed game data (levels, Lua, text)
     NetHack Defaults    configuration file (editable TEXT)
     Guidebook           how to play NetHack
@@ -65,9 +66,11 @@ Crashed Games
 -------------
 Checkpointing is on by default.  After a crash or power loss the
 next start will refuse to begin a new game while the crashed
-game's files are present; remove the numbered level files (they
-are named after your character, e.g. "1Brunhilda.0", "1Brunhilda.1",
-...) from the game folder to abandon the crashed game.
+game's files are present.  Run the Recover application and choose
+the crashed game's ".0" file (the level files are named after your
+character: "1Brunhilda.0", "1Brunhilda.1", ...) to rebuild a save
+file you can restore from.  To abandon the crashed game instead,
+delete those numbered files from the game folder.
 
 Notes
 -----

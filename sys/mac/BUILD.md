@@ -124,6 +124,7 @@ does.
 | `make_scsi_image2.py` | Wrap an HFS image with Apple Partition Map for SCSI |
 | `decode_hqx.py` | Decode BinHex 4.0 (.hqx) files to data + resource forks; `--creator-fixup` renames the legacy signature/BNDL creator |
 | `dump_rsrc.py` | Dump resource fork contents (types, IDs, sizes) |
+| `make_info.py` | Write a macutils `.info` sidecar (name/type/creator + build-time dates) for the StuffIt staging |
 
 ## Historical files
 
