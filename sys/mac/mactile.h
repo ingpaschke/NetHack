@@ -13,7 +13,6 @@
 
 extern Boolean mactile_available(void);    /* depth >= 4bpp */
 extern Boolean mactile_init(void);         /* load PICT 1000/1001 into GWorld */
-extern void    mactile_shutdown(void);
 
 /* Where the tilesheet was loaded — needed by macmap to attach a Palette. */
 extern short      mactile_sheet_depth(void);

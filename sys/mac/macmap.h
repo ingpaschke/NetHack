@@ -8,7 +8,6 @@
 extern Boolean macmap_create(NhWindow *map);
 extern void    macmap_finalize(NhWindow *map);
 extern void    macmap_destroy(NhWindow *map);
-extern void    macmap_show(NhWindow *map);
 
 /* Mode control. */
 extern Boolean macmap_set_mode(NhWindow *map, Boolean tile_mode);
@@ -36,11 +35,5 @@ extern void    macmap_pixel_to_cell(NhWindow *map, Point pt,
 
 /* WRefCon sentinel for identifying the map window in event dispatch. */
 #define MACMAP_REFCON  ((long) 0x4E486D70)  /* 'NHmp' */
-
-/* Reserved WIND resource IDs. */
-#define kWindMapDocument    200
-#define kWindMapBorderless  201
-#define kWindStatusBorderless 210
-#define kWindMsgBorderless    211
 
 #endif /* MACMAP_H */

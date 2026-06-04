@@ -365,12 +365,6 @@ macmap_destroy(NhWindow *map)
     gMap.owner = NULL;
 }
 
-void
-macmap_show(NhWindow *map)
-{
-    if (map && map->its_window) ShowWindow(map->its_window);
-}
-
 Boolean
 macmap_set_mode(NhWindow *map, Boolean tile_mode)
 {

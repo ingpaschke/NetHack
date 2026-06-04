@@ -9,7 +9,6 @@
 
 /* --- module state --- */
 static GWorldPtr     gTileSheet     = NULL;
-static PaletteHandle gTilePalette   = NULL;
 static short         gSheetDepth    = 0;
 static short         gSheetCols     = 0;   /* tiles across in the sheet */
 static short         gSheetRows     = 0;   /* tiles down in the sheet */
@@ -85,14 +84,6 @@ mactile_init(void)
     if (!load_tile_pict(pict_id, depth)) return false;
 
     return true;
-}
-
-void
-mactile_shutdown(void)
-{
-    if (gTileSheet)   { DisposeGWorld(gTileSheet);    gTileSheet   = NULL; }
-    if (gTilePalette) { DisposePalette(gTilePalette); gTilePalette = NULL; }
-    gCursorClutIdx = -2;   /* recompute against a freshly reloaded sheet/ctable */
 }
 
 short

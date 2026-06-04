@@ -61,6 +61,12 @@ extern MacFlags macFlags;
 #define kMapTileWindow 5
 #define kLastWindowKind kMapTileWindow
 
+/* WIND resource IDs (templates in sys/mac/nhmapwind.r) */
+#define kWindMapDocument      200 /* map, decorated (scrollbars + grow box) */
+#define kWindMapBorderless    201 /* map, compact screens */
+#define kWindStatusBorderless 210 /* status/base tty window */
+#define kWindMsgBorderless    211 /* message window */
+
 /*
  * This determines the minimum logical line length in text windows
  * That is; even if physical width is less, this is where line breaks
