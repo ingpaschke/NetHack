@@ -100,7 +100,9 @@ extern int macunlink(const char *);
 #define SAVE_TYPE 'SAVE'
 #define PREF_TYPE 'PREF'
 #define DATA_TYPE 'DATA'
-#define MAC_CREATOR 'nh37'  /* this port's creator code; existing saves/disks use it */
+#define MAC_CREATOR 'nh50'  /* this port's creator code (files from older
+                               builds keep working; only their Finder icon
+                               binding goes stale) */
 #define TEXT_CREATOR 'ttxt' /* Something the user can actually edit */
 
 /*
