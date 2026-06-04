@@ -1,11 +1,94 @@
-NetHack 5.0 for 68k Macintosh
+                     NetHack 5.0 for 68k Macintosh
+                     =============================
 
-Requires: System 7 or later, 5 MB RAM, 32-bit addressing.
-Runs on any Mac with a 68020 or later CPU.
-Color supported on color-capable Macs.
+Requirements
+------------
+    - A Macintosh with a 68020 or later CPU.
+    - System 7.0 or later, with 32-bit addressing enabled
+      (Memory control panel; reboot after changing it).
+    - 3 MB of free RAM minimum; 8 MB is the preferred partition.
+    - Color is optional: tiles need a 4-bit or 8-bit screen,
+      black & white Macs play in ASCII.
 
-Place all files in the same folder and double-click NetHack.
-Edit "NetHack Defaults" to customize options.
-See the Guidebook for how to play.
+    Known to work:
+      - Macintosh SE/30 (ASCII on the internal screen; tiles on
+        an added color video card), loaded from BlueSCSI.
+      - Quadra-class machines in 8-bit color.
+      - QEMU (qemu-system-m68k, q800 machine) with a System 7.x
+        boot disk and NetHack.img attached as a second SCSI disk.
 
-Source: https://github.com/ingpaschke/NetHack
+Installation
+------------
+The game is distributed two ways; pick one:
+
+NetHack.img -- a complete, ready-to-play SCSI disk image (Apple
+Partition Map + HFS volume "NetHack 5.0").  Attach it as a disk in
+QEMU, or copy it onto a BlueSCSI SD card.  Nothing to install:
+boot, open the volume, double-click NetHack.
+
+NetHack.sit -- a StuffIt archive for installing onto an existing
+system.  Expand it ON THE MAC with StuffIt Expander (expanding on
+another machine loses resource forks).  It contains:
+
+    NetHack             the application
+    nhdat               packed game data (levels, Lua, text)
+    NetHack Defaults    configuration file (editable TEXT)
+    Guidebook           how to play NetHack
+    Read Me             this file
+    license, symbols
+
+Keep everything in one folder and double-click NetHack.  Save
+files, level files, and the record (high score) file are created
+in the same folder during play.
+
+Display Modes
+-------------
+On a color screen the map starts in graphical tiles; choose
+"Tile Mode" from the File menu at any time during play to switch
+between tiles and ASCII.  Black & white screens always use ASCII.
+
+The map lives in its own window: drag it where you like, resize
+it, and on larger screens use its scrollbars.  Window positions
+and sizes (per display mode) are remembered across games in
+"NetHack Preferences" in the System Folder's Preferences folder.
+
+You can click on the map to move there, and the message-line
+prompts offer clickable buttons for yes/no questions.
+
+Configuration
+-------------
+Edit "NetHack Defaults" with any text editor (SimpleText works);
+the comments in the file describe each option.  Useful entries:
+
+    OPTIONS=!tiled_map          start in ASCII even on color screens
+    OPTIONS=win:tty             traditional single-window interface
+    OPTIONS=font_map:Monaco,font_size_map:9
+    OPTIONS=menucolors          colored inventory entries
+
+Menu color patterns use shell-style globs, so wrap them in '*':
+
+    MENUCOLOR="* cursed *"=red
+    MENUCOLOR="* blessed *"=cyan
+
+Crashed Games
+-------------
+Checkpointing is on by default.  After a crash or power loss the
+next start will refuse to begin a new game while the crashed
+game's files are present; remove the numbered level files (they
+are named after your character, e.g. "1Brunhilda.0", "1Brunhilda.1",
+...) from the game folder to abandon the crashed game.
+
+Notes
+-----
+Save files and bones files from earlier NetHack versions do not
+work with 5.0.
+
+Source code and build instructions (Retro68 cross-compile):
+    https://github.com/ingpaschke/NetHack -- see sys/mac/BUILD.md
+
+Based on the classic Macintosh port by Dean Luick, Kevin Hugo,
+Mark Modrall, Jon W{tte, David Hairston, and Michael Hamel.
+Revived for NetHack 5.0 by Ingo Paschke.
+
+Bug reports, suggestions, comments: nethack-bugs@nethack.org, or
+the comment form at http://www.nethack.org.
