@@ -84,5 +84,5 @@ Based on the classic Macintosh port by Dean Luick, Kevin Hugo,
 Mark Modrall, Jon W{tte, David Hairston, and Michael Hamel.
 Revived for NetHack 5.0 by Ingo Paschke.
 
-This is not (yet) an official NetHack port; please send bug
+This is not an official NetHack port; please send bug
 reports, suggestions, and comments to ipaschke@lpclabs.de.
