@@ -73,7 +73,6 @@ This runs the full packaging pipeline:
 Output:
 - `targets/mac68k/NetHack.img` — ready for QEMU or BlueSCSI
 - `targets/mac68k/NetHack.bin` — MacBinary for `hcopy -m` to existing disks
-- `targets/mac68k/NetHack.dsk` — Disk Copy 4.2 image for real floppies
 - `targets/mac68k/NetHack.sit` — StuffIt archive for upload/distribution
 
 ### Updating an existing disk (e.g. BlueSCSI)
@@ -118,7 +117,6 @@ does.
 | Script | Purpose |
 |--------|---------|
 | `make_scsi_image2.py` | Wrap an HFS image with Apple Partition Map for SCSI |
-| `make_dc42.py` | Create Disk Copy 4.2 images (`NetHack.dsk` in the packaging step) |
 | `decode_hqx.py` | Decode BinHex 4.0 (.hqx) files to data + resource forks; `--creator-fixup` renames the legacy signature/BNDL creator |
 | `dump_rsrc.py` | Dump resource fork contents (types, IDs, sizes) |
 
