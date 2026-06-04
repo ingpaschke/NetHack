@@ -65,7 +65,7 @@ target when invoked from the repository root.)
 This runs the full packaging pipeline:
 1. Compile SIZE resource with Rez
 2. Merge SIZE + NHrsrc UI resources into the resource fork
-3. Create MacBinary II file
+3. Emit the MacBinary directly from the same Rez call
 4. Build HFS disk image with all data files, `save/` and `levels/`
    directories, and `nethack.cnf`
 5. Wrap with Apple Partition Map for SCSI emulators
@@ -117,7 +117,6 @@ does.
 
 | Script | Purpose |
 |--------|---------|
-| `make_macbin.py` | Create MacBinary II files from data + resource forks |
 | `make_scsi_image2.py` | Wrap an HFS image with Apple Partition Map for SCSI |
 | `make_dc42.py` | Create Disk Copy 4.2 images (`NetHack.dsk` in the packaging step) |
 | `decode_hqx.py` | Decode BinHex 4.0 (.hqx) files to data + resource forks; `--creator-fixup` renames the legacy signature/BNDL creator |

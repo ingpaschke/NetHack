@@ -392,20 +392,18 @@ mac68kpkg: $(GAMEBIN)
 	@mkdir -p $(TARGETPFX)resources/.rsrc
 	@cp $(TARGETPFX)resources/NetHack.rsrc.rsrc $(TARGETPFX)resources/.rsrc/NHrsrc
 	@touch $(TARGETPFX)resources/NHrsrc
-	rm -f $(TARGETPFX)NetHackRsrc $(TARGETPFX).rsrc/NetHackRsrc
+	rm -f $(TARGETPFX)NetHackRsrc $(TARGETPFX).rsrc/NetHackRsrc \
+		$(TARGETPFX)NetHack.bin
 	$(RETRO68)/bin/Rez \
 		--copy $(TARGETPFX)NetHack \
 		--copy $(TARGETPFX)nhmapwind.rsrc \
 		--copy $(TARGETPFX)nhtiles.rsrc \
 		--copy $(TARGETPFX)nhsize.rsrc \
 		--copy $(TARGETPFX)resources/NHrsrc \
-		-o $(TARGETPFX)NetHackRsrc
-	@echo "=== Creating MacBinary ==="
-	python3 ../sys/mac/tools/make_macbin.py \
-		$(TARGETPFX)NetHack \
-		$(TARGETPFX).rsrc/NetHackRsrc \
-		$(TARGETPFX)NetHack.bin \
-		APPL nh50
+		--data $(TARGETPFX)NetHack \
+		-t APPL -c nh50 \
+		-o $(TARGETPFX)NetHack.bin \
+		--cc $(TARGETPFX)NetHackRsrc
 	@echo "=== Building HFS disk image ==="
 	dd if=/dev/zero of=$(TARGETPFX)nethack_hfs.img bs=1M count=14 2>/dev/null
 	hformat -l "NetHack 5.0" $(TARGETPFX)nethack_hfs.img
