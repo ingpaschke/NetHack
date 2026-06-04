@@ -4,9 +4,6 @@
 
 
 ### Display ###
-# Uncomment for the traditional single-window tty interface
-#OPTIONS=win:tty
-
 # Boulder symbol
 #OPTIONS=boulder:0
 

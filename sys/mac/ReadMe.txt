@@ -6,16 +6,9 @@ Requirements
     - A Macintosh with a 68020 or later CPU.
     - System 7.0 or later, with 32-bit addressing enabled
       (Memory control panel; reboot after changing it).
-    - 3 MB of free RAM minimum; 8 MB is the preferred partition.
+    - 6 MB of free RAM minimum; 8 MB is the preferred partition.
     - Color is optional: tiles need a 4-bit or 8-bit screen,
       black & white Macs play in ASCII.
-
-    Known to work:
-      - Macintosh SE/30 (ASCII on the internal screen; tiles on
-        an added color video card), loaded from BlueSCSI.
-      - Quadra-class machines in 8-bit color.
-      - QEMU (qemu-system-m68k, q800 machine) with a System 7.x
-        boot disk and NetHack.img attached as a second SCSI disk.
 
 Installation
 ------------
@@ -61,8 +54,6 @@ Edit "NetHack Defaults" with any text editor (SimpleText works);
 the comments in the file describe each option.  Useful entries:
 
     OPTIONS=!tiled_map          start in ASCII even on color screens
-    OPTIONS=win:tty             traditional single-window interface
-    OPTIONS=font_map:Monaco,font_size_map:9
     OPTIONS=menucolors          colored inventory entries
 
 Menu color patterns use shell-style globs, so wrap them in '*':
@@ -90,5 +81,5 @@ Based on the classic Macintosh port by Dean Luick, Kevin Hugo,
 Mark Modrall, Jon W{tte, David Hairston, and Michael Hamel.
 Revived for NetHack 5.0 by Ingo Paschke.
 
-Bug reports, suggestions, comments: nethack-bugs@nethack.org, or
-the comment form at http://www.nethack.org.
+This is not (yet) an official NetHack port; please send bug
+reports, suggestions, and comments to ipaschke@lpclabs.de.
