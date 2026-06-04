@@ -1,6 +1,9 @@
-/* NetHack 5.0	macerrs.c	$NHDT-Date: 1432512797 2015/05/25 00:13:17 $  $NHDT-Branch: master $:$NHDT-Revision: 1.10 $ */
-/* Copyright (c) Michael Hamel, 1991 */
+/* NetHack 5.0	macerrs.c	*/
+/* Copyright (c) Michael Hamel, 1991. */
+/*-Copyright (c) Ingo Paschke, 2026. */
 /* NetHack may be freely redistributed.  See license for details. */
+/* Rewritten for the Retro68 revival: the original displayed errors via
+   an ALRT resource, which the fatal-error path cannot rely on. */
 
 #include "hack.h"
 #include "macwin.h"
