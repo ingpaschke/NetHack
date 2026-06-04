@@ -1,3 +1,6 @@
+/* NetHack 5.0	mactile.h	*/
+/* Copyright (c) Ingo Paschke, 2026. */
+/* NetHack may be freely redistributed.  See license for details. */
 /* mactile.h — tile sheet asset + per-tile blit. See macmap.h for the
    map window owner. */
 #ifndef MACTILE_H

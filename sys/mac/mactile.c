@@ -1,3 +1,6 @@
+/* NetHack 5.0	mactile.c	*/
+/* Copyright (c) Ingo Paschke, 2026. */
+/* NetHack may be freely redistributed.  See license for details. */
 /* mactile.c — tile sheet asset + per-tile blit. See mactile.h. */
 #include "hack.h"
 #include "macwin.h"

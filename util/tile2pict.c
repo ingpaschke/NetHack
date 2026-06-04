@@ -1,4 +1,7 @@
-/* NetHack 5.0 tile2pict.c
+/* NetHack 5.0	tile2pict.c	*/
+/* Copyright (c) Ingo Paschke, 2026. */
+/* NetHack may be freely redistributed.  See license for details. */
+/*
  * Host tool: emit a Rez source file containing PICT v2 resources for the
  * Mac 68k port. Sibling of tile2bmp.c, sharing tiletext.c.
  * Emits PICT 1001 (8bpp/256-color) and PICT 1000 (4bpp/16-color).

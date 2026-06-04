@@ -1,3 +1,6 @@
+/* NetHack 5.0	maccompat.h	*/
+/* Copyright (c) Ingo Paschke, 2026. */
+/* NetHack may be freely redistributed.  See license for details. */
 /* maccompat.h - the few shims the Retro68 System 7 build genuinely needs.
  *
  * Apple Universal Interfaces 3.4 with OPAQUE_TOOLBOX_STRUCTS=0 and

@@ -1,3 +1,6 @@
+/* NetHack 5.0	tile2pict_quant.h	*/
+/* Copyright (c) Ingo Paschke, 2026. */
+/* NetHack may be freely redistributed.  See license for details. */
 /* tile2pict_quant.h — host-only color quantization helpers for tile2pict.
  * Implementations are inline in this header (single-translation-unit tool).
  */

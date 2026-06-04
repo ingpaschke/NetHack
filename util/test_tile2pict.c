@@ -1,3 +1,6 @@
+/* NetHack 5.0	test_tile2pict.c	*/
+/* Copyright (c) Ingo Paschke, 2026. */
+/* NetHack may be freely redistributed.  See license for details. */
 /* test_tile2pict.c -- host regression harness for util/tile2pict.
  * Runs tile2pict against the synthetic fixture; asserts both PICT 1000 and
  * 1001 are emitted.  Exit 0 on pass; nonzero with a diagnostic on failure.

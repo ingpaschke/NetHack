@@ -1,3 +1,6 @@
+/* NetHack 5.0	macalloc.c	*/
+/* Copyright (c) Ingo Paschke, 2026. */
+/* NetHack may be freely redistributed.  See license for details. */
 /* macalloc.c -- pooling allocator for the classic-Mac (System 7) 68k port.
  *
  * newlib's malloc/realloc/free are correct but do real per-call work (size-bin

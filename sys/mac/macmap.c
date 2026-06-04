@@ -1,3 +1,6 @@
+/* NetHack 5.0	macmap.c	*/
+/* Copyright (c) Ingo Paschke, 2026. */
+/* NetHack may be freely redistributed.  See license for details. */
 /* macmap.c — separate map window for the Mac 68k port. See macmap.h. */
 #include "hack.h"
 #include "macwin.h"
