@@ -411,51 +411,49 @@ mac68kpkg: $(GAMEBIN)
 		-t APPL -c nh50 \
 		-o $(TARGETPFX)NetHack.bin \
 		--cc $(TARGETPFX)NetHackRsrc
-	@echo "=== Building HFS disk image ==="
+	@echo "=== Staging package files ==="
+	@rm -rf $(TARGETPFX)pkg
+	@mkdir -p $(TARGETPFX)pkg
+	cp $(TARGETPFX)NetHack $(TARGETPFX)pkg/NetHack
+	cp $(TARGETPFX).rsrc/NetHackRsrc $(TARGETPFX)pkg/NetHack.rsrc
+	cp ../sys/mac/NetHack.info $(TARGETPFX)pkg/NetHack.info
+	cp ../dat/nhdat $(TARGETPFX)pkg/nhdat
+	tr '\n' '\r' < ../sys/mac/ReadMe.txt > "$(TARGETPFX)pkg/Read Me"
+	tr '\n' '\r' < ../dat/license > $(TARGETPFX)pkg/license
+	tr '\n' '\r' < ../dat/symbols > $(TARGETPFX)pkg/symbols
+	tr '\n' '\r' < ../doc/Guidebook.txt > $(TARGETPFX)pkg/Guidebook
+	tr '\n' '\r' < ../sys/mac/NHDeflts > "$(TARGETPFX)pkg/NetHack Defaults"
+	@echo "=== Building SCSI disk image (emulator/BlueSCSI) ==="
 	dd if=/dev/zero of=$(TARGETPFX)nethack_hfs.img bs=1M count=14 2>/dev/null
 	hformat -l "NetHack 5.0" $(TARGETPFX)nethack_hfs.img
 	hmount $(TARGETPFX)nethack_hfs.img
 	hcopy -m $(TARGETPFX)NetHack.bin :
-	hcopy -r ../dat/nhdat :nhdat    && hattrib -t DATA -c nh50 nhdat
-	tr '\n' '\r' < ../sys/mac/ReadMe.txt > /tmp/_cr && hcopy -r /tmp/_cr ":Read Me" && hattrib -t TEXT -c ttxt "Read Me"
-	tr '\n' '\r' < ../dat/license > /tmp/_cr && hcopy -r /tmp/_cr :license && hattrib -t TEXT -c ttxt license
-	hcopy -r /dev/null :record      && hattrib -t TEXT -c nh50 record
-	tr '\n' '\r' < ../dat/symbols > /tmp/_cr && hcopy -r /tmp/_cr :symbols && hattrib -t TEXT -c nh50 symbols
-	tr '\n' '\r' < ../doc/Guidebook.txt > /tmp/_cr && hcopy -r /tmp/_cr :Guidebook && hattrib -t TEXT -c ttxt Guidebook
-	tr '\n' '\r' < ../sys/mac/NHDeflts > /tmp/_cr && hcopy -r /tmp/_cr ":NetHack Defaults" && hattrib -t TEXT -c ttxt "NetHack Defaults"
-	@rm -f /tmp/_cr
+	hcopy -r $(TARGETPFX)pkg/nhdat :nhdat && hattrib -t DATA -c nh50 nhdat
+	hcopy -r "$(TARGETPFX)pkg/Read Me" ":Read Me" && hattrib -t TEXT -c ttxt "Read Me"
+	hcopy -r $(TARGETPFX)pkg/license :license && hattrib -t TEXT -c ttxt license
+	hcopy -r $(TARGETPFX)pkg/symbols :symbols && hattrib -t TEXT -c nh50 symbols
+	hcopy -r $(TARGETPFX)pkg/Guidebook :Guidebook && hattrib -t TEXT -c ttxt Guidebook
+	hcopy -r "$(TARGETPFX)pkg/NetHack Defaults" ":NetHack Defaults" && hattrib -t TEXT -c ttxt "NetHack Defaults"
+	hcopy -r /dev/null :record && hattrib -t TEXT -c nh50 record
 	humount
-	@echo "=== Wrapping with Apple Partition Map ==="
 	python3 ../sys/mac/tools/make_scsi_image2.py \
 		$(TARGETPFX)nethack_hfs.img \
 		$(TARGETPFX)NetHack.img
 	rm $(TARGETPFX)nethack_hfs.img
-	@echo "=== Creating StuffIt archive ==="
-	@rm -rf $(TARGETPFX)_sit_staging
-	@mkdir -p $(TARGETPFX)_sit_staging
-	cp $(TARGETPFX)NetHack $(TARGETPFX)_sit_staging/NetHack
-	cp $(TARGETPFX).rsrc/NetHackRsrc $(TARGETPFX)_sit_staging/NetHack.rsrc
-	python3 -c "import struct; name = bytes([7]) + b'NetHack' + b'\x00' * 56; info = b'\x00\x00' + name + b'APPL' + b'nh50' + b'\x00\x00' + b'\x00' * 8 + struct.pack('>I', 20) + struct.pack('>I', 0) + b'\x00' * 8; open('$(TARGETPFX)_sit_staging/NetHack.info', 'wb').write(info)"
-	cp ../dat/nhdat $(TARGETPFX)_sit_staging/nhdat
-	tr '\n' '\r' < ../doc/Guidebook.txt > $(TARGETPFX)_sit_staging/Guidebook
-	tr '\n' '\r' < ../sys/mac/NHDeflts > "$(TARGETPFX)_sit_staging/NetHack Defaults"
-	tr '\n' '\r' < ../dat/license > $(TARGETPFX)_sit_staging/license
-	tr '\n' '\r' < ../dat/symbols > $(TARGETPFX)_sit_staging/symbols
-	tr '\n' '\r' < ../sys/mac/ReadMe.txt > "$(TARGETPFX)_sit_staging/Read Me"
+	@echo "=== Creating StuffIt archive (distribution) ==="
 	@rm -f $(TARGETPFX)NetHack.sit
 	sit -T TEXT -C ttxt -o $(TARGETPFX)NetHack.sit \
-		$(TARGETPFX)_sit_staging/NetHack \
-		$(TARGETPFX)_sit_staging/nhdat \
-		$(TARGETPFX)_sit_staging/Guidebook \
-		"$(TARGETPFX)_sit_staging/NetHack Defaults" \
-		$(TARGETPFX)_sit_staging/license \
-		$(TARGETPFX)_sit_staging/symbols \
-		"$(TARGETPFX)_sit_staging/Read Me"
-	@rm -rf $(TARGETPFX)_sit_staging
+		$(TARGETPFX)pkg/NetHack \
+		$(TARGETPFX)pkg/nhdat \
+		$(TARGETPFX)pkg/Guidebook \
+		"$(TARGETPFX)pkg/NetHack Defaults" \
+		$(TARGETPFX)pkg/license \
+		$(TARGETPFX)pkg/symbols \
+		"$(TARGETPFX)pkg/Read Me"
+	@rm -rf $(TARGETPFX)pkg
 	@echo "=== Done ==="
-	@echo "SCSI image:     $(TARGETPFX)NetHack.img"
-	@echo "StuffIt:        $(TARGETPFX)NetHack.sit"
-	@echo "MacBinary:      $(TARGETPFX)NetHack.bin"
+	@echo "SCSI image: $(TARGETPFX)NetHack.img"
+	@echo "StuffIt:    $(TARGETPFX)NetHack.sit"
 endif  # CROSS_TO_MAC68K
 
 ifdef CROSS_SHARED

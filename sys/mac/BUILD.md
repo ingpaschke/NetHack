@@ -72,8 +72,11 @@ This runs the full packaging pipeline:
 
 Output:
 - `targets/mac68k/NetHack.img` — ready for QEMU or BlueSCSI
-- `targets/mac68k/NetHack.bin` — MacBinary for `hcopy -m` to existing disks
-- `targets/mac68k/NetHack.sit` — StuffIt archive for upload/distribution
+- `targets/mac68k/NetHack.sit` — StuffIt archive for distribution
+
+(`targets/mac68k/NetHack.bin`, the MacBinary the image is built from,
+also remains available for `hcopy -m` in-place updates of existing
+disks.)
 
 ### Updating an existing disk (e.g. BlueSCSI)
 
