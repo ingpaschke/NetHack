@@ -204,6 +204,15 @@ SaveWindowPos(WindowPtr win)
     SavePosition(GetWinKind(win), r.top, r.left);
 }
 
+/* For windows whose saved size depends on more than the window identity:
+   the map window keeps one size per display mode (kMapWindow for text,
+   kMapTileWindow for tiles), chosen by macmap.c. */
+void
+SaveSizeForKind(short kind, short height, short width)
+{
+    SaveSize(kind, height, width);
+}
+
 void
 SaveWindowSize(WindowPtr win)
 {

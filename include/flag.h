@@ -496,11 +496,6 @@ struct instance_flags {
     boolean wiz_error_flag;     /* flag for tracking failed wizmode auth */
     boolean explore_error_flag; /* ditto for explore mode */
     boolean obsolete;  /* obsolete options can point at this, it isn't used */
-#ifdef MACOS9
-    short  mac_map_text_w, mac_map_text_h; /* saved map window size (text mode) */
-    short  mac_map_tile_w, mac_map_tile_h; /* saved map window size (tile mode) */
-    short  mac_map_pos_x,  mac_map_pos_y;  /* saved map window position */
-#endif
 };
 
 /*

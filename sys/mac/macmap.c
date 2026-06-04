@@ -287,9 +287,13 @@ macmap_create(NhWindow *map)
         gMap.vscroll = gMap.hscroll = NULL;
     }
 
-    /* apply saved text-mode size; position deferred to SanePositions() */
-    if (iflags.mac_map_text_w && iflags.mac_map_text_h) {
-        SizeWindow(w, iflags.mac_map_text_w, iflags.mac_map_text_h, false);
+    /* apply the saved text-mode size from the prefs file; position is
+       deferred to SanePositions() */
+    {
+        Rect b; short sw, sh;
+        GetWindowPortBounds(w, &b);
+        if (RetrieveSize(kMapWindow, b.top, b.left, &sh, &sw))
+            SizeWindow(w, sw, sh, false);
     }
     layout_scroll_controls();
 
@@ -378,10 +382,11 @@ macmap_set_mode(NhWindow *map, Boolean tile_mode)
     if (tile_mode) {
         gMap.cell_w = MACTILE_DIM;
         gMap.cell_h = MACTILE_DIM;
-        if (iflags.mac_map_tile_w && iflags.mac_map_tile_h
-            && map->its_window) {
-            SizeWindow(map->its_window,
-                       iflags.mac_map_tile_w, iflags.mac_map_tile_h, false);
+        if (map->its_window) {
+            Rect b; short sw, sh;
+            GetWindowPortBounds(map->its_window, &b);
+            if (RetrieveSize(kMapTileWindow, b.top, b.left, &sh, &sw))
+                SizeWindow(map->its_window, sw, sh, false);
         }
         layout_scroll_controls();
         /* derive the viewport dims from the actual window size */
@@ -421,10 +426,11 @@ macmap_set_mode(NhWindow *map, Boolean tile_mode)
             if (gMap.cell_w < 1) gMap.cell_w = 6;
             if (gMap.cell_h < 1) gMap.cell_h = 14;
         }
-        if (iflags.mac_map_text_w && iflags.mac_map_text_h
-            && map->its_window) {
-            SizeWindow(map->its_window,
-                       iflags.mac_map_text_w, iflags.mac_map_text_h, false);
+        if (map->its_window) {
+            Rect b; short sw, sh;
+            GetWindowPortBounds(map->its_window, &b);
+            if (RetrieveSize(kMapWindow, b.top, b.left, &sh, &sw))
+                SizeWindow(map->its_window, sw, sh, false);
         }
         layout_scroll_controls();
         if (map->its_window) {
@@ -926,14 +932,11 @@ macmap_grow_event(NhWindow *map, long newSize)
     gMap.vis_rows = (cr.bottom - cr.top) / gMap.cell_h;
     if (gMap.vis_cols < 1) gMap.vis_cols = 1;
     if (gMap.vis_rows < 1) gMap.vis_rows = 1;
-    /* persist the full window size so NHDeflts can save it */
-    if (gMap.tile_mode) {
-        iflags.mac_map_tile_w = (short)(full.right - full.left);
-        iflags.mac_map_tile_h = (short)(full.bottom - full.top);
-    } else {
-        iflags.mac_map_text_w = (short)(full.right - full.left);
-        iflags.mac_map_text_h = (short)(full.bottom - full.top);
-    }
+    /* persist per display mode in the prefs file (text and tile sizes
+       are independent) */
+    SaveSizeForKind(gMap.tile_mode ? kMapTileWindow : kMapWindow,
+                    (short)(full.bottom - full.top),
+                    (short)(full.right - full.left));
     if (!allocate_backing()) {
         mac_dprintf("macmap: backing realloc failed on grow\n");
     }

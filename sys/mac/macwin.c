@@ -3096,15 +3096,7 @@ HandleClick(EventRecord *theEvent)
         if (not_inSelect) {
             SetCursor(&qdarrow);
             DragWindow(theWindow, theEvent->where, &r);
-            SaveWindowPos(theWindow);
-            /* capture map window position into iflags for #saveoptions */
-            if (GetWRefCon(theWindow) == MACMAP_REFCON) {
-                Point p; SetPt(&p, 0, 0);
-                SetPort(theWindow);
-                LocalToGlobal(&p);
-                iflags.mac_map_pos_x = p.h;
-                iflags.mac_map_pos_y = p.v;
-            }
+            SaveWindowPos(theWindow); /* into the prefs file */
         } else {
             nhbell();
         }

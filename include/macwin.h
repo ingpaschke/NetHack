@@ -71,13 +71,17 @@ extern MacFlags macFlags;
 #define NUM_MACWINDOWS 15
 #define TEXT_BLOCK 512L
 
-/* Window constants */
+/* Window constants.  These index the position/size records in the
+   "NetHack Preferences" file (maccurs.c).  kMapTileWindow is a pseudo-kind:
+   the map window saves a separate SIZE per display mode (text vs tile),
+   while its POSITION always lives in the kMapWindow record. */
 #define kMapWindow 0
 #define kStatusWindow 1
 #define kMessageWindow 2
 #define kTextWindow 3
 #define kMenuWindow 4
-#define kLastWindowKind kMenuWindow
+#define kMapTileWindow 5
+#define kLastWindowKind kMapTileWindow
 
 /*
  * This determines the minimum logical line length in text windows
@@ -159,6 +163,7 @@ extern Boolean RetrievePosition(short, short *, short *);
 extern Boolean RetrieveSize(short, short, short, short *, short *);
 extern void SaveWindowPos(WindowPtr);
 extern void SaveWindowSize(WindowPtr);
+extern void SaveSizeForKind(short kind, short height, short width);
 extern Boolean RetrieveWinPos(WindowPtr, short *, short *);
 
 /* ### macerrs.c ### */
