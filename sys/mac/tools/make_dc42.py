@@ -48,7 +48,7 @@ def main():
 
     hfs_path = sys.argv[1]
     out_path = sys.argv[2]
-    vol_name = sys.argv[3] if len(sys.argv) > 3 else "NetHack 3.7"
+    vol_name = sys.argv[3] if len(sys.argv) > 3 else "NetHack 5.0"
 
     with open(hfs_path, 'rb') as f:
         data = f.read()

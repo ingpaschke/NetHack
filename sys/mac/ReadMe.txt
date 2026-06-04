@@ -1,4 +1,4 @@
-NetHack 3.7 for 68k Macintosh
+NetHack 5.0 for 68k Macintosh
 
 Requires: System 7 or later, 5 MB RAM, 32-bit addressing.
 Runs on any Mac with a 68020 or later CPU.

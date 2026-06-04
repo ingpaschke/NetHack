@@ -1,4 +1,4 @@
-/* NetHack 3.6	macconf.h	$NHDT-Date: 1432512782 2015/05/25 00:13:02 $  $NHDT-Branch: master $:$NHDT-Revision: 1.12 $ */
+/* NetHack 5.0	macconf.h	$NHDT-Date: 1432512782 2015/05/25 00:13:02 $  $NHDT-Branch: master $:$NHDT-Revision: 1.12 $ */
 /* Copyright (c) Stichting Mathematisch Centrum, Amsterdam, 1985. */
 /*-Copyright (c) Kevin Hugo, 2004. */
 /* NetHack may be freely redistributed.  See license for details. */
@@ -136,7 +136,7 @@ extern boolean authorize_explore_mode(void);
 #define SAVE_TYPE 'SAVE'
 #define PREF_TYPE 'PREF'
 #define DATA_TYPE 'DATA'
-#define MAC_CREATOR 'nh37'  /* NetHack 3.7 Mac port */
+#define MAC_CREATOR 'nh37'  /* this port's creator code; existing saves/disks use it */
 #define TEXT_CREATOR 'ttxt' /* Something the user can actually edit */
 
 /*

@@ -410,7 +410,7 @@ mac68kpkg: $(GAMEBIN)
 		APPL nh37
 	@echo "=== Building HFS disk image ==="
 	dd if=/dev/zero of=$(TARGETPFX)nethack_hfs.img bs=1M count=14 2>/dev/null
-	hformat -l "NetHack 3.7" $(TARGETPFX)nethack_hfs.img
+	hformat -l "NetHack 5.0" $(TARGETPFX)nethack_hfs.img
 	hmount $(TARGETPFX)nethack_hfs.img
 	hcopy -m $(TARGETPFX)NetHack.bin :
 	hcopy -r ../dat/nhdat :nhdat    && hattrib -t DATA -c nh37 nhdat
@@ -430,7 +430,7 @@ mac68kpkg: $(GAMEBIN)
 	python3 ../sys/mac/tools/make_dc42.py \
 		$(TARGETPFX)nethack_hfs.img \
 		$(TARGETPFX)NetHack.dsk \
-		"NetHack 3.7"
+		"NetHack 5.0"
 	rm $(TARGETPFX)nethack_hfs.img
 	@echo "=== Creating StuffIt archive ==="
 	@rm -rf $(TARGETPFX)_sit_staging
