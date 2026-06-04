@@ -41,9 +41,6 @@
 
 #ifndef _H_tty_public
 #define _H_tty_public
-#undef red /* undef internal color const strings from decl */
-#undef green
-#undef blue
 #include <Windows.h>
 
 #ifdef CROSS_TO_MAC68K

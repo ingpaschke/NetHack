@@ -5,9 +5,6 @@
 
 #ifndef MACWIN_H
 #define MACWIN_H
-#undef red /* undef internal color const strings from decl */
-#undef green
-#undef blue
 
 #ifndef __MACH__
 #include <Windows.h>
@@ -18,18 +15,8 @@
 #include "maccompat.h"
 #endif
 
-/* more headers */
-#ifdef THINK_C
-#include <pascal.h> /* for CtoPStr and PtoCStr */
-#endif
-
 /* resources */
 #define PLAYER_NAME_RES_ID 1001
-
-/* misc */
-#ifdef __MWERKS__
-#define ResumeProcPtr long /* for call to InitDialogs */
-#endif
 
 /* working dirs structure */
 typedef struct macdirs {
@@ -47,19 +34,10 @@ typedef struct macdirs {
 } MacDirs;
 
 typedef struct macflags {
-    Bitfield(processes, 1);
-    Bitfield(color, 1);
-    Bitfield(folders, 1);
-    Bitfield(tempMem, 1);
-    Bitfield(help, 1);
-    Bitfield(fsSpec, 1);
-    Bitfield(trueType, 1);
-    Bitfield(aux, 1);
-    Bitfield(alias, 1);
-    Bitfield(standardFile, 1);
-    Bitfield(hasDebugger, 1);
-    Bitfield(hasAE, 1);
-    Bitfield(gotOpen, 1);
+    Bitfield(color, 1);       /* Color QuickDraw (8-bit or better) present */
+    Bitfield(hasDebugger, 1); /* MacsBug etc. installed (see mac_dprintf) */
+    Bitfield(hasAE, 1);       /* Apple Events available */
+    Bitfield(gotOpen, 1);     /* launched by opening a save file */
 } MacFlags;
 
 extern MacDirs theDirs; /* used in macfile.c */
@@ -135,9 +113,6 @@ typedef struct NhWindow {
 
 extern Boolean CheckNhWin(WindowPtr mac_win);
 
-#define NUM_STAT_ROWS 2
-#define NUM_ROWS 22
-#define NUM_COLS 80 /* We shouldn't use column 0 */
 #define QUEUE_LEN 24
 
 extern NhWindow *theWindows;
@@ -170,7 +145,6 @@ extern Boolean RetrieveWinPos(WindowPtr, short *, short *);
 /* error() is declared in hack.h */
 /* ### macfile.c ### */
 
-/* extern char *macgets(int fd, char *ptr, unsigned len); unused */
 extern void C2P(const char *c, unsigned char *p);
 extern void P2C(const unsigned char *p, char *c);
 
@@ -200,7 +174,6 @@ extern void clear_screen(void);
 
 extern void AddToKeyQueue(unsigned char, Boolean);
 extern unsigned char GetFromKeyQueue(void);
-void trans_num_keys(EventRecord *);
 extern void InitMac(void);
 int try_key_queue(char *);
 void enter_topl_mode(char *);

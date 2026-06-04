@@ -333,34 +333,10 @@ InitMac(void)
     TEInit();
 
     memset(&macFlags, 0, sizeof(macFlags));
-    if (!Gestalt(gestaltOSAttr, &l)) {
-        macFlags.processes = (l & (1 << gestaltLaunchControl)) ? 1 : 0;
-        macFlags.tempMem = (l & (1 << gestaltRealTempMemory)) ? 1 : 0;
+    if (!Gestalt(gestaltOSAttr, &l))
         macFlags.hasDebugger = (l & (1 << gestaltSysDebuggerSupport)) ? 1 : 0;
-    }
     if (!Gestalt(gestaltQuickdrawVersion, &l))
         macFlags.color = (l >= gestalt8BitQD) ? 1 : 0;
-
-    if (!Gestalt(gestaltFindFolderAttr, &l))
-        macFlags.folders = (l & (1 << gestaltFindFolderPresent)) ? 1 : 0;
-
-    if (!Gestalt(gestaltHelpMgrAttr, &l))
-        macFlags.help = (l & (1 << gestaltHelpMgrPresent)) ? 1 : 0;
-
-    if (!Gestalt(gestaltFSAttr, &l))
-        macFlags.fsSpec = (l & (1 << gestaltHasFSSpecCalls)) ? 1 : 0;
-
-    if (!Gestalt(gestaltFontMgrAttr, &l))
-        macFlags.trueType = (l & (1 << gestaltOutlineFonts)) ? 1 : 0;
-
-    if (!Gestalt(gestaltAUXVersion, &l))
-        macFlags.aux = (l >= 0x200) ? 1 : 0;
-
-    if (!Gestalt(gestaltAliasMgrAttr, &l))
-        macFlags.alias = (l & (1 << gestaltAliasMgrPresent)) ? 1 : 0;
-
-    if (!Gestalt(gestaltStandardFileAttr, &l))
-        macFlags.standardFile = (l & (1 << gestaltStandardFile58)) ? 1 : 0;
 
     gMouseRgn = NewRgn();
     if (!gMouseRgn)
@@ -1437,16 +1413,6 @@ mac_number_pad(int pad)
 #pragma unused(pad)
 #endif
     return;
-}
-
-void
-trans_num_keys(EventRecord *theEvent)
-{
-#if defined(__SC__) || defined(__MRC__)
-#pragma unused(theEvent)
-#endif
-/* No translation: number pad keys always emit digit characters (default
- * MacOS behavior); the number_pad option controls interpretation. */
 }
 
 /* Toggle hilite of a menu line (line is relative to the scrollbar). */
