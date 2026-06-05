@@ -1,4 +1,4 @@
-/* NetHack 5.0	macconf.h	$NHDT-Date: 1432512782 2015/05/25 00:13:02 $  $NHDT-Branch: master $:$NHDT-Revision: 1.12 $ */
+/* NetHack 5.0	mac68kconf.h	*/
 /* Copyright (c) Stichting Mathematisch Centrum, Amsterdam, 1985. */
 /*-Copyright (c) Kevin Hugo, 2004. */
 /* NetHack may be freely redistributed.  See license for details. */
@@ -7,7 +7,7 @@
 #ifndef MACCONF_H
 #define MACCONF_H
 
-/* Built with the Retro68 GCC cross-toolchain (see sys/mac/BUILD.md).
+/* Built with the Retro68 GCC cross-toolchain (see sys/mac68k/BUILD.md).
  * The MPW/Think C/CodeWarrior compilers of the original port are no
  * longer supported. */
 
@@ -75,11 +75,11 @@ extern boolean authorize_explore_mode(void);
 #ifndef O_BINARY
 #define O_BINARY 0
 #endif
-/* implemented in sys/mac/macunix.c */
+/* implemented in sys/mac68k/macunix.c */
 extern void regularize(char *);
 extern void getlock(void);
 
-/* implemented in sys/mac/macfile.c */
+/* implemented in sys/mac68k/macfile.c */
 extern int maccreat(const char *, long);
 extern int macopen(const char *, int, long);
 extern int macclose(int);

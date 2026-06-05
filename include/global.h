@@ -175,7 +175,7 @@ typedef uchar nhsym;
 #include "warnings.h"
 
 #ifdef MAC68K
-#include "macconf.h"
+#include "mac68kconf.h"
 #endif
 
 /* amiconf.h needs to be the last nested #include of config.h because
