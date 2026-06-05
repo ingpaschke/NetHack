@@ -3,7 +3,7 @@
 /*-Copyright (c) Kevin Hugo, 2004. */
 /* NetHack may be freely redistributed.  See license for details. */
 
-#ifdef MACOS9
+#ifdef MAC68K
 #ifndef MACCONF_H
 #define MACCONF_H
 
@@ -62,7 +62,7 @@
 
 #define Rand random
 extern void error(const char *, ...);
-/* macwin.c; called from options.c under #ifdef MACOS9 */
+/* macwin.c; called from options.c under #ifdef MAC68K */
 extern short set_font_name(int, char *);
 /* macmain.c; called from options.c (other ports declare these in their
    *conf.h as well) */

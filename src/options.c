@@ -2731,7 +2731,7 @@ optfn_palette(
 }
 
 #if 0
-/* old MACOS9 OS9 code */
+/* old MAC68K OS9 code */
 staticfn int
 optfn_palette(
     int optidx UNUSED, int req, boolean negated UNUSED,
@@ -5108,7 +5108,7 @@ pfxfn_font(int optidx, int req, boolean negated, char *opts, char *op)
         if (opttype > 0
             && (op = string_for_opt(opts, FALSE)) != empty_optstr) {
             wc_set_font_name(opttype, op);
-#ifdef MACOS9
+#ifdef MAC68K
             set_font_name(opttype, op);
 #endif
             return optn_ok;
@@ -6792,12 +6792,12 @@ complain_about_duplicate(int optidx)
 {
     char buf[BUFSZ];
 
-#ifdef MACOS9
+#ifdef MAC68K
     /* the Mac has trouble dealing with the output of messages while
      * processing the config file.  That should get fixed one day.
      * For now just return.
      */
-#else /* !MACOS9 */
+#else /* !MAC68K */
     buf[0] = '\0';
     if (using_alias)
         Sprintf(buf, " (via alias: %s)", allopt[optidx].alias);
@@ -6805,7 +6805,7 @@ complain_about_duplicate(int optidx)
                      (allopt[optidx].opttyp == CompOpt) ? "compound"
                                                         : "boolean",
                      allopt[optidx].name, buf);
-#endif /* ?MACOS9 */
+#endif /* ?MAC68K */
     return;
 }
 
@@ -7153,7 +7153,7 @@ initoptions_init(void)
 
     /* make any symbol parsing quicker, but only if
      * gd.disable_glyphname_hash_indices_prefill is not set to TRUE */
-#ifndef MACOS9
+#ifndef MAC68K
     /* Skip on classic Mac OS — the prefill iterates thousands of glyphs
        (Sprintf + hash insertions), taking ~2 minutes on a 68030.  Lazy
        lookup on first use is cheaper; the cache is only needed for glyph
@@ -9440,7 +9440,7 @@ static const char *opt_intro[] = {
     "                 NetHack Options Help:", "",
 #define CONFIG_SLOT 3 /* fill in next value at run-time */
     (char *) 0,
-#if !defined(MICRO) && !defined(MACOS9)
+#if !defined(MICRO) && !defined(MAC68K)
     "or use `NETHACKOPTIONS=\"<options>\"' in your environment",
 #endif
     "(<options> is a list of options separated by commas)",
