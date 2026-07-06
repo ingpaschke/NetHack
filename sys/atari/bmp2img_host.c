@@ -44,6 +44,19 @@ typedef struct {
     uint8_t r, g, b;
 } RGB;
 
+static void *
+xalloc(size_t nmemb, size_t size)
+{
+    void *p = calloc(nmemb, size);
+
+    if (!p) {
+        fprintf(stderr, "out of memory (%lu x %lu)\n",
+                (unsigned long) nmemb, (unsigned long) size);
+        exit(1);
+    }
+    return p;
+}
+
 /* --------------------------------------------------------- */
 /*  Colour helpers (same as Amiga bmp2iff_host.c)            */
 /* --------------------------------------------------------- */
@@ -570,7 +583,7 @@ main(int argc, char **argv)
 
     /* read pixel data */
     rowstride = (img_w + 3) & ~3;
-    bmpdata = malloc(rowstride * img_h);
+    bmpdata = xalloc(rowstride, img_h);
     fseek(bmpfp, fhdr.bfOffBits, SEEK_SET);
     if (fread(bmpdata, 1, rowstride * img_h, bmpfp)
         != (size_t)(rowstride * img_h)) {
@@ -580,7 +593,7 @@ main(int argc, char **argv)
     fclose(bmpfp);
 
     /* flip bottom-up to top-down */
-    pixels = malloc(img_w * img_h);
+    pixels = xalloc(img_w, img_h);
     if (ihdr.biHeight > 0) {
         for (y = 0; y < img_h; y++)
             memcpy(pixels + y * img_w,
@@ -598,7 +611,7 @@ main(int argc, char **argv)
         int pad_w = (img_w + TILE_X - 1) / TILE_X * TILE_X;
         int pad_h = (img_h + TILE_Y - 1) / TILE_Y * TILE_Y;
         if (pad_w != img_w || pad_h != img_h) {
-            uint8_t *padded = calloc(pad_w * pad_h, 1);
+            uint8_t *padded = xalloc(pad_w, pad_h);
             for (y = 0; y < img_h; y++)
                 memcpy(padded + y * pad_w, pixels + y * img_w, img_w);
             free(pixels);
@@ -613,10 +626,10 @@ main(int argc, char **argv)
                   pixels, img_w * img_h,
                   maxcol, outpal, remap);
 
-    remapped = malloc(img_w * img_h);
+    remapped = xalloc(img_w, img_h);
     if (use_dither == 1) {
         /* Floyd-Steinberg error diffusion */
-        RGB *rgbpix = malloc(img_w * img_h * sizeof(RGB));
+        RGB *rgbpix = xalloc((size_t) img_w * img_h, sizeof(RGB));
         for (i = 0; i < img_w * img_h; i++)
             rgbpix[i] = palette[pixels[i]];
         dither_fs(rgbpix, img_w, img_h,
@@ -630,7 +643,7 @@ main(int argc, char **argv)
         free(pixels);
     } else if (use_dither == 3) {
         /* Atkinson dithering */
-        RGB *rgbpix = malloc(img_w * img_h * sizeof(RGB));
+        RGB *rgbpix = xalloc((size_t) img_w * img_h, sizeof(RGB));
         for (i = 0; i < img_w * img_h; i++)
             rgbpix[i] = palette[pixels[i]];
         dither_atkinson(rgbpix, img_w, img_h,
