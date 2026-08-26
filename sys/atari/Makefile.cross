@@ -1,0 +1,668 @@
+#	NetHack 3.6.7 cross-compilation Makefile for Atari ST (m68k-atari-mint)
+# NetHack may be freely redistributed.  See license for details.
+#
+# Cross-compiles NetHack for Atari ST/TT/Falcon using m68k-atari-mint-gcc.
+# Produces a native TOS executable with both TTY (VT52) and GEM graphics.
+#
+# Modeled on sys/amiga/Makefile.cross.
+#
+# Usage (from the source root):
+#   make -f sys/atari/Makefile.cross          # full build
+#   make -f sys/atari/Makefile.cross clean    # remove cross-built objects
+#   make -f sys/atari/Makefile.cross spotless # remove everything
+
+###
+### DIRECTORY STRUCTURE
+###
+
+NH      := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))../..)/
+BUILD   = $(NH)build-atari/
+
+ATARI   = $(NH)sys/atari/
+DAT     = $(NH)dat/
+I       = $(NH)include/
+SHARE   = $(NH)sys/share/
+NHS     = $(NH)src/
+TTY     = $(NH)win/tty/
+GEM     = $(NH)win/gem/
+WSHARE  = $(NH)win/share/
+UTIL    = $(NH)util/
+EGEM    = $(ATARI)e_gem/
+
+# Output directories (all under BUILD)
+O       = $(BUILD)obj/
+OO      = $(BUILD)objo/
+OQ      = $(BUILD)objq/
+SBIN    = $(BUILD)sbin/
+SLIB    = $(BUILD)slib/
+NETHACK = $(BUILD)NetHack/
+DS      = $(BUILD)dat/
+
+###
+### TOOLCHAIN
+###
+
+# Host toolchain: native Linux gcc for build tools
+HOST_CC     = gcc
+HOST_LINK   = $(HOST_CC)
+HOST_CFLAGS = -O2 -MMD -MP -I$(I) -I$(UTIL)
+
+# Cross toolchain: m68k-atari-mint for the game binary
+CC      = m68k-atari-mint-gcc
+LINK    = $(CC)
+
+# -DTOS: enables Atari ST platform code
+# -DNO_TERMLIB: no termcap library available, use ANSI_DEFAULT
+# -DDLB: use data librarian
+# -DGEM_GRAPHICS: enable GEM window system
+# -DCLIPPING: needed for GEM
+# GEM_GRAPHICS is enabled: both TTY and GEM window systems available.
+# -DFORCE_GEMLIB_UDEF: use gemlib's udef_* text calls (~20-byte stack frame
+#   + static intin buffer) instead of the regular ones (2104-byte frame).
+#   USERDEF/AES callbacks run on the ~1.9KB per-process supervisor stack
+#   u_super[], which the big frame overflows.  Must be global so the bundled
+#   E_GEM library gets the small-frame variants too, not just win/gem.
+# -MMD -MP: per-object .d files track every included header (HDEP alone is
+#   not enough); they are -include'd at the bottom of this Makefile.
+CFLAGS  = -Os -fomit-frame-pointer -m68000 -MMD -MP \
+          -I$(I) -I$(ATARI) -I$(EGEM) -I$(GEM) -I$(WSHARE) \
+          -DTOS -DNO_TERMLIB -DGEM_GRAPHICS -DCLIPPING -DDLB \
+          -DFORCE_GEMLIB_UDEF \
+          -DHACKDIR=\".\" \
+          -std=gnu11 -Wno-implicit-function-declaration
+# E_GEM reimplements some gemlib functions (objc_sysvar, appl_search,
+# scrp_clear, ...); allow E_GEM's versions (listed first) to override.
+LFLAGS  = -lgem -Wl,--allow-multiple-definition
+
+# QEMU toolchain: m68k-linux-gnu static ELF, run under qemu-m68k.
+# Tools run natively as 32-bit big-endian so output is correct for Atari.
+QEMU_CC     = m68k-linux-gnu-gcc
+QEMU_CFLAGS = -O2 -static -MMD -MP -I$(I) -I$(UTIL) \
+              -std=gnu11 -Wno-implicit-function-declaration
+QEMU        = qemu-m68k
+
+# Flex/Bison
+FLEX    = flex
+BISON   = bison
+
+# Build tools (all run via qemu-m68k for correct 32-bit BE output)
+MAKEDEFS  = $(QEMU) $(OQ)makedefs_m68k
+LEV_COMP  = $(QEMU) $(OQ)lev_comp_m68k
+DGN_COMP  = $(QEMU) $(OQ)dgn_comp_m68k
+
+# Headers we depend on
+HDEP    = $(I)hack.h $(I)pm.h $(I)onames.h
+
+###
+### SOURCE SEARCH PATHS (vpath)
+###
+vpath %.c $(NHS):$(ATARI):$(TTY):$(SHARE):$(UTIL):$(GEM):$(EGEM)
+
+###
+### FILE LISTS
+###
+
+.DEFAULT_GOAL := all
+
+.PRECIOUS: $(I)config.h $(I)decl.h $(I)hack.h $(I)permonst.h $(I)you.h
+
+# Common game object files (cross-compiled, in O)
+COMMOBJ = \
+	$(O)allmain.o   $(O)alloc.o     $(O)apply.o     $(O)artifact.o  \
+	$(O)isaac64.o \
+	$(O)attrib.o    $(O)ball.o      $(O)bones.o     $(O)botl.o      \
+	$(O)cmd.o       $(O)dbridge.o   $(O)decl.o      $(O)detect.o    \
+	$(O)dig.o       $(O)display.o   $(O)dlb.o       $(O)do.o        \
+	$(O)do_name.o   $(O)do_wear.o   $(O)dog.o       $(O)dogmove.o   \
+	$(O)dokick.o    $(O)dothrow.o   $(O)drawing.o   $(O)dungeon.o   \
+	$(O)eat.o       $(O)end.o       $(O)engrave.o   $(O)exper.o     \
+	$(O)explode.o   $(O)extralev.o  $(O)files.o     $(O)fountain.o  \
+	$(O)hack.o      $(O)hacklib.o   $(O)invent.o    $(O)light.o     \
+	$(O)lock.o      $(O)mail.o      $(O)makemon.o   $(O)mapglyph.o  \
+	$(O)mcastu.o    $(O)mhitm.o     $(O)mhitu.o     $(O)minion.o    \
+	$(O)mklev.o     $(O)mkmap.o     $(O)mkmaze.o    $(O)mkobj.o     \
+	$(O)mkroom.o    $(O)mon.o       $(O)mondata.o   $(O)monmove.o   \
+	$(O)monst.o     $(O)mplayer.o   $(O)mthrowu.o   $(O)muse.o      \
+	$(O)music.o     $(O)o_init.o    $(O)objects.o   $(O)objnam.o    \
+	$(O)options.o   $(O)pager.o     $(O)pickup.o    $(O)pline.o     \
+	$(O)polyself.o  $(O)potion.o    $(O)pray.o      $(O)priest.o    \
+	$(O)quest.o     $(O)questpgr.o  $(O)read.o      $(O)rect.o      \
+	$(O)region.o    $(O)restore.o   $(O)rnd.o       $(O)role.o      \
+	$(O)rumors.o    $(O)save.o      $(O)shk.o       $(O)shknam.o    \
+	$(O)sit.o       $(O)sounds.o    $(O)sp_lev.o    $(O)spell.o     \
+	$(O)steal.o     $(O)steed.o     $(O)sys.o       $(O)teleport.o  \
+	$(O)timeout.o   $(O)topten.o    $(O)track.o     $(O)trap.o      \
+	$(O)u_init.o    $(O)uhitm.o     $(O)vault.o     $(O)version.o   \
+	$(O)vision.o    $(O)weapon.o    $(O)were.o      $(O)wield.o     \
+	$(O)windows.o   $(O)wizard.o    $(O)worm.o      $(O)worn.o      \
+	$(O)write.o     $(O)zap.o
+
+# monstr.c is generated by makedefs -m
+MAKEDEFOBJ = $(O)monstr.o
+
+# Atari TOS-specific objects
+ATARIOBJ = $(O)tos.o
+
+# Shared PC platform objects
+# random.o excluded: MiNT provides random()/srandom() in stdlib
+SHAREOBJ = \
+	$(O)pcmain.o    $(O)pcsys.o     $(O)pctty.o     $(O)pcunix.o    \
+	$(O)pmatchregex.o
+
+# TTY backend objects
+TTYOBJ = \
+	$(O)getline.o $(O)termcap.o $(O)topl.o $(O)wintty.o $(O)rip.o
+
+# GEM backend objects
+GEMOBJ = \
+	$(O)wingem.o    $(O)wingem1.o   $(O)load_img.o  $(O)gr_rect.o   \
+	$(O)tile.o
+
+# E_GEM 2.20 library objects (compiled from sys/atari/e_gem/)
+# Note: cookie.o, scrap.o, image.o, fontsel.o excluded — their code is
+# #include'd from tool.c, dial.c, fselect.c respectively.
+EGEMOBJ = \
+	$(O)alerts.o    $(O)dial.o      $(O)dragdrop.o  \
+	$(O)event.o     $(O)filetool.o  $(O)fselect.o   \
+	$(O)graf.o      $(O)keys.o      $(O)objc.o      \
+	$(O)objcedit.o  $(O)popup.o     $(O)rc_ob_c.o   \
+	$(O)tool.o      $(O)eg_window.o $(O)xacc_av.o   \
+	$(O)aes_compat.o
+
+# All game object files
+HOBJ = $(COMMOBJ) $(ATARIOBJ) $(SHAREOBJ) $(MAKEDEFOBJ) $(TTYOBJ) \
+       $(GEMOBJ) $(EGEMOBJ)
+
+###
+### PATTERN RULES
+###
+
+# Host builds: all utility objects go to OO
+$(OO)%.o: %.c
+	$(HOST_CC) $(HOST_CFLAGS) -c -o $@ $<
+
+# Cross builds: all game objects go to O
+$(O)%.o: %.c $(HDEP)
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+# E_GEM 2.20 objects: compiled without -mshort (32-bit int) to match the
+# rest of the code.  -Wno-incompatible-pointer-types suppresses int*/short*
+# warnings for GEM/VDI calls; this is safe because E_GEM's _aes() wrapper
+# copies values through short INTIN/INTOUT arrays, and VDI pxy arrays use
+# explicit short types in the calling code.
+EGEM_CFLAGS = $(CFLAGS) -D__CREATE_E_GEM_LIB__ -D__TCC_COMPAT__ \
+              -Wno-incompatible-pointer-types -Wno-int-conversion \
+              -Wno-pointer-to-int-cast
+
+$(O)alerts.o $(O)cookie.o $(O)dial.o $(O)dragdrop.o \
+$(O)event.o $(O)filetool.o $(O)fontsel.o $(O)fselect.o \
+$(O)graf.o $(O)image.o $(O)keys.o $(O)objc.o \
+$(O)objcedit.o $(O)popup.o $(O)rc_ob_c.o \
+$(O)scrap.o $(O)tool.o $(O)eg_window.o $(O)xacc_av.o \
+$(O)aes_compat.o: $(O)%.o: $(EGEM)%.c
+	$(CC) -c $(EGEM_CFLAGS) -o $@ $<
+
+# Rename window.c to eg_window to avoid conflict with src/windows.c
+$(EGEM)eg_window.c: $(EGEM)window.c
+	cp $< $@
+
+# GEM backend objects — need E_GEM header path
+$(O)wingem.o: $(GEM)wingem.c $(HDEP)
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+$(O)wingem1.o: $(GEM)wingem1.c
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+$(O)load_img.o: $(GEM)load_img.c
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+$(O)gr_rect.o: $(GEM)gr_rect.c
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+
+# Level data: .des -> .lev
+$(SLIB)%.lev: $(DAT)%.des
+	cd $(SLIB) && $(LEV_COMP) $<
+
+###
+### TOP-LEVEL TARGETS
+###
+
+.PHONY: all obj link data package clean spotless dirs
+
+all: dirs $(NETHACK)nethack.prg data
+
+dirs:
+	mkdir -p $(O) $(OO) $(OQ) $(SBIN) $(SLIB) $(NETHACK) $(DS)
+
+obj: dirs $(HOBJ)
+
+# Link the GEM application directly to nethack.prg, stripped (-s): the
+# symbol table is debug-only and never loaded at runtime, so shipping it
+# just wastes disk/floppy space.  '.prg' is the GEM-app extension GEM/AES
+# auto-launches (same as '.app'); we standardise on one file.
+link: | dirs
+	$(LINK) -s -o $(NETHACK)nethack.prg $(HOBJ) $(LFLAGS)
+
+$(NETHACK)nethack.prg: $(HOBJ) | dirs
+	$(LINK) -s -o $@ $(HOBJ) $(LFLAGS)
+
+###
+### RUNTIME DATA FILES
+###
+
+# --- Text data files ---
+
+# One makedefs -s run produces all three; a multi-target rule would run
+# the recipe once per target under -j (racing on dat/grep.tmp), so make
+# bogusmon the real target and have the others depend on it.
+$(DS)bogusmon: \
+		$(DAT)bogusmon.txt $(DAT)engrave.txt $(DAT)epitaph.txt \
+		$(OQ)makedefs_m68k
+	cd $(DAT) && $(MAKEDEFS) -s
+	cp $(DAT)bogusmon $(DAT)engrave $(DAT)epitaph $(DS)
+
+$(DS)engrave $(DS)epitaph: $(DS)bogusmon
+
+$(DS)data: $(DAT)data.base $(OQ)makedefs_m68k | $(DS)bogusmon
+	cd $(DAT) && $(MAKEDEFS) -d
+	cp $(DAT)data $(DS)
+
+$(DS)rumors: $(DAT)rumors.tru $(DAT)rumors.fal $(OQ)makedefs_m68k | $(DS)data
+	cd $(DAT) && $(MAKEDEFS) -r
+	cp $(DAT)rumors $(DS)
+
+$(DS)quest.dat: $(DAT)quest.txt $(OQ)makedefs_m68k | $(DS)rumors
+	cd $(DAT) && $(MAKEDEFS) -q
+	cp $(DAT)quest.dat $(DS)
+
+$(DS)oracles: $(DAT)oracles.txt $(OQ)makedefs_m68k | $(DS)quest.dat
+	cd $(DAT) && $(MAKEDEFS) -h
+	cp $(DAT)oracles $(DS)
+
+# --- Dungeon topology ---
+
+$(DS)dungeon: $(DAT)dungeon.def $(OQ)makedefs_m68k $(OQ)dgn_comp_m68k
+	cd $(DAT) && $(MAKEDEFS) -e
+	cd $(DAT) && $(DGN_COMP) dungeon.pdf
+	cp $(DAT)dungeon $(DS)
+
+# --- Level files ---
+
+SPEC_DES = \
+	bigroom.des castle.des endgame.des gehennom.des knox.des medusa.des \
+	mines.des oracle.des sokoban.des tower.des yendor.des
+
+QUEST_DES = \
+	Arch.des Barb.des Caveman.des Healer.des Knight.des Monk.des \
+	Priest.des Ranger.des Rogue.des Samurai.des Tourist.des Valkyrie.des \
+	Wizard.des
+
+$(DS).spec_levs: $(addprefix $(DAT),$(SPEC_DES)) $(OQ)lev_comp_m68k
+	cd $(DAT) && \
+		$(LEV_COMP) bigroom.des   && \
+		$(LEV_COMP) castle.des    && \
+		$(LEV_COMP) endgame.des   && \
+		$(LEV_COMP) gehennom.des  && \
+		$(LEV_COMP) knox.des      && \
+		$(LEV_COMP) medusa.des    && \
+		$(LEV_COMP) mines.des     && \
+		$(LEV_COMP) oracle.des    && \
+		$(LEV_COMP) sokoban.des   && \
+		$(LEV_COMP) tower.des     && \
+		$(LEV_COMP) yendor.des
+	cp $(DAT)*.lev $(DS)
+	rm -f $(DAT)*.lev
+	touch $@
+
+$(DS).quest_levs: $(addprefix $(DAT),$(QUEST_DES)) $(OQ)lev_comp_m68k
+	cd $(DAT) && \
+		$(LEV_COMP) Arch.des     && \
+		$(LEV_COMP) Barb.des     && \
+		$(LEV_COMP) Caveman.des  && \
+		$(LEV_COMP) Healer.des   && \
+		$(LEV_COMP) Knight.des   && \
+		$(LEV_COMP) Monk.des     && \
+		$(LEV_COMP) Priest.des   && \
+		$(LEV_COMP) Ranger.des   && \
+		$(LEV_COMP) Rogue.des    && \
+		$(LEV_COMP) Samurai.des  && \
+		$(LEV_COMP) Tourist.des  && \
+		$(LEV_COMP) Valkyrie.des && \
+		$(LEV_COMP) Wizard.des
+	cp $(DAT)*.lev $(DS)
+	rm -f $(DAT)*.lev
+	touch $@
+
+# --- nhdat DLB archive ---
+
+DLB      = $(UTIL)dlb
+
+HELPFILES = help hh cmdhelp keyhelp history opthelp wizhelp
+NODLB     = license symbols
+
+# The 'options' file (compile-time options, read by the #version command)
+# is produced by `makedefs -v` as a side effect of building date.h; stage
+# a copy into $(DS) so it gets packed into nhdat below.
+$(DS)options: $(I)date.h
+	cp $(DAT)options $(DS)
+
+$(NETHACK)nhdat: \
+		$(DS)bogusmon $(DS)engrave $(DS)epitaph \
+		$(DS)data $(DS)rumors $(DS)quest.dat \
+		$(DS)oracles $(DS)dungeon $(DS)options \
+		$(DS).spec_levs $(DS).quest_levs $(DLB)
+	cp $(addprefix $(DAT),$(HELPFILES)) $(DS)
+	cp $(DAT)tribute $(DS)
+	cd $(DS) && $(DLB) cf $(NETHACK)nhdat \
+		$(HELPFILES) tribute dungeon options \
+		bogusmon data engrave epitaph oracles quest.dat rumors \
+		*.lev
+
+# --- Static files ---
+
+$(NETHACK)Guidebook.txt: $(NH)doc/Guidebook.txt
+	cp $< $@
+
+$(NETHACK)license: $(DAT)license
+	cp $< $@
+
+$(NETHACK)symbols: $(DAT)symbols
+	cp $< $@
+
+$(NETHACK)record:
+	touch $@
+
+$(NETHACK)NetHack.cnf: $(ATARI)nethack.cnf
+	cp $< $@
+
+# --- GEM resource files (decoded from uuencoded sources) ---
+
+$(NETHACK)GEM_RSC.RSC: $(GEM)gem_rsc.uu
+	perl -e 'open(F,"<$$ARGV[0]") or die; while(<F>){last if /^begin /} open(O,">$$ARGV[1]") or die; while(<F>){last if /^end/; print O unpack("u",$$_);} close O;' $< $@
+
+$(NETHACK)GEM_RSC.RSO: $(GEM)gem_rso.uu
+	perl -e 'open(F,"<$$ARGV[0]") or die; while(<F>){last if /^begin /} open(O,">$$ARGV[1]") or die; while(<F>){last if /^end/; print O unpack("u",$$_);} close O;' $< $@
+
+# --- Tile-image pipeline (win/share tiles -> Atari XIMG) ---------------
+# tile2bmp (host) renders the 3.6.7 tile text files into a 640-wide,
+# 40-per-row 256-colour BMP whose tile order matches glyph2tile[];
+# bmp2img_host then quantises that BMP into Atari XIMG sheets at the
+# depths the GEM windowport loads at runtime (NH2/NH16/NH32.IMG).
+
+# Host object set for tile2bmp (native build host, not the m68k target).
+TILE2BMP_OBJS = $(OO)tile2bmp.o $(OO)tiletext.o $(OO)tiltxt.o \
+                $(OO)drawing_h.o $(OO)decl_h.o $(OO)monst_h.o \
+                $(OO)objects_h.o $(OO)alloc_h.o $(OO)panic_h.o
+
+$(OO)tile2bmp.o: $(WSHARE)tile2bmp.c $(HDEP)
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -I$(WSHARE) -c -o $@ $<
+$(OO)tiletext.o: $(WSHARE)tiletext.c $(HDEP)
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -I$(WSHARE) -c -o $@ $<
+$(OO)tiltxt.o: $(WSHARE)tilemap.c $(HDEP)
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -I$(WSHARE) -DTILETEXT -c -o $@ $<
+$(OO)drawing_h.o: $(NHS)drawing.c $(HDEP)
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -c -o $@ $<
+$(OO)decl_h.o: $(NHS)decl.c $(HDEP)
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -c -o $@ $<
+$(OO)monst_h.o: $(NHS)monst.c $(HDEP)
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -c -o $@ $<
+$(OO)objects_h.o: $(NHS)objects.c $(HDEP)
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -c -o $@ $<
+$(OO)alloc_h.o: $(NHS)alloc.c $(HDEP)
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -c -o $@ $<
+$(OO)panic_h.o: $(UTIL)panic.c $(HDEP)
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -c -o $@ $<
+
+$(SBIN)tile2bmp: $(TILE2BMP_OBJS)
+	$(HOST_LINK) -o $@ $(TILE2BMP_OBJS)
+
+$(SBIN)bmp2img_host: $(ATARI)bmp2img_host.c
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -o $@ $<
+
+# tile2bmp reads ../win/share/*.txt relative to the util directory.
+$(DS)nhtiles.bmp: $(SBIN)tile2bmp $(WSHARE)monsters.txt \
+	$(WSHARE)objects.txt $(WSHARE)other.txt
+	cd $(UTIL) && $(SBIN)tile2bmp $(DS)nhtiles.bmp
+
+$(NETHACK)NH16.IMG: $(DS)nhtiles.bmp $(SBIN)bmp2img_host
+	$(SBIN)bmp2img_host -planes 4 $(DS)nhtiles.bmp $@
+$(NETHACK)NH32.IMG: $(DS)nhtiles.bmp $(SBIN)bmp2img_host
+	$(SBIN)bmp2img_host -planes 5 $(DS)nhtiles.bmp $@
+$(NETHACK)NH2.IMG: $(DS)nhtiles.bmp $(SBIN)bmp2img_host
+	$(SBIN)bmp2img_host -atkinson -planes 1 $(DS)nhtiles.bmp $@
+
+# Splash + tombstone images: uudecode of the committed XIMG sources.
+$(NETHACK)TITLE.IMG: $(GEM)title.uu
+	perl -e 'open(F,"<$$ARGV[0]") or die; while(<F>){last if /^begin /} open(O,">$$ARGV[1]") or die; while(<F>){last if /^end/; print O unpack("u",$$_);} close O;' $< $@
+$(NETHACK)TITLE2.IMG: $(GEM)title2.uu
+	perl -e 'open(F,"<$$ARGV[0]") or die; while(<F>){last if /^begin /} open(O,">$$ARGV[1]") or die; while(<F>){last if /^end/; print O unpack("u",$$_);} close O;' $< $@
+$(NETHACK)RIP.IMG: $(GEM)rip.uu
+	perl -e 'open(F,"<$$ARGV[0]") or die; while(<F>){last if /^begin /} open(O,">$$ARGV[1]") or die; while(<F>){last if /^end/; print O unpack("u",$$_);} close O;' $< $@
+
+# --- Top-level data target ---
+
+ATARI_EXTRAS = \
+	$(NETHACK)Guidebook.txt \
+	$(NETHACK)license $(NETHACK)symbols $(NETHACK)record \
+	$(NETHACK)NetHack.cnf \
+	$(NETHACK)GEM_RSC.RSC $(NETHACK)GEM_RSC.RSO \
+	$(NETHACK)NH2.IMG $(NETHACK)NH16.IMG $(NETHACK)NH32.IMG \
+	$(NETHACK)TITLE.IMG $(NETHACK)TITLE2.IMG $(NETHACK)RIP.IMG
+
+data: dirs $(NETHACK)nhdat $(ATARI_EXTRAS)
+
+###
+### DISTRIBUTION PACKAGE (NH367ST.ZIP)
+###
+### Assembles a self-contained Atari game directory and zips it.  Unzip
+### the result ON THE ATARI (see README.txt): some host unzippers mangle
+### line endings inside nhdat.
+
+NHV = 367
+PKG = $(BUILD)pkg/
+
+package: all
+	rm -rf $(PKG)
+	mkdir -p $(PKG)
+	cp $(NETHACK)nethack.prg   $(PKG)nethack.prg
+	cp $(NETHACK)nethack.prg   $(PKG)nethack.tos
+	cp $(NETHACK)nhdat         $(PKG)nhdat
+	cp $(NETHACK)NetHack.cnf   $(PKG)NetHack.cnf
+	cp $(NETHACK)GEM_RSC.RSC   $(PKG)GEM_RSC.RSC
+	cp $(NETHACK)NH2.IMG       $(PKG)NH2.IMG
+	cp $(NETHACK)NH16.IMG      $(PKG)NH16.IMG
+	cp $(NETHACK)NH32.IMG      $(PKG)NH32.IMG
+	cp $(NETHACK)TITLE.IMG     $(PKG)TITLE.IMG
+	cp $(NETHACK)TITLE2.IMG    $(PKG)TITLE2.IMG
+	cp $(NETHACK)RIP.IMG       $(PKG)RIP.IMG
+	cp $(NETHACK)license       $(PKG)license
+	cp $(NETHACK)symbols       $(PKG)symbols
+	cp $(NETHACK)Guidebook.txt $(PKG)nethack.txt
+	cp $(ATARI)README.tos      $(PKG)README.txt
+	cp $(ATARI)run-hatari.sh   $(PKG)run-hatari.sh
+	chmod +x $(PKG)run-hatari.sh
+	touch $(PKG)record
+	cd $(PKG) && rm -f ../NH$(NHV)ST.ZIP && zip -9 -r ../NH$(NHV)ST.ZIP . -x '.*'
+	@echo "Atari package: $(BUILD)NH$(NHV)ST.ZIP"
+
+clean:
+	-rm -f $(O)*.o $(OO)*.o $(OQ)*.o
+
+spotless: clean
+	rm -rf $(BUILD)
+	-rm -f $(I)onames.h $(I)pm.h $(I)date.h
+	-rm -f $(I)lev_comp.h $(I)dgn_comp.h
+	-rm -f $(NHS)monstr.c $(NHS)tile.c
+	-rm -f $(UTIL)lev_yacc.c $(UTIL)lev_lex.c $(UTIL)dgn_yacc.c $(UTIL)dgn_lex.c
+	-rm -f $(UTIL)dlb
+	-rm -f $(EGEM)eg_window.c
+	-rm -f $(DAT)bogusmon $(DAT)engrave $(DAT)epitaph $(DAT)data \
+	       $(DAT)rumors $(DAT)quest.dat $(DAT)oracles \
+	       $(DAT)dungeon $(DAT)dungeon.pdf $(DAT)*.lev
+
+###
+### GENERATED SOURCE FILES
+###
+
+$(I)onames.h: $(OQ)makedefs_m68k
+	cd $(UTIL) && $(MAKEDEFS) -o
+
+$(I)pm.h: $(OQ)makedefs_m68k
+	cd $(UTIL) && $(MAKEDEFS) -p
+
+$(I)date.h: $(HDEP) $(OQ)makedefs_m68k
+	cd $(UTIL) && $(MAKEDEFS) -v
+
+$(NHS)monstr.c: $(OQ)makedefs_m68k
+	cd $(UTIL) && $(MAKEDEFS) -m
+
+# tilemap (host tool) writes ../src/tile.c when run from util/
+$(NHS)tile.c: $(SBIN)tilemap $(HDEP)
+	cd $(UTIL) && $(SBIN)tilemap
+
+$(O)monstr.o: $(NHS)monstr.c $(HDEP)
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+$(O)version.o: $(NHS)version.c $(HDEP) $(I)date.h
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+$(O)tile.o: $(NHS)tile.c $(HDEP)
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+###
+### QEMU TOOL BUILDS
+###
+
+# Order-only dep on the makedefs-generated headers so a parallel (-j)
+# build generates them before compiling anything that includes hack.h.
+# The makedefs objects themselves have explicit rules below and so are
+# not matched by this pattern -- avoiding a make(pm.h) -> makedefs cycle.
+$(OQ)%.o: %.c | $(I)pm.h $(I)onames.h $(I)date.h
+	$(QEMU_CC) $(QEMU_CFLAGS) -c -o $@ $<
+
+QEMU_MAKEDEFSOBJS = \
+	$(OQ)makedefs.o $(OQ)monst_md.o $(OQ)objects_md.o
+
+QEMU_SPLEVOBJS = \
+	$(OQ)lev_yacc.o $(OQ)lev_lex.o $(OQ)lev_main.o \
+	$(OQ)alloc.o    $(OQ)decl.o    $(OQ)drawing.o  $(OQ)monst.o \
+	$(OQ)objects.o  $(OQ)panic.o
+
+QEMU_DGNCOMPOBJS = \
+	$(OQ)dgn_yacc.o $(OQ)dgn_lex.o $(OQ)dgn_main.o \
+	$(OQ)alloc.o    $(OQ)panic.o
+
+$(OQ)lev_yacc.o: $(UTIL)lev_yacc.c $(I)sp_lev.h $(I)pm.h $(I)onames.h $(I)lev_comp.h | $(I)pm.h $(I)onames.h $(I)date.h
+	$(QEMU_CC) $(QEMU_CFLAGS) -DLEV_LEX_C -Dalloca=malloc -c -o $@ $<
+
+$(OQ)lev_lex.o: $(UTIL)lev_lex.c $(I)lev_comp.h $(I)sp_lev.h | $(I)pm.h $(I)onames.h $(I)date.h
+	$(QEMU_CC) $(QEMU_CFLAGS) -DLEV_LEX_C -c -o $@ $<
+
+$(OQ)lev_main.o: $(UTIL)lev_main.c $(I)pm.h $(I)onames.h $(I)date.h $(I)lev_comp.h | $(I)pm.h $(I)onames.h $(I)date.h
+	$(QEMU_CC) $(QEMU_CFLAGS) -DLEV_LEX_C -c -o $@ $<
+
+$(OQ)dgn_yacc.o: $(UTIL)dgn_yacc.c $(I)dgn_file.h $(I)patchlevel.h | $(I)pm.h $(I)onames.h $(I)date.h
+	$(QEMU_CC) $(QEMU_CFLAGS) -DLEV_LEX_C -Dalloca=malloc -c -o $@ $<
+
+$(OQ)dgn_lex.o: $(UTIL)dgn_lex.c $(I)config.h $(I)dgn_comp.h $(I)dgn_file.h | $(I)pm.h $(I)onames.h $(I)date.h
+	$(QEMU_CC) $(QEMU_CFLAGS) -DLEV_LEX_C -c -o $@ $<
+
+$(OQ)dgn_main.o: $(UTIL)dgn_main.c $(I)config.h $(I)date.h | $(I)pm.h $(I)onames.h $(I)date.h
+	$(QEMU_CC) $(QEMU_CFLAGS) -DLEV_LEX_C -c -o $@ $<
+
+$(OQ)lev_comp_m68k: $(QEMU_SPLEVOBJS)
+	$(QEMU_CC) $(QEMU_CFLAGS) -o $@ $(QEMU_SPLEVOBJS)
+
+$(OQ)dgn_comp_m68k: $(QEMU_DGNCOMPOBJS)
+	$(QEMU_CC) $(QEMU_CFLAGS) -o $@ $(QEMU_DGNCOMPOBJS)
+
+# makedefs_m68k: use -DPORT_ID=\"Atari\" but NOT -DTOS
+$(OQ)makedefs.o: $(UTIL)makedefs.c
+	$(QEMU_CC) $(QEMU_CFLAGS) -DPORT_ID=\"Atari\" -c -o $@ $<
+
+$(OQ)monst_md.o: $(NHS)monst.c
+	$(QEMU_CC) $(QEMU_CFLAGS) -c -o $@ $<
+
+$(OQ)objects_md.o: $(NHS)objects.c
+	$(QEMU_CC) $(QEMU_CFLAGS) -c -o $@ $<
+
+$(OQ)makedefs_m68k: $(QEMU_MAKEDEFSOBJS)
+	$(QEMU_CC) $(QEMU_CFLAGS) -o $@ $(QEMU_MAKEDEFSOBJS)
+
+###
+### HOST TOOL BUILDS
+###
+
+HOST_CFLAGS_COMPAT = $(HOST_CFLAGS) -std=gnu11 -Wno-implicit-function-declaration -fpermissive
+
+###
+### FLEX/BISON GENERATED SOURCES
+###
+
+$(UTIL)dgn_lex.c: $(UTIL)dgn_comp.l
+	$(FLEX) -o $@ $<
+
+$(UTIL)dgn_yacc.c: $(UTIL)dgn_comp.y
+	cd $(UTIL) && bison -y -d dgn_comp.y
+	mv $(UTIL)y.tab.c $(UTIL)dgn_yacc.c
+	mv $(UTIL)y.tab.h $(I)dgn_comp.h
+
+$(I)dgn_comp.h: $(UTIL)dgn_yacc.c
+	@:
+
+# Order-only dep: both bison runs write y.tab.*, so serialize them.
+$(UTIL)lev_yacc.c: $(UTIL)lev_comp.y | $(UTIL)dgn_yacc.c
+	cd $(UTIL) && bison -y -d lev_comp.y
+	mv $(UTIL)y.tab.c $(UTIL)lev_yacc.c
+	mv $(UTIL)y.tab.h $(I)lev_comp.h
+
+$(I)lev_comp.h: $(UTIL)lev_yacc.c
+	@:
+
+$(UTIL)lev_lex.c: $(UTIL)lev_comp.l
+	$(FLEX) -o $@ $<
+
+###
+### HOST dlb TOOL
+###
+
+HOST_DLBOBJS = $(OO)dlb_main.o $(OO)dlb_host.o $(OO)alloc_dlb.o $(OO)panic_dlb.o
+
+$(OO)dlb_main.o: $(UTIL)dlb_main.c
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -DDLB -c -o $@ $<
+
+$(OO)dlb_host.o: $(NHS)dlb.c
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -DDLB -c -o $@ $<
+
+$(OO)alloc_dlb.o: $(NHS)alloc.c
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -c -o $@ $<
+
+$(OO)panic_dlb.o: $(UTIL)panic.c
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -c -o $@ $<
+
+$(UTIL)dlb: $(HOST_DLBOBJS)
+	$(HOST_LINK) -o $@ $(HOST_DLBOBJS)
+
+###
+### HOST TILE TOOLS
+###
+
+TILE_CFLAGS = $(HOST_CFLAGS_COMPAT) -I$(WSHARE)
+
+$(SBIN)tilemap: $(WSHARE)tilemap.c $(HDEP)
+	$(HOST_CC) $(TILE_CFLAGS) -o $@ $<
+
+###
+### SPECIFIC OBJECT DEPENDENCIES
+###
+
+$(O)tos.o: $(ATARI)tos.c $(HDEP)
+$(O)pcmain.o: $(SHARE)pcmain.c $(HDEP) $(I)dlb.h
+$(O)pcsys.o: $(SHARE)pcsys.c $(HDEP)
+$(O)pctty.o: $(SHARE)pctty.c $(HDEP)
+$(O)pcunix.o: $(SHARE)pcunix.c $(HDEP)
+
+# --- Auto-generated header dependencies (from -MMD) ---------------------
+# Pull in the per-object .d files so header edits recompile the right .o's.
+-include $(wildcard $(O)*.d $(OO)*.d $(OQ)*.d)

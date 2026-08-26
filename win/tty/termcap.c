@@ -1278,7 +1278,7 @@ void
 term_start_color(color)
 int color;
 {
-    if (color < CLR_MAX)
+    if (color < CLR_MAX && hilites[color])
         xputs(hilites[color]);
 }
 

@@ -8,6 +8,20 @@
 #define NEED_VARARGS
 #include "hack.h"
 
+/* mintlib reads _stksize at startup; the default is too small for
+   NetHack's deep call chains (level generation, the options menu). */
+long _stksize = 256 * 1024L;
+
+#ifndef MFLOPPY
+/* micro.h declares these unconditionally; provide stubs when MFLOPPY
+   is disabled so the linker doesn't complain. */
+char permbones[PATHLEN];
+int ramdisk = FALSE;
+int saveprompt = FALSE;
+const char *alllevels = "levels.*";
+const char *allbones = "bones*.*";
+#endif
+
 #ifdef TTY_GRAPHICS
 #include "tcap.h"
 #else
@@ -240,20 +254,29 @@ void
 get_scr_size()
 {
 #ifdef MINT
-#include <ioctl.h>
+#include <sys/ioctl.h>
     struct winsize win;
     char *tmp;
 
-    if ((tmp = nh_getenv("LINES")))
-        LI = atoi(tmp);
-    else if ((tmp = nh_getenv("ROWS")))
-        LI = atoi(tmp);
-    if (tmp && (tmp = nh_getenv("COLUMNS")))
-        CO = atoi(tmp);
-    else {
-        ioctl(0, TIOCGWINSZ, &win);
-        LI = win.ws_row;
-        CO = win.ws_col;
+    {
+        boolean got_env = FALSE;
+
+        if ((tmp = nh_getenv("LINES"))) {
+            LI = atoi(tmp);
+            got_env = TRUE;
+        } else if ((tmp = nh_getenv("ROWS"))) {
+            LI = atoi(tmp);
+            got_env = TRUE;
+        }
+        if ((tmp = nh_getenv("COLUMNS"))) {
+            CO = atoi(tmp);
+            got_env = TRUE;
+        }
+        if (!got_env) {
+            ioctl(0, TIOCGWINSZ, &win);
+            LI = win.ws_row;
+            CO = win.ws_col;
+        }
     }
 #else
     init_aline();
@@ -280,12 +303,18 @@ char *from, *to;
         return -1;
     }
     buf = (char *) alloc((unsigned) BIGBUF);
-    while ((r = read(fromfd, buf, BIGBUF)) > 0)
-        write(tofd, buf, r);
+    while ((r = read(fromfd, buf, BIGBUF)) > 0) {
+        if (write(tofd, buf, r) != r) {
+            close(fromfd);
+            close(tofd);
+            free((genericptr_t) buf);
+            return -1;
+        }
+    }
     close(fromfd);
     close(tofd);
     free((genericptr_t) buf);
-    return 0; /* successful */
+    return (r < 0) ? -1 : 0;
 }
 
 int
@@ -298,12 +327,16 @@ static void
 init_aline()
 {
 #ifdef __GNUC__
-    /* line A calls nuke registers d0-d2,a0-a2; not all compilers regard these
-       as scratch registers, though, so we save them
-     */
-    asm(" moveml d0-d2/a0-a2, sp@-");
-    asm(" .word 0xa000; movel d0, __a_line");
-    asm(" moveml sp@+, d0-d2/a0-a2");
+    /* Line A init: opcode 0xa000 returns line-A variable base in d0.
+       Use proper GCC extended asm with clobber lists. */
+    register char *result __asm__("d0");
+    __asm__ __volatile__(
+        ".word 0xa000"
+        : "=r"(result)
+        :
+        : "d1", "d2", "a0", "a1", "a2", "cc", "memory"
+    );
+    _a_line = result;
 #else
     asm(" movem.l d0-d2/a0-a2, -(sp)");
     asm(" .dc.w 0xa000"); /* tweak as necessary for your compiler */
@@ -375,5 +408,27 @@ dosuspend()
     return (0);
 }
 #endif /* SUSPEND */
+
+unsigned long
+sys_random_seed()
+{
+    unsigned long seed;
+#ifdef MINT
+    /* MiNT provides /dev/urandom */
+    int fd = open("/dev/urandom", O_RDONLY);
+    if (fd >= 0) {
+        (void) read(fd, (genericptr_t) &seed, sizeof(seed));
+        close(fd);
+    } else
+#endif
+    {
+        /* fallback: XOR of time and process id */
+        seed = (unsigned long) getnow();
+#ifdef MINT
+        seed ^= (unsigned long) getpid();
+#endif
+    }
+    return seed;
+}
 
 #endif /* TOS */

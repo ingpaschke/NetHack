@@ -3,9 +3,9 @@
  */
 /* NetHack may be freely redistributed.  See license for details. */
 
-#include "NH:sys/amiga/windefs.h"
-#include "NH:sys/amiga/winext.h"
-#include "NH:sys/amiga/winproto.h"
+#include "windefs.h"
+#include "winext.h"
+#include "winproto.h"
 #include "patchlevel.h"
 #include "date.h"
 
@@ -27,6 +27,50 @@ int xclipbord = 4, yclipbord = 2;
 int mxsize, mysize;
 struct Rectangle amii_oldover;
 struct Rectangle amii_oldmsg;
+
+/*
+ * amii_LoadRGB -- palette loader that works correctly on RTG screens.
+ *
+ * On graphics.library v39+ (OS 3.0+, required for RTG) use LoadRGB32,
+ * which accepts full 8-bit-per-channel values and is the only palette
+ * function that RTG drivers honour correctly.  On older systems fall
+ * back to LoadRGB4.
+ *
+ * cmap16: array of 12-bit UWORD colour values in LoadRGB4 format (0x0RGB).
+ * Each 4-bit nibble is expanded to 8 bits by replication
+ * (e.g. 0xF -> 0xFF, 0xA -> 0xAA) before being passed to LoadRGB32.
+ */
+void
+amii_LoadRGB(vp, cmap16, numcolors)
+struct ViewPort *vp;
+UWORD *cmap16;
+int numcolors;
+{
+    if (GfxBase->LibNode.lib_Version >= 39) {
+        /* LoadRGB32 table layout:
+         *   [0]          = (count << 16) | first_register
+         *   [1..3*count] = R, G, B per entry as ULONG with 8-bit value << 24
+         *   [3*count+1]  = 0  (terminator)
+         */
+        ULONG table[AMII_MAXCOLORS * 3 + 2];
+        int i;
+        table[0] = ((ULONG) numcolors << 16) | 0UL;
+        for (i = 0; i < numcolors; i++) {
+            UWORD c = cmap16[i];
+            ULONG r = (c >> 8) & 0xf;
+            ULONG g = (c >> 4) & 0xf;
+            ULONG b =  c       & 0xf;
+            /* Replicate nibble to byte: n -> (n << 4) | n */
+            table[1 + i * 3 + 0] = ((r << 4) | r) << 24;
+            table[1 + i * 3 + 1] = ((g << 4) | g) << 24;
+            table[1 + i * 3 + 2] = ((b << 4) | b) << 24;
+        }
+        table[1 + numcolors * 3] = 0UL;
+        LoadRGB32(vp, table);
+    } else {
+        LoadRGB4(vp, cmap16, numcolors);
+    }
+}
 
 extern struct TextFont *RogueFont;
 
@@ -725,7 +769,9 @@ amii_create_nhwindow(type) register int type;
          */
         wd->data = (char **) alloc(3 * sizeof(char *));
         wd->data[0] = (char *) alloc(wd->cols + 10);
+        wd->data[0][0] = '\0';
         wd->data[1] = (char *) alloc(wd->cols + 10);
+        wd->data[1][0] = '\0';
         wd->data[2] = NULL;
         break;
 
@@ -1172,9 +1218,12 @@ char **argv;
     }
 #endif
 
-    if (WINVERS_AMIV)
+    if (WINVERS_AMIV) {
         amii_bmhd = ReadTileImageFiles();
-    else
+        /* Use the actual IFF depth so the screen gets as many bitplanes
+         * as the tile images need (e.g. 5 planes = 32 colours). */
+        amii_numcolors = 1L << amii_bmhd.nPlanes;
+    } else
         memcpy(amii_initmap, amii_init_map, sizeof(amii_initmap));
     memcpy(sysflags.amii_curmap, amii_initmap, sizeof(sysflags.amii_curmap));
 
@@ -1222,7 +1271,7 @@ char **argv;
     amiIDisplay->ypix = HackScreen->Height;
     amiIDisplay->xpix = HackScreen->Width;
 
-    LoadRGB4(&HackScreen->ViewPort, sysflags.amii_curmap, amii_numcolors);
+    amii_LoadRGB(&HackScreen->ViewPort, sysflags.amii_curmap, amii_numcolors);
 
     VisualInfo = GetVisualInfo(HackScreen, TAG_END);
     MenuStrip = CreateMenus(GTHackMenu, TAG_END);
@@ -1974,7 +2023,7 @@ if(u.uz.dlevel != x){
 #endif
     if (WINVERS_AMIV && !Is_rogue_level(&u.uz)) {
         amii_curs(win, x, y);
-        amiga_print_glyph(win, 0, glyph);
+        amiga_print_glyph(win, 0, glyph, 0);
     } else /* AMII, or Rogue level in either version */
     {
         /* map glyph to character and color */
@@ -1982,17 +2031,18 @@ if(u.uz.dlevel != x){
         ch = (uchar) och;
         if (WINVERS_AMIV) { /* implies Rogue level here */
             amii_curs(win, x, y);
-            amiga_print_glyph(win, NO_COLOR, ch + 10000);
+            amiga_print_glyph(win, NO_COLOR, ch + 10000, 0);
         } else {
-            /* Move the cursor. */
-            amii_curs(win, x, y + 2);
+            /* Move the cursor. In multi-window mode the map window is
+             * separate, so dungeon y maps directly to window row y. */
+            amii_curs(win, x, y);
 
 #ifdef TEXTCOLOR
             /* Turn off color if rogue level. */
             if (Is_rogue_level(&u.uz))
                 color = NO_COLOR;
 
-            amiga_print_glyph(win, color, ch);
+            amiga_print_glyph(win, color, ch, 0);
 #else
             g_putch(ch); /* print the character */
 #endif

@@ -56,7 +56,13 @@ extern char *FDECL(tilename, (int, int));
 #define MAX_Y ((MAGICTILENO * 32) / 40) * 2
 #else
 #define MAX_X (16 * 40)
-#define MAX_Y ((MAGICTILENO * 16) / 40) * 2
+/* Snug sheet height: 40 tiles/row.  3.6.7 emits ~1476 tiles (standard +
+ * substitute/statue tiles), which fit in 37 rows; 640 (40 rows, 1600
+ * slots) leaves a safe margin.  The old "* 2" doubled the height and left
+ * ~640 blank rows -- ~200 KB of dead weight in NH*.IMG, fatal on a 4 MB
+ * Mega ST where vr_trnfm needs a same-size scratch buffer to transform
+ * the sheet. */
+#define MAX_Y (16 * 40)
 #endif
 #endif
 

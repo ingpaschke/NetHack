@@ -12,7 +12,7 @@
 
 #include <ctype.h>
 #include <fcntl.h>
-#if !defined(MSDOS) && !defined(WIN_CE) /* already done */
+#if !defined(MSDOS) && !defined(WIN_CE) && !defined(TOS) /* already done */
 #include <process.h>
 #endif
 #ifdef __GO32__
@@ -75,7 +75,7 @@ dosh()
 {
     extern char orgdir[];
     char *comspec;
-#ifndef __GO32__
+#if !defined(__GO32__) && !defined(TOS)
     int spawnstat;
 #endif
 #if defined(MSDOS) && defined(NO_TERMS)
@@ -94,8 +94,8 @@ dosh()
 #ifndef NOCWD_ASSUMPTIONS
         chdirx(orgdir, 0);
 #endif
-#ifdef __GO32__
-        if (system(comspec) < 0) { /* wsu@eecs.umich.edu */
+#if defined(__GO32__) || defined(TOS)
+        if (system(comspec) < 0) {
 #else
 #ifdef MOVERLAY
         /* Free the cache memory used by overlays, close .exe */
@@ -443,15 +443,19 @@ const char *name, *mode;
     if ((fp = fopen(buf, mode)))
         return fp;
     else {
-        int ccnt = 0;
+        int ccnt;
         pp = getenv("PATH");
         while (pp && *pp) {
             bp = buf;
-            while (*pp && *pp != PATHSEP) {
+            /* ccnt is the length of this path element and must reset
+               along with bp, or (BUFSIZ - ccnt) - 2 goes negative; the
+               bound also keeps an over-long element inside buf */
+            ccnt = 0;
+            while (*pp && *pp != PATHSEP && ccnt < BUFSIZ - 2) {
                 lastch = *bp++ = *pp++;
                 ccnt++;
             }
-            if (lastch != '\\' && lastch != '/') {
+            if (lastch != '\\' && lastch != '/' && ccnt < BUFSIZ - 2) {
                 *bp++ = '\\';
                 ccnt++;
             }

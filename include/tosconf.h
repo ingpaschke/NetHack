@@ -34,10 +34,13 @@
 #endif
 
 /* configurable options */
-#define MFLOPPY   /* floppy support		*/
+/* #define MFLOPPY */ /* disabled: disk space check overflows on >2GB volumes */
 #define RANDOM    /* improved random numbers	*/
 #define SHELL     /* allow spawning of shell	*/
+/* TERMLIB requires a termcap library; if unavailable, use ANSI_DEFAULT */
+#ifndef NO_TERMLIB
 #define TERMLIB   /* use termcap			*/
+#endif
 #define TEXTCOLOR /* allow color			*/
 #define MAIL      /* enable the fake maildemon */
 #ifdef MINT
@@ -47,6 +50,11 @@
 #ifndef TERMLIB
 #define ANSI_DEFAULT /* use vt52 by default		*/
 #endif
+
+#undef SYSCF
+#undef SYSCF_FILE
+
+#define DLB /* data librarian */
 
 #if defined(__GNUC__) || defined(__MINT__)
 /* actually, only more recent GNU C libraries have strcmpi
@@ -59,13 +67,18 @@ extern int FDECL(strcmpi, (const char *, const char *));
 extern int FDECL(strncmpi, (const char *, const char *, size_t));
 #endif
 
+#ifdef TERMLIB
+/* termcap.h may not exist in modern MiNT toolchains */
+#ifdef __HAVE_TERMCAP_H__
 #include <termcap.h>
+#endif
+#endif
 #include <unistd.h>
 /* instead of including system.h from pcconf.h */
 #include <string.h>
 #include <stdlib.h>
-#include <types.h>
-#define SIG_RET_TYPE __Sigfunc
+#include <sys/types.h>
+#define SIG_RET_TYPE void (*)(int)
 #define SYSTEM_H
 
 #ifndef MICRO_H

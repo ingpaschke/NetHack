@@ -1191,7 +1191,7 @@ u_on_newpos(x, y)
 int x, y;
 {
     if (!isok(x, y)) { /* validate location */
-        void VDECL((*func), (const char *, ...)) PRINTF_F(1, 2);
+        void VDECL((*func), (const char *, ...)); /* PRINTF_F(1, 2) */
 
         func = (x < 0 || y < 0 || x > COLNO - 1 || y > ROWNO - 1) ? panic
                : impossible;

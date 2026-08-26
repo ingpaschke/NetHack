@@ -3635,7 +3635,7 @@ doapply()
     case LOCK_PICK:
     case CREDIT_CARD:
     case SKELETON_KEY:
-        res = (pick_lock(obj) != 0);
+        res = (pick_lock(obj, 0, 0, (struct obj *) 0) != 0);
         break;
     case PICK_AXE:
     case DWARVISH_MATTOCK:

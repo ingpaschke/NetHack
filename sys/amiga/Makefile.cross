@@ -1,0 +1,624 @@
+#	NetHack 3.6.7 cross-compilation Makefile for m68k-amigaos
+# Copyright (c) Kenneth Lorber, Bethesda, Maryland, 1991,1992,1993,1996.
+# NetHack may be freely redistributed.  See license for details.
+#
+# Cross-compiles NetHack for m68k-amigaos using the toolchain in /opt/amiga.
+#
+# Usage (from the source root):
+#   make -f sys/amiga/Makefile.cross          # build NetHack binary
+#   make -f sys/amiga/Makefile.cross clean    # remove cross-built objects
+#   make -f sys/amiga/Makefile.cross spotless # remove everything
+
+###
+### DIRECTORY STRUCTURE
+###
+
+NH      := $(abspath $(dir $(lastword $(MAKEFILE_LIST)))../..)/
+BUILD   = $(NH)build-amiga/
+
+AMI     = $(NH)sys/amiga/
+DAT     = $(NH)dat/
+I       = $(NH)include/
+SHARE   = $(NH)sys/share/
+NHS     = $(NH)src/
+TTY     = $(NH)win/tty/
+WSHARE  = $(NH)win/share/
+UTIL    = $(NH)util/
+
+# Output directories (all under BUILD)
+O       = $(BUILD)obj/
+OO      = $(BUILD)objo/
+OQ      = $(BUILD)objq/
+OT      = $(BUILD)objtile/
+SBIN    = $(BUILD)sbin/
+SLIB    = $(BUILD)slib/
+NETHACK = $(BUILD)NetHack/
+DS      = $(BUILD)dat/
+
+###
+### TOOLCHAIN
+###
+
+# Host toolchain: native Linux gcc for build tools
+HOST_CC     = gcc
+HOST_LINK   = $(HOST_CC)
+HOST_CFLAGS = -O2 -I$(I) -I$(UTIL)
+
+# Cross toolchain: m68k-amigaos for the game binary
+CROSS   = /opt/amiga/bin/m68k-amigaos-
+CC      = $(CROSS)gcc
+LINK    = $(CC)
+#ASM     = $(CC)
+
+# -m68020: minimum for AmigaOS 2+ (most Amigas); use -m68000 for max compat
+CFLAGS  = -O2 -I$(I) -I$(AMI)
+# -lamiga is intentionally NOT listed here.
+# The compiler driver already adds -( -lc -lstubs -lamiga -lgcc -) as an
+# archive group, where -lc (newlib) comes BEFORE -lamiga.  If -lamiga were
+# listed explicitly here it would be searched before the group and its
+# RawDoFmt-based sprintf() would win over newlib's correct implementation,
+# causing %c to emit '\0' for every character argument.
+LFLAGS  =
+
+AFLAGS  =
+
+# QEMU toolchain: m68k-linux-gnu static ELF, run under qemu-m68k.
+# These tools run natively as 32-bit big-endian so their output is already in
+# the correct Amiga format - no lev_fix post-processing or AMIGA_CROSS hack needed.
+QEMU_CC     = m68k-linux-gnu-gcc
+QEMU_CFLAGS = -O2 -static -I$(I) -I$(UTIL) \
+              -std=gnu11 -Wno-implicit-function-declaration
+QEMU        = qemu-m68k
+
+# Flex/Bison (for regenerating parsers; pre-generated files already present)
+FLEX    = flex
+BISON   = bison
+FBFIL   =
+FBLIB   =
+
+# Build tools (all run via qemu-m68k for correct 32-bit BE output and PORT_ID)
+MAKEDEFS  = $(QEMU) $(OQ)makedefs_m68k
+LEV_COMP  = $(QEMU) $(OQ)lev_comp_m68k
+DGN_COMP  = $(QEMU) $(OQ)dgn_comp_m68k
+
+# Headers we depend on
+HDEP    = $(I)hack.h $(I)pm.h $(I)onames.h
+AMDEP   = $(AMI)winproto.h $(AMI)winext.h $(AMI)windefs.h $(I)winami.h
+
+###
+### SOURCE SEARCH PATHS (vpath)
+###
+# vpath tells make where to find .c files for implicit rules.
+# Used for both $(O) (cross-compiled) and $(OO) (host-compiled) targets.
+vpath %.c $(NHS):$(AMI):$(TTY):$(SHARE):$(UTIL)
+
+###
+### FILE LISTS
+###
+
+.PRECIOUS: $(I)config.h $(I)decl.h $(I)hack.h $(I)permonst.h $(I)you.h
+
+# RANDOBJ unused: GCC AmigaOS toolchain provides random()/srandom() in stdlib
+RANDOBJ =
+
+# Common game object files (cross-compiled, in O)
+COMMOBJ = \
+	$(O)allmain.o   $(O)alloc.o     $(O)apply.o     $(O)artifact.o  \
+	$(O)isaac64.o \
+	$(O)attrib.o    $(O)ball.o      $(O)bones.o     $(O)botl.o      \
+	$(O)cmd.o       $(O)dbridge.o   $(O)decl.o      $(O)detect.o    \
+	$(O)dig.o       $(O)display.o   $(O)dlb.o       $(O)do.o        \
+	$(O)do_name.o   $(O)do_wear.o   $(O)dog.o       $(O)dogmove.o   \
+	$(O)dokick.o    $(O)dothrow.o   $(O)drawing.o   $(O)dungeon.o   \
+	$(O)eat.o       $(O)end.o       $(O)engrave.o   $(O)exper.o     \
+	$(O)explode.o   $(O)extralev.o  $(O)files.o     $(O)fountain.o  \
+	$(O)hack.o      $(O)hacklib.o   $(O)invent.o    $(O)light.o     \
+	$(O)lock.o      $(O)mail.o      $(O)makemon.o   $(O)mapglyph.o  \
+	$(O)mcastu.o    $(O)mhitm.o     $(O)mhitu.o     $(O)minion.o    \
+	$(O)mklev.o     $(O)mkmap.o     $(O)mkmaze.o    $(O)mkobj.o     \
+	$(O)mkroom.o    $(O)mon.o       $(O)mondata.o   $(O)monmove.o   \
+	$(O)monst.o     $(O)mplayer.o   $(O)mthrowu.o   $(O)muse.o      \
+	$(O)music.o     $(O)o_init.o    $(O)objects.o   $(O)objnam.o    \
+	$(O)options.o   $(O)pager.o     $(O)pickup.o    $(O)pline.o     \
+	$(O)polyself.o  $(O)potion.o    $(O)pray.o      $(O)priest.o    \
+	$(O)quest.o     $(O)questpgr.o  $(O)read.o      $(O)rect.o      \
+	$(O)region.o    $(O)restore.o   $(O)rnd.o       $(O)role.o      \
+	$(O)rumors.o    $(O)save.o      $(O)shk.o       $(O)shknam.o    \
+	$(O)sit.o       $(O)sounds.o    $(O)sp_lev.o    $(O)spell.o     \
+	$(O)steal.o     $(O)steed.o     $(O)sys.o       $(O)teleport.o  \
+	$(O)timeout.o   $(O)topten.o    $(O)track.o     $(O)trap.o      \
+	$(O)u_init.o    $(O)uhitm.o     $(O)vault.o     $(O)version.o   \
+	$(O)vision.o    $(O)weapon.o    $(O)were.o      $(O)wield.o     \
+	$(O)windows.o   $(O)wizard.o    $(O)worm.o      $(O)worn.o      \
+	$(O)write.o     $(O)zap.o
+
+# monstr.c is generated by makedefs -m and included for backward compatibility
+MAKEDEFOBJ = $(O)monstr.o
+
+AMIGAOBJ = \
+	$(O)amidos.o    $(O)amirip.o    $(O)amisnd.o    $(O)amistack.o  \
+	$(O)amiwind.o   $(O)winami.o    $(O)winchar.o   $(O)winfuncs.o  \
+	$(O)winkey.o    $(O)winmenu.o   $(O)winreq.o    $(O)winstr.o
+
+SHAREOBJ = \
+	$(O)pcmain.o    $(O)pmatchregex.o $(RANDOBJ)
+
+TTYOBJ = \
+	$(O)getline.o $(O)termcap.o $(O)topl.o $(O)wintty.o \
+	$(O)amitty.o  $(O)rip.o
+
+# All game object files
+HOBJ = $(COMMOBJ) $(AMIGAOBJ) $(SHAREOBJ) $(MAKEDEFOBJ) $(TTYOBJ)
+
+###
+### PATTERN RULES
+###
+
+# Host builds: all utility objects go to OO
+# (Uses HOST_CC so no AMIGA defines; produces native Linux code)
+$(OO)%.o: %.c
+	$(HOST_CC) $(HOST_CFLAGS) -c -o $@ $<
+
+# Cross builds: all game objects go to O
+# (AMIGA is auto-defined by m68k-amigaos-gcc)
+# Depend on key headers so a clean rebuild is triggered when they change.
+$(O)%.o: %.c $(HDEP) $(I)amiconf.h
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+# Level data: .des -> .lev
+# lev_comp writes output to its current directory, so cd to SLIB first
+$(SLIB)%.lev: $(DAT)%.des
+	cd $(SLIB) && $(LEV_COMP) $<
+
+###
+### TOP-LEVEL TARGETS
+###
+
+.PHONY: all obj link data install clean spotless dirs
+
+all: dirs $(NETHACK)NetHack data
+
+dirs:
+	mkdir -p $(O) $(OO) $(OQ) $(OT) $(SBIN) $(SLIB) $(NETHACK) $(DS)
+	mkdir -p $(NETHACK)Save $(NETHACK)Levels $(NETHACK)tiles
+
+obj: dirs $(HOBJ)
+
+link: | dirs
+	$(LINK) -o $(NETHACK)NetHack $(HOBJ) $(LFLAGS)
+
+$(NETHACK)NetHack: $(HOBJ) | dirs
+	$(LINK) -o $(NETHACK)NetHack $(HOBJ) $(LFLAGS)
+
+###
+### RUNTIME DATA FILES
+### makedefs and lev_comp/dgn_comp write output to their cwd (dat/);
+### results are then copied into NETHACK/.
+###
+
+# --- Text data files ---
+
+# makedefs -s generates bogusmon, engrave, and epitaph simultaneously
+$(DS)bogusmon $(DS)engrave $(DS)epitaph: \
+		$(DAT)bogusmon.txt $(DAT)engrave.txt $(DAT)epitaph.txt \
+		$(OQ)makedefs_m68k
+	cd $(DAT) && $(MAKEDEFS) -s
+	cp $(DAT)bogusmon $(DAT)engrave $(DAT)epitaph $(DS)
+
+$(DS)data: $(DAT)data.base $(OQ)makedefs_m68k
+	cd $(DAT) && $(MAKEDEFS) -d
+	cp $(DAT)data $(DS)
+
+$(DS)rumors: $(DAT)rumors.tru $(DAT)rumors.fal $(OQ)makedefs_m68k
+	cd $(DAT) && $(MAKEDEFS) -r
+	cp $(DAT)rumors $(DS)
+
+$(DS)quest.dat: $(DAT)quest.txt $(OQ)makedefs_m68k
+	cd $(DAT) && $(MAKEDEFS) -q
+	cp $(DAT)quest.dat $(DS)
+
+$(DS)oracles: $(DAT)oracles.txt $(OQ)makedefs_m68k
+	cd $(DAT) && $(MAKEDEFS) -h
+	cp $(DAT)oracles $(DS)
+
+$(DS)options: $(AMI)options
+	cp $(AMI)options $(DS)
+
+# --- Dungeon topology ---
+
+$(DS)dungeon: $(DAT)dungeon.def $(OQ)makedefs_m68k $(OQ)dgn_comp_m68k
+	cd $(DAT) && $(MAKEDEFS) -e
+	cd $(DAT) && $(DGN_COMP) dungeon.pdf
+	cp $(DAT)dungeon $(DS)
+
+# --- Level files ---
+# A single .des source may produce multiple .lev outputs with different names,
+# so sentinel files track completion rather than per-file rules.
+
+SPEC_DES = \
+	bigroom.des castle.des endgame.des gehennom.des knox.des medusa.des \
+	mines.des oracle.des sokoban.des tower.des yendor.des
+
+QUEST_DES = \
+	Arch.des Barb.des Caveman.des Healer.des Knight.des Monk.des \
+	Priest.des Ranger.des Rogue.des Samurai.des Tourist.des Valkyrie.des \
+	Wizard.des
+
+$(DS).spec_levs: $(addprefix $(DAT),$(SPEC_DES)) $(OQ)lev_comp_m68k
+	cd $(DAT) && \
+		$(LEV_COMP) bigroom.des   && \
+		$(LEV_COMP) castle.des    && \
+		$(LEV_COMP) endgame.des   && \
+		$(LEV_COMP) gehennom.des  && \
+		$(LEV_COMP) knox.des      && \
+		$(LEV_COMP) medusa.des    && \
+		$(LEV_COMP) mines.des     && \
+		$(LEV_COMP) oracle.des    && \
+		$(LEV_COMP) sokoban.des   && \
+		$(LEV_COMP) tower.des     && \
+		$(LEV_COMP) yendor.des
+	cp $(DAT)*.lev $(DS)
+	rm -f $(DAT)*.lev
+	touch $@
+
+$(DS).quest_levs: $(addprefix $(DAT),$(QUEST_DES)) $(OQ)lev_comp_m68k
+	cd $(DAT) && \
+		$(LEV_COMP) Arch.des     && \
+		$(LEV_COMP) Barb.des     && \
+		$(LEV_COMP) Caveman.des  && \
+		$(LEV_COMP) Healer.des   && \
+		$(LEV_COMP) Knight.des   && \
+		$(LEV_COMP) Monk.des     && \
+		$(LEV_COMP) Priest.des   && \
+		$(LEV_COMP) Ranger.des   && \
+		$(LEV_COMP) Rogue.des    && \
+		$(LEV_COMP) Samurai.des  && \
+		$(LEV_COMP) Tourist.des  && \
+		$(LEV_COMP) Valkyrie.des && \
+		$(LEV_COMP) Wizard.des
+	cp $(DAT)*.lev $(DS)
+	rm -f $(DAT)*.lev
+	touch $@
+
+# --- nhdat DLB archive ---
+# All data that the game reads at runtime goes into nhdat.
+# Files NOT in nhdat (read directly): license, symbols, news, savedir, etc.
+# The dlb tool is run from NETHACK so relative paths inside the archive
+# match what the game expects.
+
+DLB      = $(UTIL)dlb
+
+HELPFILES = help hh cmdhelp keyhelp history opthelp wizhelp
+NODLB     = license symbols
+
+$(NETHACK)nhdat: \
+		$(DS)bogusmon $(DS)engrave $(DS)epitaph \
+		$(DS)data $(DS)rumors $(DS)quest.dat \
+		$(DS)oracles $(DS)options $(DS)dungeon \
+		$(DS).spec_levs $(DS).quest_levs $(DLB)
+	# Copy static dat files into the staging area
+	cp $(addprefix $(DAT),$(HELPFILES)) $(DS)
+	cp $(DAT)tribute $(DS)
+	# Build the archive from DS/ so stored paths are bare filenames
+	cd $(DS) && $(DLB) cf $(NETHACK)nhdat \
+		$(HELPFILES) tribute dungeon \
+		bogusmon data engrave epitaph oracles options quest.dat rumors \
+		*.lev
+
+# --- nhsdat: sound DLB archive ---
+# Sound samples are UU-encoded in sys/share/sounds/; decode them,
+# pack into nhsdat, then remove the individual decoded files.
+
+SOUNDS      = $(NH)sys/share/sounds
+SOUND_UU    = $(wildcard $(SOUNDS)/*.uu)
+SOUND_NAMES = Bell Bugle Drum_Of_Earthquake Fire_Horn Frost_Horn \
+              Leather_Drum Magic_Flute Magic_Harp Tooled_Horn \
+              Wooden_Flute Wooden_Harp
+
+$(NETHACK)nhsdat: $(SOUND_UU) $(DLB)
+	mkdir -p $(DS)sounds
+	cd $(DS)sounds && for f in $(SOUND_UU); do uudecode $$f; done
+	cd $(DS)sounds && $(DLB) cf $(NETHACK)nhsdat $(SOUND_NAMES)
+	rm -rf $(DS)sounds
+
+# --- Amiga font: hack.font + hack/8 ---
+# amifont.uu  -> hack.font  (AmigaOS font descriptor)
+# amifont8.uu -> hack/8     (font bitmap for 8px size)
+
+$(NETHACK)hack.font: $(AMI)amifont.uu
+	cd $(NETHACK) && uudecode $(AMI)amifont.uu
+
+$(NETHACK)hack/8: $(AMI)amifont8.uu
+	mkdir -p $(NETHACK)hack
+	cd $(NETHACK)hack && uudecode $(AMI)amifont8.uu
+
+# --- tomb.iff: RIP screen bitmap ---
+# xpm2iff.c uses AmigaOS IFFParse; use xpm2iff_host instead (see below).
+
+$(NETHACK)tiles/tomb.iff: $(AMI)grave16.xpm $(SBIN)xpm2iff_host | dirs
+	$(SBIN)xpm2iff_host $(AMI)grave16.xpm $@
+
+# --- Static Amiga-specific files ---
+
+$(NETHACK)amii.hlp: $(AMI)amii.hlp
+	cp $< $@
+
+$(NETHACK)Guidebook.txt: $(NH)doc/Guidebook.txt
+	cp $< $@
+
+$(NETHACK)Install.ami: $(AMI)Install.ami
+	cp $< $@
+
+$(NETHACK)NetHack.cnf: $(AMI)NetHack.cnf
+	cp $< $@
+
+$(NETHACK)license: $(DAT)license
+	cp $< $@
+
+$(NETHACK)symbols: $(DAT)symbols
+	cp $< $@
+
+$(NETHACK)record:
+	touch $@
+
+# --- Top-level data target ---
+
+AMIGA_EXTRAS = \
+	$(NETHACK)nhsdat \
+	$(NETHACK)hack.font $(NETHACK)hack/8 \
+	$(NETHACK)amii.hlp $(NETHACK)Guidebook.txt \
+	$(NETHACK)Install.ami $(NETHACK)NetHack.cnf \
+	$(NETHACK)license $(NETHACK)symbols $(NETHACK)record \
+	$(NETHACK)tiles/monsters.iff \
+	$(NETHACK)tiles/objects.iff \
+	$(NETHACK)tiles/other.iff \
+	$(NETHACK)tiles/tomb.iff
+
+data: dirs $(NETHACK)nhdat $(AMIGA_EXTRAS)
+
+install: data $(NETHACK)NetHack
+
+clean:
+	-rm -f $(O)*.o $(OO)*.o $(OQ)*.o $(OT)*.o
+
+spotless: clean
+	# Remove the entire build output directory
+	rm -rf $(BUILD)
+	# Remove generated files written back into the source tree
+	-rm -f $(I)onames.h $(I)pm.h $(I)date.h
+	-rm -f $(I)lev_comp.h $(I)dgn_comp.h
+	-rm -f $(NHS)monstr.c $(NHS)tile.c
+	-rm -f $(UTIL)lev_yacc.c $(UTIL)lev_lex.c $(UTIL)dgn_yacc.c $(UTIL)dgn_lex.c
+	-rm -f $(UTIL)dlb $(UTIL)lev_comp
+	-rm -f $(DAT)bogusmon $(DAT)engrave $(DAT)epitaph $(DAT)data \
+	       $(DAT)rumors $(DAT)quest.dat $(DAT)oracles \
+	       $(DAT)dungeon $(DAT)dungeon.pdf $(DAT)*.lev
+
+###
+### GENERATED SOURCE FILES
+### makedefs runs under qemu-m68k for correct PORT_ID and 32-bit data sizes.
+### It runs from util/ so relative paths (../dat/, ../include/) resolve correctly.
+###
+
+$(I)onames.h: $(OQ)makedefs_m68k
+	cd $(UTIL) && $(MAKEDEFS) -o
+
+$(I)pm.h: $(OQ)makedefs_m68k
+	cd $(UTIL) && $(MAKEDEFS) -p
+
+$(I)date.h: $(HDEP) $(OQ)makedefs_m68k
+	cd $(UTIL) && $(MAKEDEFS) -v
+
+$(NHS)monstr.c: $(OQ)makedefs_m68k
+	cd $(UTIL) && $(MAKEDEFS) -m
+
+# tilemap (host tool) writes ../src/tile.c when run from util/
+$(NHS)tile.c: $(SBIN)tilemap $(HDEP)
+	cd $(UTIL) && $(SBIN)tilemap
+
+$(O)monstr.o: $(NHS)monstr.c $(HDEP)
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+$(O)version.o: $(NHS)version.c $(HDEP) $(I)date.h
+	$(CC) -c $(CFLAGS) -o $@ $<
+
+###
+### QEMU TOOL BUILDS
+### Compiled as m68k-linux-gnu static ELF, run under qemu-m68k.
+### Output is natively 32-bit big-endian - no format fixup needed.
+###
+
+# Pattern rule for QEMU objects (same vpath as OO)
+$(OQ)%.o: %.c
+	$(QEMU_CC) $(QEMU_CFLAGS) -c -o $@ $<
+
+QEMU_MAKEDEFSOBJS = \
+	$(OQ)makedefs.o $(OQ)monst_md.o $(OQ)objects_md.o
+
+QEMU_SPLEVOBJS = \
+	$(OQ)lev_yacc.o $(OQ)lev_lex.o $(OQ)lev_main.o \
+	$(OQ)alloc.o    $(OQ)decl.o    $(OQ)drawing.o  $(OQ)monst.o \
+	$(OQ)objects.o  $(OQ)panic.o
+
+QEMU_DGNCOMPOBJS = \
+	$(OQ)dgn_yacc.o $(OQ)dgn_lex.o $(OQ)dgn_main.o \
+	$(OQ)alloc.o    $(OQ)panic.o
+
+$(OQ)lev_yacc.o: $(UTIL)lev_yacc.c $(I)sp_lev.h $(I)pm.h $(I)onames.h $(I)lev_comp.h
+	$(QEMU_CC) $(QEMU_CFLAGS) -DLEV_LEX_C -Dalloca=malloc -c -o $@ $<
+
+$(OQ)lev_lex.o: $(UTIL)lev_lex.c $(I)lev_comp.h $(I)sp_lev.h
+	$(QEMU_CC) $(QEMU_CFLAGS) -DLEV_LEX_C -c -o $@ $<
+
+# No -DPREFIX: lev_comp writes .lev files to cwd (dat/)
+$(OQ)lev_main.o: $(UTIL)lev_main.c $(I)pm.h $(I)onames.h $(I)date.h $(I)lev_comp.h
+	$(QEMU_CC) $(QEMU_CFLAGS) -DLEV_LEX_C -c -o $@ $<
+
+$(OQ)dgn_yacc.o: $(UTIL)dgn_yacc.c $(I)dgn_file.h $(I)patchlevel.h
+	$(QEMU_CC) $(QEMU_CFLAGS) -DLEV_LEX_C -Dalloca=malloc -c -o $@ $<
+
+$(OQ)dgn_lex.o: $(UTIL)dgn_lex.c $(I)config.h $(I)dgn_comp.h $(I)dgn_file.h
+	$(QEMU_CC) $(QEMU_CFLAGS) -DLEV_LEX_C -c -o $@ $<
+
+$(OQ)dgn_main.o: $(UTIL)dgn_main.c $(I)config.h $(I)date.h
+	$(QEMU_CC) $(QEMU_CFLAGS) -DLEV_LEX_C -c -o $@ $<
+
+$(OQ)lev_comp_m68k: $(QEMU_SPLEVOBJS)
+	$(QEMU_CC) $(QEMU_CFLAGS) -o $@ $(QEMU_SPLEVOBJS)
+
+$(OQ)dgn_comp_m68k: $(QEMU_DGNCOMPOBJS)
+	$(QEMU_CC) $(QEMU_CFLAGS) -o $@ $(QEMU_DGNCOMPOBJS)
+
+# makedefs_m68k: use -DPORT_ID=\"Amiga\" but NOT -DAMIGA (which changes file
+# paths to NH:slib/ etc); Unix-style relative paths work correctly under qemu.
+$(OQ)makedefs.o: $(UTIL)makedefs.c
+	$(QEMU_CC) $(QEMU_CFLAGS) -DPORT_ID=\"Amiga\" -c -o $@ $<
+
+# makedefs links monst.c and objects.c; use distinct names to avoid conflicts
+# with the lev_comp versions that share the same vpath.
+$(OQ)monst_md.o: $(NHS)monst.c
+	$(QEMU_CC) $(QEMU_CFLAGS) -c -o $@ $<
+
+$(OQ)objects_md.o: $(NHS)objects.c
+	$(QEMU_CC) $(QEMU_CFLAGS) -c -o $@ $<
+
+$(OQ)makedefs_m68k: $(QEMU_MAKEDEFSOBJS)
+	$(QEMU_CC) $(QEMU_CFLAGS) -o $@ $(QEMU_MAKEDEFSOBJS)
+
+###
+### HOST TOOL BUILDS
+### Native x86-64 tools (dlb only).
+### COMPAT flags handle old K&R-style function definitions in NetHack util code.
+###
+
+HOST_CFLAGS_COMPAT = $(HOST_CFLAGS) -std=gnu11 -Wno-implicit-function-declaration -fpermissive
+
+$(OO)panic.o: $(UTIL)panic.c $(HDEP)
+	$(HOST_CC) $(HOST_CFLAGS) -c -o $@ $<
+
+###
+### FLEX/BISON GENERATED SOURCES
+### These are pre-generated in release tarballs; generate from grammar if missing.
+###
+
+$(UTIL)dgn_lex.c: $(UTIL)dgn_comp.l
+	$(FLEX) -o $@ $<
+
+# bison -y -d generates y.tab.c and y.tab.h (yacc-compat mode).
+# We already have dgn_yacc.c; just regenerate the header.
+$(UTIL)dgn_yacc.c: $(UTIL)dgn_comp.y
+	cd $(UTIL) && bison -y -d dgn_comp.y
+	mv $(UTIL)y.tab.c $(UTIL)dgn_yacc.c
+	mv $(UTIL)y.tab.h $(I)dgn_comp.h
+
+# dgn_comp.h is a side-effect of building dgn_yacc.c
+$(I)dgn_comp.h: $(UTIL)dgn_yacc.c
+	@:
+
+# bison -y -d generates both lev_yacc.c and lev_comp.h in one run.
+$(UTIL)lev_yacc.c: $(UTIL)lev_comp.y
+	cd $(UTIL) && bison -y -d lev_comp.y
+	mv $(UTIL)y.tab.c $(UTIL)lev_yacc.c
+	mv $(UTIL)y.tab.h $(I)lev_comp.h
+
+# lev_comp.h is a side-effect of building lev_yacc.c
+$(I)lev_comp.h: $(UTIL)lev_yacc.c
+	@:
+
+$(UTIL)lev_lex.c: $(UTIL)lev_comp.l
+	$(FLEX) -o $@ $<
+
+###
+### HOST dlb TOOL
+###
+
+HOST_DLBOBJS = $(OO)dlb_main.o $(OO)dlb_host.o $(OO)alloc_dlb.o $(OO)panic_dlb.o
+
+$(OO)dlb_main.o: $(UTIL)dlb_main.c
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -DDLB -c -o $@ $<
+
+$(OO)dlb_host.o: $(NHS)dlb.c
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -DDLB -c -o $@ $<
+
+$(OO)alloc_dlb.o: $(NHS)alloc.c
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -c -o $@ $<
+
+$(OO)panic_dlb.o: $(UTIL)panic.c
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -c -o $@ $<
+
+$(UTIL)dlb: $(HOST_DLBOBJS)
+	$(HOST_LINK) -o $@ $(HOST_DLBOBJS)
+
+###
+### HOST TILE TOOLS
+### txt2iff_host: converts win/share/*.txt tile sources -> Amiga BMAP IFF.
+### xpm2iff_host: converts sys/amiga/grave16.xpm -> tiles/tomb.iff.
+### Both replace AmigaOS IFFParse-dependent originals with POSIX file I/O.
+###
+
+TILE_CFLAGS = $(HOST_CFLAGS_COMPAT) -I$(WSHARE)
+
+TILE_OBJS = \
+	$(OT)txt2iff_host.o \
+	$(OT)tiletext.o \
+	$(OT)tiletxt.o \
+	$(OT)decl.o    \
+	$(OT)drawing.o \
+	$(OT)monst.o   \
+	$(OT)objects.o \
+	$(OT)alloc.o
+
+$(OT)%.o: %.c
+	$(HOST_CC) $(TILE_CFLAGS) -c -o $@ $<
+
+$(OT)txt2iff_host.o: $(AMI)txt2iff_host.c $(I)config.h $(WSHARE)tile.h
+	$(HOST_CC) $(TILE_CFLAGS) -c -o $@ $<
+
+$(OT)tiletext.o: $(WSHARE)tiletext.c $(WSHARE)tile.h
+	$(HOST_CC) $(TILE_CFLAGS) -c -o $@ $<
+
+# tilemap.c compiled with -DTILETEXT to produce the tiletxt variant
+$(OT)tiletxt.o: $(WSHARE)tilemap.c $(I)hack.h
+	$(HOST_CC) $(TILE_CFLAGS) -DTILETEXT -c -o $@ $<
+
+# tilemap.c compiled WITHOUT -DTILETEXT to generate src/tile.c
+$(OT)tilemap.o: $(WSHARE)tilemap.c $(HDEP)
+	$(HOST_CC) $(TILE_CFLAGS) -c -o $@ $<
+
+$(SBIN)tilemap: $(OT)tilemap.o
+	$(HOST_LINK) -o $@ $<
+
+$(SBIN)txt2iff_host: $(TILE_OBJS)
+	$(HOST_LINK) -o $@ $(TILE_OBJS)
+
+$(NETHACK)tiles/monsters.iff: $(WSHARE)monsters.txt $(SBIN)txt2iff_host | dirs
+	$(SBIN)txt2iff_host $(WSHARE)monsters.txt $@
+
+$(NETHACK)tiles/objects.iff: $(WSHARE)objects.txt $(SBIN)txt2iff_host | dirs
+	$(SBIN)txt2iff_host $(WSHARE)objects.txt $@
+
+$(NETHACK)tiles/other.iff: $(WSHARE)other.txt $(SBIN)txt2iff_host | dirs
+	$(SBIN)txt2iff_host $(WSHARE)other.txt $@
+
+$(SBIN)xpm2iff_host: $(AMI)xpm2iff_host.c
+	$(HOST_CC) $(HOST_CFLAGS_COMPAT) -o $@ $(AMI)xpm2iff_host.c
+
+###
+### SPECIFIC OBJECT DEPENDENCIES
+### (Extra deps beyond the %.c source for Amiga-specific files)
+###
+
+$(O)amiwind.o: $(AMI)amiwind.c $(AMI)amimenu.c $(HDEP) $(AMDEP)
+$(O)winami.o:  $(AMI)winami.c $(HDEP) $(AMDEP)
+$(O)winchar.o: $(AMI)winchar.c $(NHS)tile.c $(HDEP) $(AMDEP)
+$(O)winreq.o:  $(AMI)winreq.c $(AMI)colorwin.c $(AMI)clipwin.c $(HDEP) $(AMDEP)
+$(O)winfuncs.o: $(AMI)winfuncs.c $(HDEP) $(AMDEP) $(I)patchlevel.h
+$(O)winkey.o:  $(AMI)winkey.c $(HDEP) $(AMDEP)
+$(O)winmenu.o: $(AMI)winmenu.c $(HDEP) $(AMDEP)
+$(O)winstr.o:  $(AMI)winstr.c $(HDEP) $(AMDEP)
+$(O)amidos.o:  $(AMI)amidos.c $(HDEP)
+$(O)amirip.o:  $(AMI)amirip.c $(HDEP)
+$(O)amisnd.o:  $(AMI)amisnd.c $(HDEP)
+$(O)amistack.o: $(AMI)amistack.c $(HDEP)
+$(O)pcmain.o:  $(SHARE)pcmain.c $(HDEP) $(I)dlb.h
+$(O)amitty.o:  $(AMI)amitty.c $(HDEP)

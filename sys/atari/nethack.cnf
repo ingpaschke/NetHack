@@ -1,0 +1,69 @@
+# NetHack 3.6.7 - Atari ST/TT/Falcon (GEM) configuration
+#
+# Enables the features this port supports.  Every option here is valid
+# for 3.6.7 -- unknown options would trigger a startup warning.
+
+# --- Directories ----------------------------------------------------
+# HACKDIR is the game directory.  Level and save files are written here
+# too: this TOS build ignores LEVELDIR/SAVEDIR, so there are no levels/
+# or save/ subdirectories.
+HACKDIR=.
+
+# --- Display --------------------------------------------------------
+# Tiles are the default; F2 toggles ASCII at runtime.  Set ascii_map to
+# start in text mode (the practical choice in ST-High monochrome).
+OPTIONS=!ascii_map
+OPTIONS=color,hilite_pet,hilite_pile,use_inverse
+OPTIONS=hitpointbar,showexp,time
+# showrace: draw your @ (and tile) as your race instead of your role.
+#OPTIONS=showrace
+# number_pad: steer with the numeric keypad; comment out for hjkl/yubn.
+OPTIONS=number_pad
+
+# --- Auto actions ---------------------------------------------------
+# autoopen: walking into a closed door opens it.
+# autounlock: a locked door or box offers "Unlock it?" right away when
+#   you carry a key, lock pick, or credit card.
+OPTIONS=autoopen,autounlock
+
+# --- Autopickup -----------------------------------------------------
+OPTIONS=autopickup,pickup_thrown,pickup_burden:unencumbered
+OPTIONS=pickup_types:$?!/="+
+
+# --- Menus ----------------------------------------------------------
+OPTIONS=menustyle:full,menu_headings:inverse,sortpack
+
+# Menu colours.  This port's regex engine is glob-based (pmatch), which
+# matches the WHOLE line, so patterns are wrapped in '*...*'.  Leading /
+# trailing spaces keep "cursed" from matching inside "uncursed".
+OPTIONS=menucolors
+MENUCOLOR=* blessed *=green
+MENUCOLOR=* uncursed *=blue
+MENUCOLOR=* cursed *=red&bold
+MENUCOLOR=*holy water*=blue
+MENUCOLOR=*unholy water*=red&bold
+MENUCOLOR=*(being worn)=green
+MENUCOLOR=*(weapon in hand)=green
+MENUCOLOR=*(wielded)=green
+MENUCOLOR=*(in quiver)=brown
+MENUCOLOR=* artifact *=magenta&bold
+
+# --- Status highlighting --------------------------------------------
+# field / behaviour / colour[&attribute].  Percentages and thresholds
+# recolour HP and Pw as they drop; text/up-down rules flag conditions.
+OPTIONS=hilite_status:hitpoints/<100%/green
+OPTIONS=hilite_status:hitpoints/<66%/brown
+OPTIONS=hilite_status:hitpoints/<50%/orange
+OPTIONS=hilite_status:hitpoints/<33%/red&bold
+OPTIONS=hilite_status:power/<33%/magenta
+OPTIONS=hilite_status:gold/up/brown
+OPTIONS=hilite_status:experience-level/up/green&bold
+OPTIONS=hilite_status:armor-class/down/green/up/red
+OPTIONS=hilite_status:power/up/blue/down/magenta
+OPTIONS=hilite_status:carrying-capacity/Burdened/orange
+OPTIONS=hilite_status:carrying-capacity/Stressed/red
+OPTIONS=hilite_status:hunger/Hungry/orange
+OPTIONS=hilite_status:hunger/Weak/red&bold
+OPTIONS=hilite_status:characteristics/up/green/down/red
+OPTIONS=hilite_status:condition/stone+slime+strngl/red&blink
+OPTIONS=hilite_status:condition/termill+foodpois/red&bold

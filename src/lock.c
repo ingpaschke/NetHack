@@ -301,16 +301,53 @@ struct obj *container; /* passed from obfree() */
 #define PICKLOCK_DID_NOTHING 0          /* no time passes */
 #define PICKLOCK_DID_SOMETHING 1
 
-/* player is applying a key, lock pick, or credit card */
+/* pick a tool for autounlock: prefer a key (a magic key most of all),
+   then a lock-pick, then -- only when opening -- a credit card */
+struct obj *
+autokey(opening)
+boolean opening; /* True: key, pick, or card; False: key or pick */
+{
+    struct obj *o, *key = (struct obj *) 0, *pick = (struct obj *) 0,
+                   *card = (struct obj *) 0;
+
+    for (o = invent; o; o = o->nobj) {
+        switch (o->otyp) {
+        case SKELETON_KEY:
+            if (!key || is_magic_key(&youmonst, o))
+                key = o;
+            break;
+        case LOCK_PICK:
+            if (!pick)
+                pick = o;
+            break;
+        case CREDIT_CARD:
+            if (!card)
+                card = o;
+            break;
+        default:
+            break;
+        }
+    }
+    if (!opening)
+        card = (struct obj *) 0;
+    return key ? key : pick ? pick : card ? card : (struct obj *) 0;
+}
+
+/* player is applying a key, lock pick, or credit card.
+   rx,ry (autounlock) give a door's coordinates so no direction is asked;
+   container (autounlock) targets a specific box at the hero's feet. */
 int
-pick_lock(pick)
+pick_lock(pick, rx, ry, container)
 struct obj *pick;
+int rx, ry;
+struct obj *container;
 {
     int picktyp, c, ch;
     coord cc;
     struct rm *door;
     struct obj *otmp;
     char qbuf[QBUFSZ];
+    boolean autounlock = (rx != 0 || container != 0);
 
     picktyp = pick->otyp;
 
@@ -357,8 +394,13 @@ struct obj *pick;
     }
     ch = 0; /* lint suppression */
 
-    if (!get_adjacent_loc((char *) 0, "Invalid location!", u.ux, u.uy, &cc))
+    if (rx != 0) { /* autounlock: caller supplied the door coordinates */
+        cc.x = rx;
+        cc.y = ry;
+    } else if (!get_adjacent_loc((char *) 0, "Invalid location!",
+                                 u.ux, u.uy, &cc)) {
         return PICKLOCK_DID_NOTHING;
+    }
 
     if (cc.x == u.ux && cc.y == u.uy) { /* pick lock on a container */
         const char *verb;
@@ -366,7 +408,7 @@ struct obj *pick;
         boolean it;
         int count;
 
-        if (u.dz < 0) {
+        if (u.dz < 0 && !autounlock) { /* beware stale u.dz value */
             There("isn't any sort of lock up %s.",
                   Levitation ? "here" : "there");
             return PICKLOCK_LEARNED_SOMETHING;
@@ -380,7 +422,11 @@ struct obj *pick;
 
         count = 0;
         c = 'n'; /* in case there are no boxes here */
-        for (otmp = level.objects[cc.x][cc.y]; otmp; otmp = otmp->nexthere)
+        for (otmp = level.objects[cc.x][cc.y]; otmp; otmp = otmp->nexthere) {
+            /* autounlock targets only the box just found to be locked,
+               not any other boxes sharing the spot */
+            if (autounlock && otmp != container)
+                continue;
             if (Is_box(otmp)) {
                 ++count;
                 if (!can_reach_floor(TRUE)) {
@@ -438,6 +484,7 @@ struct obj *pick;
                 xlock.door = 0;
                 break;
             }
+        }
         if (c != 'y') {
             if (!count)
                 There("doesn't seem to be any sort of lock here.");
@@ -694,6 +741,16 @@ int x, y;
 
     if (!(door->doormask & D_CLOSED)) {
         const char *mesg;
+
+        /* autounlock: a locked door + a key/lock-pick/credit-card in
+           inventory goes straight to the "Unlock it?" prompt instead of
+           just reporting the door locked. */
+        if ((door->doormask & D_LOCKED) && flags.autounlock) {
+            struct obj *pick = autokey(TRUE);
+
+            if (pick)
+                return (pick_lock(pick, cc.x, cc.y, (struct obj *) 0) != 0);
+        }
 
         switch (door->doormask) {
         case D_BROKEN:

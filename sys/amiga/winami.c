@@ -3,9 +3,9 @@
  */
 /* NetHack may be freely redistributed.  See license for details. */
 
-#include "NH:sys/amiga/windefs.h"
-#include "NH:sys/amiga/winext.h"
-#include "NH:sys/amiga/winproto.h"
+#include "windefs.h"
+#include "winext.h"
+#include "winproto.h"
 #include "dlb.h"
 
 #ifdef AMIGA_INTUITION
@@ -29,12 +29,13 @@ long amii_scrnmode;
  */
 struct window_procs amii_procs = {
     "amii", WC_COLOR | WC_HILITE_PET | WC_INVERSE,
+    0L,                                                   /* wincap2 */
     {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},   /* color availability */
-    0L, amii_init_nhwindows,
+    amii_init_nhwindows,
     amii_player_selection, amii_askname, amii_get_nh_event,
     amii_exit_nhwindows, amii_suspend_nhwindows, amii_resume_nhwindows,
     amii_create_nhwindow, amii_clear_nhwindow, amii_display_nhwindow,
-    amii_destroy_nhwindow, amii_curs, amii_putstr, genl_putmixed,
+    amii_destroy_nhwindow, amii_curs, amii_putstr, amii_putmixed,
     amii_display_file, amii_start_menu, amii_add_menu, amii_end_menu,
     amii_select_menu, genl_message_menu, amii_update_inventory,
     amii_mark_synch, amii_wait_synch,
@@ -63,12 +64,13 @@ struct window_procs amii_procs = {
  */
 struct window_procs amiv_procs = {
     "amitile", WC_COLOR | WC_HILITE_PET | WC_INVERSE,
+    0L,                                                   /* wincap2 */
     {1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1, 1},   /* color availability */
-    0L, amii_init_nhwindows,
+    amii_init_nhwindows,
     amii_player_selection, amii_askname, amii_get_nh_event,
     amii_exit_nhwindows, amii_suspend_nhwindows, amii_resume_nhwindows,
     amii_create_nhwindow, amii_clear_nhwindow, amii_display_nhwindow,
-    amii_destroy_nhwindow, amii_curs, amii_putstr, genl_putmixed,
+    amii_destroy_nhwindow, amii_curs, amii_putstr, amii_putmixed,
     amii_display_file, amii_start_menu, amii_add_menu, amii_end_menu,
     amii_select_menu, genl_message_menu, amii_update_inventory,
     amii_mark_synch, amii_wait_synch,
@@ -435,7 +437,7 @@ amii_askname()
 }
 
 /* Discarded ... -jhsa
-#include "NH:sys/amiga/char.c"
+#include "char.c"
 */
 
 /* Get the player selection character */
@@ -580,7 +582,7 @@ amii_player_selection()
 
 #if 0 /* Unused ... -jhsa */
 
-#include "NH:sys/amiga/randwin.c"
+#include "randwin.c"
 
 void
 RandomWindow( name )
@@ -1116,7 +1118,7 @@ char def;
     } while (!q);
 
     if (q != '#' && q != '\033') {
-        Sprintf(rtmp, "%c", q);
+        rtmp[0] = q; rtmp[1] = '\0';
         amii_addtopl(rtmp);
     }
  clean_up:
@@ -1134,7 +1136,7 @@ boolean complain;
     register int win;
     register dlb *fp;
     register char *t;
-    register char buf[200];
+    char buf[200];
 
     if (fn == NULL)
         panic("NULL file name in display_file()");

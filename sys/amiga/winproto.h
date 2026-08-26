@@ -18,6 +18,7 @@ char *dirname(char *str);
 
 /* winstr.c */
 void amii_putstr(winid window, int attr, const char *str);
+void amii_putmixed(winid window, int attr, const char *str);
 void outmore(struct amii_WinDesc *cw);
 void outsubstr(struct amii_WinDesc *cw, char *str, int len, int fudge);
 void amii_putsym(winid st, int i, int y, CHAR_P c);
@@ -81,6 +82,7 @@ void preserve_icon(void);
 void clear_icon(void);
 
 /* winfuncs.c */
+void amii_LoadRGB(struct ViewPort *, UWORD *, int);
 void amii_destroy_nhwindow(winid win);
 int amii_create_nhwindow(int type);
 void amii_init_nhwindows(int *, char **);
@@ -128,8 +130,8 @@ char amii_yn_function(const char *prompt, const char *resp, char def);
 char amii_yn_function(const char *query, const char *resp, char def);
 void amii_display_file(const char *fn, boolean complain);
 void SetBorder(struct Gadget *gd);
-void *malloc(register unsigned size);
-void free(void *q);
+//void *malloc(register unsigned size);
+//void free(void *q);
 
 #ifdef SHAREDLIB
 /* amilib.c */

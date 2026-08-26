@@ -1109,7 +1109,8 @@ E boolean FDECL(picking_at, (int, int));
 E void FDECL(breakchestlock, (struct obj *, BOOLEAN_P));
 E void NDECL(reset_pick);
 E void FDECL(maybe_reset_pick, (struct obj *));
-E int FDECL(pick_lock, (struct obj *));
+E struct obj *FDECL(autokey, (BOOLEAN_P));
+E int FDECL(pick_lock, (struct obj *, int, int, struct obj *));
 E int NDECL(doforce);
 E boolean FDECL(boxlock, (struct obj *, struct obj *));
 E boolean FDECL(doorlock, (struct obj *, int, int));
@@ -2067,7 +2068,7 @@ E void NDECL(deliver_splev_message);
 
 /* ### random.c ### */
 
-#if defined(RANDOM) && !defined(__GO32__) /* djgpp has its own random */
+#if defined(RANDOM) && !defined(__GO32__) && !defined(TOS) /* djgpp/MiNT have their own random */
 E void FDECL(srandom, (unsigned));
 E char *FDECL(initstate, (unsigned, char *, int));
 E char *FDECL(setstate, (char *));

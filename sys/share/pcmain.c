@@ -14,7 +14,7 @@
 
 #include <ctype.h>
 
-#if !defined(AMIGA) && !defined(__DJGPP__)
+#if !defined(AMIGA) && !defined(__DJGPP__) && !defined(TOS)
 #include <sys\stat.h>
 #else
 #include <sys/stat.h>
@@ -29,7 +29,7 @@ char orgdir[PATHLEN]; /* also used in pcsys.c, amidos.c */
 #ifdef TOS
 boolean run_from_desktop = TRUE; /* should we pause before exiting?? */
 #ifdef __GNUC__
-long _stksize = 16 * 1024;
+long _stksize = 256 * 1024L;
 #endif
 #endif
 
@@ -65,7 +65,7 @@ unsigned _stklen = STKSIZ;
  * WinMain exist, the resulting executable won't work correctly.
  */
 int
-#ifndef __MINGW32__ 
+#ifndef __MINGW32__
 main(argc, argv)
 #else
 mingw_main(argc, argv)
@@ -127,7 +127,7 @@ _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);*/
 #endif
 
 #ifdef TOS
-    long clock_time;
+    time_t clock_time;
     if (*argv[0]) { /* only a CLI can give us argv[0] */
         hname = argv[0];
         run_from_desktop = FALSE;
@@ -135,7 +135,16 @@ _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);*/
 #endif
         hname = "NetHack"; /* used for syntax messages */
 
+#if defined(TOS) && defined(GEM_GRAPHICS)
+    /* .tos/.ttp -> TOS console (tty); .prg/.app -> GEM */
+    {
+        extern const char *mar_window_sys(const char *);
+
+        choose_windows(mar_window_sys(argv[0]));
+    }
+#else
     choose_windows(DEFAULT_WINDOW_SYS);
+#endif
 
 #if !defined(AMIGA) && !defined(GNUDOS)
     /* Save current directory and make sure it gets restored when
@@ -268,7 +277,7 @@ _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);*/
     if (argc == 0)
         chdirx(HACKDIR, 1);
 #endif
-    ami_wininit_data();
+    ami_wininit_data(WININIT);
 #endif
     initoptions();
 
@@ -343,9 +352,11 @@ _CrtSetReportFile(_CRT_ASSERT, _CRTDBG_FILE_STDERR);*/
 /*
  * It seems you really want to play.
  */
+#if 0 /* clock check removed — unreliable on hardware without battery-backed RTC */
 #ifdef TOS
     if (comp_times((long) time(&clock_time)))
         error("Your clock is incorrectly set!");
+#endif
 #endif
     if (!dlb_init()) {
         pline(

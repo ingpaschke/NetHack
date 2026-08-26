@@ -31,7 +31,10 @@
 #define DCC30_BUG /* A bitfield bug (from dog.c, others) in DICE 3.0. */
 #endif
 
-#ifndef __GNUC__
+#ifdef __GNUC__
+#include <stdlib.h>
+#include <string.h>
+#else
 typedef long off_t;
 #endif
 
@@ -66,7 +69,16 @@ typedef long off_t;
 #define MFLOPPY /* You'll probably want this; provides assistance \
                  * for typical personal computer configurations   \
                  */
+#ifndef __GNUC__ /* GCC AmigaOS toolchain has random()/srandom() in stdlib */
 #define RANDOM
+#endif
+
+/* SYSCF is defined unconditionally in config.h but its default path
+ * (/etc/nethack/sysconf) is a Unix path that does not exist on AmigaOS.
+ * Undefine it here so the game does not abort on startup. */
+#undef SYSCF
+#undef SYSCF_FILE
+
 
 /* ### amidos.c ### */
 
@@ -181,6 +193,9 @@ extern int amibbs; /* BBS mode? */
 extern int amii_numcolors;
 void FDECL(amii_setpens, (int));
 #endif
+
+/* Standard AmigaOS version tag string (read by the 'version' command) */
+#define AMIGA_VERSION_STRING "\0$VER: NetHack 3.6.7 (" __DATE__ ")\r\n"
 
 /* for cmd.c: override version in micro.h */
 #ifdef __SASC_60

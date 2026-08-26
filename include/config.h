@@ -73,8 +73,13 @@
 
 /* Atari supports GEM_GRAPHICS and/or TTY_GRAPHICS */
 #ifdef TOS
+#ifndef SUPPRESS_GEM
 #define GEM_GRAPHICS             /* Atari GEM interface (optional) */
 #define DEFAULT_WINDOW_SYS "Gem" /* "Gem" or "tty" */
+#define DEFAULT_WC_TILED_MAP     /* Default to tiles in GEM mode */
+#else
+#define DEFAULT_WINDOW_SYS "tty"
+#endif
 #endif
 
 #ifdef __BEOS__

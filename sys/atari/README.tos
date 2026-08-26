@@ -1,0 +1,64 @@
+                     NetHack 3.6.7 for Atari ST (GEM)
+                     ================================
+
+A build of NetHack 3.6.7 with the GEM tile interface backported from
+the NetHack 5.0 Atari port, trimmed to run on a STOCK 4 MB machine.
+
+
+Requirements
+------------
+    - Atari ST-class machine (ST, STE, Mega ST/STE, TT, or Falcon)
+      with 4 MB of RAM.  A stock Mega ST 4 is enough.
+    - GEM AES (TOS, MagiC, EmuTOS, or FreeMiNT/XaAES).
+    - For tiles: 16-colour (or deeper) video.  A stock ST reaches
+      16 colours only in ST-Low (320x200); TT/Falcon or an emulator's
+      extended VDI give the roomy 640x480x16 the interface prefers.
+      In ST-High monochrome the game runs in ASCII (or the 2-colour
+      Atkinson-dithered NH2 tiles).
+
+    Known to work: Hatari with EmuTOS 1.4 at 4 MB, VDI 640x480x16.
+
+
+Installation
+------------
+Unzip NH367ST.ZIP on the Atari side -- not on the Linux/Windows host --
+because some unzippers translate line endings inside the archive and
+corrupt nhdat.
+
+The archive expands into a self-contained game directory:
+
+    nethack.prg     GEM application (stripped)
+    nethack.tos     the same binary; the .tos name starts it in
+                    console (VT52 text) mode instead of GEM
+    nhdat           packed game data
+    NetHack.cnf     default configuration
+    GEM_RSC.RSC     GEM dialog resources
+    NH2.IMG         monochrome tile sheet (Atkinson dithered)
+    NH16.IMG        16-colour tile sheet
+    NH32.IMG        32-colour tile sheet
+    TITLE.IMG       splash image (colour)
+    TITLE2.IMG      splash image (monochrome)
+    RIP.IMG         tombstone image
+    run-hatari.sh   Linux/macOS launcher (Hatari, 4 MB Mega ST)
+    license, symbols, record, nethack.txt, README.txt
+Level and save files are written into the game directory during play.
+
+Double-click nethack.prg to start.  On Linux/macOS with Hatari
+installed, ./run-hatari.sh launches it on an emulated 4 MB Mega ST.
+
+
+Display
+-------
+Tiles are the default; press F2 during play to toggle ASCII.  To force
+ASCII text mode, edit NetHack.cnf:
+
+    OPTIONS=ascii_map
+
+For a pure text-console game (no GEM at all), run nethack.tos.
+
+
+Notes
+-----
+Save and bones files are not compatible with other NetHack versions.
+
+Contact:  Ingo Paschke <ipaschke@lpclabs.de>

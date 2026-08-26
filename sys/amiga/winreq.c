@@ -2,9 +2,9 @@
 /* Copyright (c) Gregg Wonderly, Naperville, Illinois,  1991,1992,1993. */
 /* NetHack may be freely redistributed.  See license for details. */
 
-#include "NH:sys/amiga/windefs.h"
-#include "NH:sys/amiga/winext.h"
-#include "NH:sys/amiga/winproto.h"
+#include "windefs.h"
+#include "winext.h"
+#include "winproto.h"
 
 #define GADBLUEPEN 2
 #define GADREDPEN 3
@@ -39,7 +39,7 @@ struct NewWindow StrWindow = {
     &String, NULL, NULL, NULL, NULL, 5, 5, 0xffff, 0xffff, CUSTOMSCREEN
 };
 
-#include "NH:sys/amiga/colorwin.c"
+#include "colorwin.c"
 
 #define XSIZE 2
 #define YSIZE 3
@@ -48,7 +48,7 @@ struct NewWindow StrWindow = {
 #define GADOKAY 6
 #define GADCANCEL 7
 
-#include "NH:sys/amiga/clipwin.c"
+#include "clipwin.c"
 
 void ClearCol(struct Window *w);
 
@@ -173,14 +173,14 @@ EditColor()
                     if (gd->GadgetID == GADREDPEN) {
                         colors[curcol] =
                             (colors[curcol] & ~0xf00) | (aidx << 8);
-                        LoadRGB4(&scrn->ViewPort, colors, amii_numcolors);
+                        amii_LoadRGB(&scrn->ViewPort, colors, amii_numcolors);
                     } else if (gd->GadgetID == GADBLUEPEN) {
                         colors[curcol] = (colors[curcol] & ~0xf) | aidx;
-                        LoadRGB4(&scrn->ViewPort, colors, amii_numcolors);
+                        amii_LoadRGB(&scrn->ViewPort, colors, amii_numcolors);
                     } else if (gd->GadgetID == GADGREENPEN) {
                         colors[curcol] =
                             (colors[curcol] & ~0x0f0) | (aidx << 4);
-                        LoadRGB4(&scrn->ViewPort, colors, amii_numcolors);
+                        amii_LoadRGB(&scrn->ViewPort, colors, amii_numcolors);
                     }
                     DispCol(nw, curcol, colors);
                 } else if (gd->GadgetID == GADCOLOKAY) {
@@ -264,13 +264,13 @@ EditColor()
                 aidx = pip->HorizPot / (MAXPOT / 15);
                 if (dgad->GadgetID == GADREDPEN) {
                     colors[curcol] = (colors[curcol] & ~0xf00) | (aidx << 8);
-                    LoadRGB4(&scrn->ViewPort, colors, amii_numcolors);
+                    amii_LoadRGB(&scrn->ViewPort, colors, amii_numcolors);
                 } else if (dgad->GadgetID == GADBLUEPEN) {
                     colors[curcol] = (colors[curcol] & ~0xf) | aidx;
-                    LoadRGB4(&scrn->ViewPort, colors, amii_numcolors);
+                    amii_LoadRGB(&scrn->ViewPort, colors, amii_numcolors);
                 } else if (dgad->GadgetID == GADGREENPEN) {
                     colors[curcol] = (colors[curcol] & ~0x0f0) | (aidx << 4);
-                    LoadRGB4(&scrn->ViewPort, colors, amii_numcolors);
+                    amii_LoadRGB(&scrn->ViewPort, colors, amii_numcolors);
                 }
                 DispCol(nw, curcol, colors);
                 break;
@@ -292,9 +292,9 @@ EditColor()
     if (okay) {
         for (i = 0; i < (amii_numcolors); ++i)
             sysflags.amii_curmap[i] = colors[i];
-        LoadRGB4(&scrn->ViewPort, sysflags.amii_curmap, amii_numcolors);
+        amii_LoadRGB(&scrn->ViewPort, sysflags.amii_curmap, amii_numcolors);
     } else
-        LoadRGB4(&scrn->ViewPort, svcolors, amii_numcolors);
+        amii_LoadRGB(&scrn->ViewPort, svcolors, amii_numcolors);
     CloseWindow(nw);
 }
 
@@ -592,15 +592,15 @@ filecopy(from, to) char *from, *to;
 }
 
 /* The colornames, and the default values for the pens */
-static struct COLDEF {
+struct COLDEF {
     char *name, *defval;
 };
-struct COLDEF amii_colnames[AMII_MAXCOLORS] = {
+static struct COLDEF amii_colnames[AMII_MAXCOLORS] = {
     "Black", "(000)", "White",   "(fff)", "Brown", "(830)", "Cyan", "(7ac)",
     "Green", "(181)", "Magenta", "(c06)", "Blue",  "(23e)", "Red",  "(c00)",
 };
 
-struct COLDEF amiv_colnames[AMII_MAXCOLORS] = {
+static struct COLDEF amiv_colnames[AMII_MAXCOLORS] = {
     "Black",     "(000)", "White",       "(fff)", "Cyan",        "(0bf)",
     "Orange",    "(f60)", "Blue",        "(00f)", "Green",       "(090)",
     "Grey",      "(69b)", "Red",         "(f00)", "Light Green", "(6f0)",
@@ -803,7 +803,7 @@ amii_setpens(int count)
      * HackScreen has been opened.
      */
     if (HackScreen != NULL) {
-        LoadRGB4(&HackScreen->ViewPort, sysflags.amii_curmap, amii_numcolors);
+        amii_LoadRGB(&HackScreen->ViewPort, sysflags.amii_curmap, amii_numcolors);
     }
 }
 
@@ -1002,7 +1002,7 @@ long val;
         sysflags.amii_curmap[pen] = val;
 
     if (HackScreen)
-        LoadRGB4(&HackScreen->ViewPort, sysflags.amii_curmap, amii_numcolors);
+        amii_LoadRGB(&HackScreen->ViewPort, sysflags.amii_curmap, amii_numcolors);
 }
 
 char *

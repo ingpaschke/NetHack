@@ -36,8 +36,8 @@
 #include <functions.h>
 #endif
 
-#include "NH:sys/amiga/winami.p"
-#include "NH:sys/amiga/amiwind.p"
-#include "NH:sys/amiga/amidos.p"
+#include "winami.p"
+#include "amiwind.p"
+#include "amidos.p"
 
 /* end amigst.c */

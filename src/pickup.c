@@ -1727,6 +1727,8 @@ int cindex, ccount; /* index of this container (1..N), number of them (N) */
     if (!cobj)
         return 0;
     if (cobj->olocked) {
+        struct obj *pick;
+
         if (ccount < 2)
             pline("%s locked.",
                   cobj->lknown ? "It is" : "Hmmm, it turns out to be");
@@ -1735,6 +1737,23 @@ int cindex, ccount; /* index of this container (1..N), number of them (N) */
         else
             pline("Hmmm, %s turns out to be locked.", the(xname(cobj)));
         cobj->lknown = 1;
+        /* autounlock: offer to unlock the box right away */
+        if (flags.autounlock && (pick = autokey(TRUE)) != 0) {
+            struct obj *otmp;
+            xchar ox = cobj->ox, oy = cobj->oy;
+
+            /* u.dz may be stale (#loot isn't a move command) and
+               pick_lock() consults it; the coords skip the direction
+               prompt */
+            u.dz = 0;
+            (void) pick_lock(pick, ox, oy, cobj);
+            /* a sprung trap might have destroyed cobj; tell the caller */
+            for (otmp = level.objects[ox][oy]; otmp; otmp = otmp->nexthere)
+                if (otmp == cobj)
+                    break;
+            if (!otmp)
+                *cobjp = (struct obj *) 0;
+        }
         return 0;
     }
     cobj->lknown = 1; /* floor container, so no need for update_inventory() */
