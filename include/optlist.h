@@ -59,11 +59,11 @@ struct allopt_t {
 #if defined(NHOPT_PROTO)
 #define NHOPTB(a, sec, b, c, s, i, n, v, d, al, bp, termp, desc) /*empty*/
 #define NHOPTC(a, sec, b, c, s, n, v, d, h, al, z)               \
-static int optfn_##a(int, int, boolean, char *, char *);
+staticfn int optfn_##a(int, int, boolean, char *, char *);
 #define NHOPTP(a, sec, b, c, s, n, v, d, h, al, z)               \
-static int pfxfn_##a(int, int, boolean, char *, char *);
+staticfn int pfxfn_##a(int, int, boolean, char *, char *);
 #define NHOPTO(m, sec, a, b, c, s, n, v, d, al, z)               \
-static int optfn_##a(int, int, boolean, char *, char *);
+staticfn int optfn_##a(int, int, boolean, char *, char *);
 
 #elif defined(NHOPT_ENUM)
 #define NHOPTB(a, sec, b, c, s, i, n, v, d, al, bp, termp, desc) opt_##a,

@@ -403,9 +403,14 @@ panic VA_DECL(const char *, str)
     if (program_state.panicking++)
         NH_abort(NULL); /* avoid loops - this should never happen*/
 
+    /* format the reason first: window ports that lose raw_print output
+       once exit_nhwindows() has run can still show it below */
+    (void) vsnprintf(buf, sizeof buf, str, VA_ARGS);
+
     gb.bot_disabled = TRUE;
     if (iflags.window_inited) {
         raw_print("\r\nOops...");
+        raw_print(buf);
         wait_synch(); /* make sure all pending output gets flushed */
         if (soundprocs.sound_exit_nhsound)
             (*soundprocs.sound_exit_nhsound)("panic");
@@ -456,7 +461,6 @@ panic VA_DECL(const char *, str)
     }
 #endif /* !MICRO */
 
-    (void) vsnprintf(buf, sizeof buf, str, VA_ARGS);
     raw_print(buf);
     paniclog("panic", buf);
 

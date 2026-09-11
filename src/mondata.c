@@ -418,7 +418,7 @@ ranged_attk(struct permonst *ptr)
  * the monsters array with the more accurate value (or possibly
  * modify the 'mstrength()' algorithm to generate the guessed one).
  */
-static boolean mstrength_ranged_attk(struct permonst *);
+staticfn boolean mstrength_ranged_attk(struct permonst *);
 
 
 /* This routine is designed to return an integer value which represents

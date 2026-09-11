@@ -117,6 +117,10 @@ nearest_pen(short want_r, short want_g, short want_b)
    Defaults match standard VDI palette (before tile remap). */
 static short pen_black = 1, pen_white = 0, pen_darkgray = 1;
 
+/* Set by the ATW800 RPC host (rpcgem.c).  Gates the RPC-only additions:
+   white-background colours, the tile cache, map scrolling. */
+int wingem_rpc = 0;
+
 /* Per-NetHack-CLR_* VDI pen, computed at runtime via nearest_pen
    against the currently-installed workstation palette.  Computed
    rather than fixed because the tile palette install in palettized
@@ -125,6 +129,13 @@ static short pen_black = 1, pen_white = 0, pen_darkgray = 1;
 static short nhclr_to_pen[16] = {
     /* sensible defaults until cache_nhclr_pens() runs */
     1, 2, 3, 6, 4, 7, 5, 9, 1, 10, 11, 14, 12, 15, 13, 0
+};
+
+/* CLR_* pens for text on the white dialog/status/menu background:
+   darker shades of the same hues, nearest installed pen picked in
+   cache_pens().  CLR_WHITE and NO_COLOR resolve to black. */
+static short nhclr_to_pen_light[16] = {
+    1, 2, 3, 6, 4, 7, 5, 1, 1, 6, 3, 6, 4, 7, 5, 1
 };
 
 static void
@@ -151,6 +162,25 @@ cache_pens(void)
         { 533,1000,1000}, /* CLR_BRIGHT_CYAN   */
         {1000,1000,1000}, /* CLR_WHITE         */
     };
+    /* targets for the white-background table */
+    static const short nhclr_rgb_light[16][3] = {
+        {   0,   0,   0}, /* CLR_BLACK         */
+        { 800,   0,   0}, /* CLR_RED           */
+        {   0, 500,   0}, /* CLR_GREEN         */
+        { 550, 300,   0}, /* CLR_BROWN         */
+        {   0,   0, 800}, /* CLR_BLUE          */
+        { 700,   0, 700}, /* CLR_MAGENTA       */
+        {   0, 500, 600}, /* CLR_CYAN          */
+        { 400, 400, 400}, /* CLR_GRAY          */
+        {   0,   0,   0}, /* NO_COLOR          */
+        { 800, 400,   0}, /* CLR_ORANGE        */
+        {   0, 600,   0}, /* CLR_BRIGHT_GREEN  */
+        { 600, 500,   0}, /* CLR_YELLOW: olive */
+        { 200, 200, 800}, /* CLR_BRIGHT_BLUE   */
+        { 700, 200, 700}, /* CLR_BRIGHT_MAGENTA*/
+        {   0, 500, 700}, /* CLR_BRIGHT_CYAN   */
+        {   0,   0,   0}, /* CLR_WHITE         */
+    };
     short i;
     pen_black    = nearest_pen(0, 0, 0);
     pen_white    = nearest_pen(1000, 1000, 1000);
@@ -158,10 +188,38 @@ cache_pens(void)
     /* Skip pure-black-ish pens for NetHack text colours so map glyphs
        always render visibly on the black map background, even when
        the palette has no close match for a particular CLR_*. */
-    for (i = 0; i < 16; i++)
+    for (i = 0; i < 16; i++) {
         nhclr_to_pen[i] = nearest_pen_ex(nhclr_rgb[i][0],
                                          nhclr_rgb[i][1],
                                          nhclr_rgb[i][2], 1);
+        /* on white, black is the safe fallback, so no skip */
+        nhclr_to_pen_light[i] = nearest_pen_ex(nhclr_rgb_light[i][0],
+                                               nhclr_rgb_light[i][1],
+                                               nhclr_rgb_light[i][2], 0);
+    }
+    if (wingem_rpc && planes >= 16) {
+        /* Truecolor exposes few indexed pens, so define our own with
+           vs_color: 16..31 the map colours, 32..47 the white-background
+           set.  Tiles are chunky RGB, unaffected by pen indices. */
+        short avail = colors_available > 0 ? colors_available : colors;
+        if (avail >= 32) {
+            int have_light = (avail >= 48);
+            for (i = 0; i < 16; i++) {
+                vs_color(x_handle, (short) (16 + i), (short *) nhclr_rgb[i]);
+                nhclr_to_pen[i] = (short) (16 + i);
+                if (have_light) {
+                    vs_color(x_handle, (short) (32 + i),
+                             (short *) nhclr_rgb_light[i]);
+                    nhclr_to_pen_light[i] = (short) (32 + i);
+                } else {
+                    nhclr_to_pen_light[i] = (short) (16 + i);
+                }
+            }
+            pen_black = 16;             /* nhclr_rgb[0]  = 0,0,0    */
+            pen_white = 31;             /* nhclr_rgb[15] = 1000s    */
+            pen_darkgray = 23;          /* nhclr_rgb[7]  = grey     */
+        }
+    }
 }
 
 /* Default STE VDI palette (VDI 0-1000 scale).
@@ -547,6 +605,7 @@ short map_cursx = 0, map_cursy = 0, curs_col = WHITE;
 short draw_cursor = TRUE, scroll_margin = -1;
 NHGEM_FONT map_font;
 SCROLL scroll_map;
+static void mar_map_set_slider(void);
 /* Set when the user has dragged the map window via MOVER, resized
    via SIZER, or toggled FULLER.  Rearrange_windows then keeps the
    user's geometry across font/tile-mode changes instead of snapping
@@ -918,6 +977,7 @@ mar_map_resized(GRECT *new_curr)
     if (WIN_MAP == WIN_ERR || (w = Gem_nhwindow[WIN_MAP].gw_window) == NULL)
         return;
     window_size(w, new_curr);
+    mar_map_set_slider();
     Gem_nhwindow[WIN_MAP].gw_place = w->curr;
     map_user_placed = TRUE;
 }
@@ -1348,10 +1408,12 @@ draw_status(PARMBLK *pb)
                                 && status_color[i][k] == col
                                 && status_attr[i][k] == att; k++)
                     ;
-                /* 8 == NO_COLOR; CLR_WHITE (15) would vanish on the white
-                   background, substitute BLACK like the menu draw */
+                /* 8 == NO_COLOR; white background: use the dark
+                   table (CLR_WHITE and NO_COLOR resolve to black) */
                 pen = (col >= 0 && col < 16 && col != 8)
-                          ? ((col == 15) ? BLACK : nhclr_to_pen[col])
+                          ? (wingem_rpc ? nhclr_to_pen_light[col]
+                                        : (col == 15 ? BLACK
+                                                     : nhclr_to_pen[col]))
                           : BLACK;
                 effect = ((att & 0x02) ? 1 : 0)    /* HL_BOLD: thickened */
                          | ((att & 0x04) ? 2 : 0)  /* HL_DIM: lightened */
@@ -1409,12 +1471,13 @@ draw_inventory(PARMBLK *pb)
 
             /* Gmi_color == 8 is NO_COLOR -- fall back to attr-based
                BLUE/BLACK so uncoloured items keep the historical look.
-               CLR_WHITE on the white dialog background would be
-               invisible; substitute BLACK so it stays readable. */
+               Menus draw on white: use the dark table (CLR_WHITE
+               resolves to black there). */
             if (it->Gmi_color >= 0 && it->Gmi_color < 16
                 && it->Gmi_color != 8)
-                pen = (it->Gmi_color == 15)
-                    ? BLACK : nhclr_to_pen[it->Gmi_color];
+                pen = wingem_rpc ? nhclr_to_pen_light[it->Gmi_color]
+                    : (it->Gmi_color == 15 ? BLACK
+                                           : nhclr_to_pen[it->Gmi_color]);
             else if (it->Gmi_attr)
                 pen = BLUE;
             else
@@ -1561,6 +1624,186 @@ mar_set_dir_keys(void)
 
 extern int total_tiles_used; /* tile.c */
 
+/* ---- device-format tile cache -------------------------------------
+   Decoding the sheet is slow on an 8MHz ST.  The result depends only on
+   the IMG file and the screen format, so it is kept in <sheet>.CCH next
+   to the IMG; any header mismatch or short read rebuilds it. */
+#define TCACHE_MAGIC   0x54385443L /* "T8TC" */
+#define TCACHE_VERSION 2L
+struct tcache_hdr {
+    long magic, version;
+    short planes;       /* screen planes */
+    short img_planes;   /* sheet planes */
+    short img_w, img_h;
+    short tile_w, tile_h;
+    short fd_wdwidth, fd_h, fd_nplanes;
+    long img_size;      /* size of the IMG file this was built from */
+    long tc_sig;        /* truecolor pixel-format signature (0 if indexed) */
+    long pal_size;      /* bytes of palette that follow the header (0 = none) */
+    long data_size;     /* bytes of device-format raster after that */
+};
+
+/* signature of the truecolor pixel layout the cached raster was
+   encoded in; 0 for indexed screens */
+static long
+tcache_tc_sig(void)
+{
+    long v;
+    if (planes < 16)
+        return 0;
+    if (!tc_fmt.have_probe)
+        probe_truecolor_format();
+    v = ((long) planes << 24) ^ ((long) tc_fmt.have_probe << 21)
+      ^ ((long) tc_fmt.swap_bytes << 20)
+      ^ ((long) tc_fmt.r_bits << 12) ^ ((long) tc_fmt.g_bits << 6)
+      ^ (long) tc_fmt.b_bits;
+    if (tc_fmt.have_probe) {
+        v ^= ((long) tc_fmt.r_pos[0] << 16)
+           ^ ((long) tc_fmt.g_pos[0] << 8) ^ (long) tc_fmt.b_pos[0];
+        if (tc_fmt.r_bits > 0)
+            v ^= (long) tc_fmt.r_pos[tc_fmt.r_bits - 1] << 2;
+    }
+    return v;
+}
+
+static void
+tcache_name(const char *img, char *out, int outlen)
+{
+    int n = 0;
+    while (img[n] && img[n] != '.' && n < outlen - 5) {
+        out[n] = img[n];
+        n++;
+    }
+    strcpy(out + n, ".CCH");
+}
+
+static long
+file_size(const char *name)
+{
+    FILE *f = fopen(name, "rb");
+    long n = -1;
+    if (f) {
+        if (fseek(f, 0L, SEEK_END) == 0)
+            n = ftell(f);
+        fclose(f);
+    }
+    return n;
+}
+
+/* 0 = loaded: tile_image, Tile_bilder and Tiles_per_line are set up
+   and the palette installed; nonzero = no usable cache */
+static int
+tcache_load(const char *img)
+{
+    char name[64];
+    struct tcache_hdr h;
+    FILE *f;
+    short *pal = NULL;
+    char *data = NULL;
+    long img_size = file_size(img);
+    long want_sig = tcache_tc_sig();
+
+    if (img_size < 0)
+        return 1;
+    tcache_name(img, name, sizeof name);
+    if ((f = fopen(name, "rb")) == NULL)
+        return 1;
+    if (fread(&h, 1, sizeof h, f) != sizeof h
+        || h.magic != TCACHE_MAGIC || h.version != TCACHE_VERSION
+        || h.planes != planes || h.img_size != img_size
+        || h.tc_sig != want_sig
+        || h.tile_w != Tile_width || h.tile_h != Tile_height
+        || h.fd_nplanes != planes || h.pal_size < 0 || h.data_size <= 0
+        || (h.img_w / Tile_width) * (h.img_h / Tile_height)
+               < total_tiles_used) {
+        fclose(f);
+        return 1;
+    }
+    if (h.pal_size > 0) {
+        pal = (short *) malloc(h.pal_size);
+        if (!pal || fread(pal, 1, h.pal_size, f) != (size_t) h.pal_size) {
+            fclose(f);
+            if (pal) free(pal);
+            return 1;
+        }
+    }
+    data = (char *) malloc(h.data_size);
+    if (!data || fread(data, 1, h.data_size, f) != (size_t) h.data_size) {
+        fclose(f);
+        if (pal) free(pal);
+        if (data) free(data);
+        return 1;
+    }
+    fclose(f);
+
+    tile_image.planes = h.img_planes;
+    tile_image.img_w = h.img_w;
+    tile_image.img_h = h.img_h;
+    tile_image.palette = pal;
+    tile_image.addr = data;
+    Tiles_per_line = h.img_w / Tile_width;
+    Tile_bilder.fd_addr = (short *) data;
+    Tile_bilder.fd_w = h.fd_wdwidth << 4;
+    Tile_bilder.fd_h = h.fd_h;
+    Tile_bilder.fd_wdwidth = h.fd_wdwidth;
+    Tile_bilder.fd_stand = 0;           /* device format */
+    Tile_bilder.fd_nplanes = h.fd_nplanes;
+    Tile_bilder.fd_r1 = Tile_bilder.fd_r2 = Tile_bilder.fd_r3 = 0;
+    if (h.pal_size > 0 && tile_image.planes > 1 && tile_image.palette)
+        img_set_colors(x_handle, tile_image.palette, tile_image.planes);
+    return 0;
+}
+
+static void
+tcache_save(const char *img)
+{
+    char name[64];
+    struct tcache_hdr h;
+    FILE *f;
+    long img_size = file_size(img);
+    int indexed = (planes < 16);
+
+    /* indexed needs the palette to reload; truecolor bakes RGB into
+       the pixels and stores none */
+    if (img_size < 0 || !Tile_bilder.fd_addr || Tile_bilder.fd_stand != 0
+        || (indexed && !tile_image.palette))
+        return;
+    h.magic = TCACHE_MAGIC;
+    h.version = TCACHE_VERSION;
+    h.planes = planes;
+    h.img_planes = tile_image.planes;
+    h.img_w = tile_image.img_w;
+    h.img_h = tile_image.img_h;
+    h.tile_w = Tile_width;
+    h.tile_h = Tile_height;
+    h.fd_wdwidth = Tile_bilder.fd_wdwidth;
+    h.fd_h = Tile_bilder.fd_h;
+    h.fd_nplanes = Tile_bilder.fd_nplanes;
+    h.img_size = img_size;
+    h.tc_sig = tcache_tc_sig();
+    h.pal_size = indexed ? (1L << tile_image.planes) * 3 * 2 : 0;
+    h.data_size = (long) Tile_bilder.fd_wdwidth * 2 * Tile_bilder.fd_h
+                  * Tile_bilder.fd_nplanes;
+    tcache_name(img, name, sizeof name);
+    if ((f = fopen(name, "wb")) == NULL)
+        return;
+    if (fwrite(&h, 1, sizeof h, f) != sizeof h
+        || (h.pal_size > 0
+            && fwrite(tile_image.palette, 1, h.pal_size, f)
+                   != (size_t) h.pal_size)
+        || fwrite(Tile_bilder.fd_addr, 1, h.data_size, f)
+               != (size_t) h.data_size) {
+        fclose(f);
+        remove(name);
+        return;
+    }
+    fclose(f);
+}
+
+#define TILE_SHEET_NAME() \
+    (Tilefile ? Tilefile : (planes >= 5) ? "NH32.IMG" \
+                          : (planes >= 4) ? "NH16.IMG" : "NH2.IMG")
+
 /* load and prepare the tile sheet; 0 on success, IMG error code else */
 static short
 load_tile_image(void)
@@ -1568,6 +1811,8 @@ load_tile_image(void)
     short img_err, tried_default = FALSE;
 
     if (tile_image.addr)
+        return (0);
+    if (wingem_rpc && tcache_load(TILE_SHEET_NAME()) == 0)
         return (0);
 
 loadimg:
@@ -1627,8 +1872,48 @@ loadimg:
            planes; on truecolor we've already baked RGB into pixels. */
         if (tile_image.planes > 1 && tile_image.palette)
             img_set_colors(x_handle, tile_image.palette, tile_image.planes);
+        if (wingem_rpc)
+            tcache_save(TILE_SHEET_NAME()); /* next start reads this */
     }
     return (0);
+}
+
+/* ---- boot-time tile blitting (t8gem.c upload progress animation) ---
+   tiles straight to the screen before any game window exists, from the
+   Tile_bilder MFDB the map draws from */
+int
+mar_boot_tiles(void)
+{
+    return load_tile_image();           /* 0 on success, IMG error else */
+}
+
+int mar_boot_tile_w(void) { return Tile_width; }
+int mar_boot_tile_h(void) { return Tile_height; }
+int mar_boot_planes(void) { return planes; }
+int mar_boot_tpl(void) { return Tiles_per_line; }
+
+/* blit tile idx from the sheet to (dx,dy) in dst; NULL dst = screen */
+void
+mar_boot_blit_tile2(int idx, int dx, int dy, MFDB *dst)
+{
+    short pxy[8];
+    int tpl = Tiles_per_line > 0 ? Tiles_per_line : 20;
+
+    pxy[0] = (short) ((idx % tpl) * Tile_width);
+    pxy[1] = (short) ((idx / tpl) * Tile_height);
+    pxy[2] = (short) (pxy[0] + Tile_width - 1);
+    pxy[3] = (short) (pxy[1] + Tile_height - 1);
+    pxy[4] = (short) dx;
+    pxy[5] = (short) dy;
+    pxy[6] = (short) (dx + Tile_width - 1);
+    pxy[7] = (short) (dy + Tile_height - 1);
+    vro_cpyfm(x_handle, S_ONLY, pxy, &Tile_bilder, dst ? dst : screen);
+}
+
+void
+mar_boot_blit_tile(int idx, int dx, int dy)
+{
+    mar_boot_blit_tile2(idx, dx, dy, screen);   /* e_gem's screen MFDB */
 }
 
 int
@@ -3400,6 +3685,7 @@ mar_cliparound(void)
         }
         if (adjust_needed)
             scroll_window(Gem_nhwindow[WIN_MAP].gw_window, WIN_SCROLL, NULL);
+            mar_map_set_slider();
     }
 }
 
@@ -3434,6 +3720,79 @@ Main_Init(XEVENT *xev, short availiable)
  * return a key, or 0, in which case a mouse button was pressed
  * mouse events should be returned as character postitions in the map window.
  */
+/* push the map's slider thumb position and size to AES; RPC host only */
+static void
+mar_map_set_slider(void)
+{
+    WIN *w;
+    SCROLL *sc = &scroll_map;
+    long maxh, maxv, pos, size;
+
+    if (!wingem_rpc || WIN_MAP == WIN_ERR)
+        return;
+    w = Gem_nhwindow[WIN_MAP].gw_window;
+    if (!w)
+        return;
+    maxh = sc->hsize - sc->hpage;
+    maxv = sc->vsize - sc->vpage;
+    if (maxh < 0) maxh = 0;
+    if (maxv < 0) maxv = 0;
+    if (w->gadgets & HSLIDE) {
+        size = (sc->hsize > 0) ? 1000L * sc->hpage / sc->hsize : 1000L;
+        pos  = (maxh > 0) ? 1000L * sc->hpos / maxh : 0L;
+        window_slider(w, HOR_SLIDER, (short) pos, (short) size);
+    }
+    if (w->gadgets & VSLIDE) {
+        size = (sc->vsize > 0) ? 1000L * sc->vpage / sc->vsize : 1000L;
+        pos  = (maxv > 0) ? 1000L * sc->vpos / maxv : 0L;
+        window_slider(w, VERT_SLIDER, (short) pos, (short) size);
+    }
+}
+
+/* scroll the map view by (dh, dv) cells, clamped; scroll_window repaints.
+   Works whichever window is on top. */
+static void
+map_scroll(long dh, long dv)
+{
+    WIN *w;
+    long maxh, maxv;
+
+    if (WIN_MAP == WIN_ERR || Gem_nhwindow[WIN_MAP].gw_window == NULL)
+        return;
+    w = Gem_nhwindow[WIN_MAP].gw_window;
+    maxh = scroll_map.hsize - scroll_map.hpage;
+    maxv = scroll_map.vsize - scroll_map.vpage;
+    if (maxh < 0) maxh = 0;
+    if (maxv < 0) maxv = 0;
+    scroll_map.hpos += dh;
+    scroll_map.vpos += dv;
+    if (scroll_map.hpos < 0) scroll_map.hpos = 0;
+    if (scroll_map.hpos > maxh) scroll_map.hpos = maxh;
+    if (scroll_map.vpos < 0) scroll_map.vpos = 0;
+    if (scroll_map.vpos > maxv) scroll_map.vpos = maxv;
+    scroll_window(w, WIN_SCROLL, NULL);
+    mar_map_set_slider();
+}
+
+/* Absolute scroll to a 0..1000 slider position on one axis. */
+static void
+map_slide(int vertical, long per_mille)
+{
+    long maxh, maxv;
+
+    if (WIN_MAP == WIN_ERR || Gem_nhwindow[WIN_MAP].gw_window == NULL)
+        return;
+    maxh = scroll_map.hsize - scroll_map.hpage;
+    maxv = scroll_map.vsize - scroll_map.vpage;
+    if (maxh < 0) maxh = 0;
+    if (maxv < 0) maxv = 0;
+    if (vertical)
+        scroll_map.vpos = maxv * per_mille / 1000L;
+    else
+        scroll_map.hpos = maxh * per_mille / 1000L;
+    map_scroll(0, 0);                   /* clamp + repaint */
+}
+
 /*ARGSUSED*/
 short
 mar_nh_poskey(short *x, short *y, short *mod)
@@ -3478,6 +3837,27 @@ mar_nh_poskey(short *x, short *y, short *mod)
         }
         if (scan == SCANHOME)
             mar_cliparound();
+        /* arrow keys scroll the map view: plain one line, Shift one page
+           (Left/Right: to the edge), Ctrl-Up/Down top/bottom,
+           Ctrl-Left/Right one page sideways.  retval stays FAIL. */
+        else if (wingem_rpc && scan == SCANUP)
+            (shift & K_CTRL) ? map_scroll(0, -scroll_map.vsize)
+            : (shift & K_SHIFT) ? map_scroll(0, -scroll_map.vpage)
+            : map_scroll(0, -1);
+        else if (wingem_rpc && scan == SCANDOWN)
+            (shift & K_CTRL) ? map_scroll(0, scroll_map.vsize)
+            : (shift & K_SHIFT) ? map_scroll(0, scroll_map.vpage)
+            : map_scroll(0, 1);
+        else if (wingem_rpc && scan == SCANLEFT)
+            (shift & K_SHIFT) ? map_scroll(-scroll_map.hsize, 0)
+            : map_scroll(-1, 0);
+        else if (wingem_rpc && scan == SCANRIGHT)
+            (shift & K_SHIFT) ? map_scroll(scroll_map.hsize, 0)
+            : map_scroll(1, 0);
+        else if (wingem_rpc && scan == CTRLLEFT)
+            map_scroll(-scroll_map.hpage, 0);
+        else if (wingem_rpc && scan == CTRLRIGHT)
+            map_scroll(scroll_map.hpage, 0);
         else if (scan == SCANF1)
             retval = 'h';
         else if (scan == SCANF2) {
@@ -3587,6 +3967,28 @@ mar_nh_poskey(short *x, short *y, short *mod)
                 break;
             }
             break; /* MN_SELECTED */
+        case WM_ARROWED:
+            /* scroll-bar arrows / paging area on the map window; e_gem
+               forwards it here when the map is not the top window */
+            if (!wingem_rpc) break;
+            switch (buf[4]) {
+            case WA_UPLINE:  map_scroll(0, -1); break;
+            case WA_DNLINE:  map_scroll(0, 1); break;
+            case WA_LFLINE:  map_scroll(-1, 0); break;
+            case WA_RTLINE:  map_scroll(1, 0); break;
+            case WA_UPPAGE:  map_scroll(0, -scroll_map.vpage); break;
+            case WA_DNPAGE:  map_scroll(0, scroll_map.vpage); break;
+            case WA_LFPAGE:  map_scroll(-scroll_map.hpage, 0); break;
+            case WA_RTPAGE:  map_scroll(scroll_map.hpage, 0); break;
+            default: break;
+            }
+            break;
+        case WM_VSLID:
+            if (wingem_rpc) map_slide(1, buf[4]);   /* buf[4] = 0..1000 */
+            break;
+        case WM_HSLID:
+            if (wingem_rpc) map_slide(0, buf[4]);
+            break;
         case WM_TOPPED:
         case WM_ONTOP:
             /* In palettized screen modes, another app (MagiC desktop,

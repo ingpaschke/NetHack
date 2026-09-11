@@ -128,6 +128,9 @@ static boolean ignore_errors_on_unmatched = FALSE,
 
 /* used for messaging. Also used in options.c */
 static const char *default_configfile =
+#ifdef ATW800
+    "nethack.cnf"; /* FAT host: .nethackrc is not a valid 8.3 name */
+#else
 #ifdef UNIX
     ".nethackrc";
 #else
@@ -141,6 +144,7 @@ static const char *default_configfile =
 #endif
 #endif
 #endif
+#endif /* ATW800 */
 static char configfile[BUFSZ];
 
 char *
@@ -322,10 +326,16 @@ fopen_config_file(const char *filename, int src)
         return fp;
 #else /* should be only UNIX left */
     envp = nh_getenv("HOME");
+#ifdef ATW800
+    /* FAT host, no HOME: read nethack.cnf from HACKDIR (the run dir) */
+    nhUse(envp);
+    Strcpy(tmp_config, "nethack.cnf");
+#else
     if (!envp)
         Strcpy(tmp_config, ".nethackrc");
     else
         Sprintf(tmp_config, "%s/%s", envp, ".nethackrc");
+#endif
 
     set_configfile_name(tmp_config);
     if ((fp = fopen(configfile, "r")) != (FILE *) 0)

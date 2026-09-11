@@ -236,6 +236,39 @@ mipspkg: dodata $(GAMEBIN) $(TARGETPFX)recover
 endif  # CROSS_TO_MIPS
 
 
+# BSD regex for targets without a libc <regex.h> (Amiga, ATW800):
+# `make CROSS_TO_<target>=1 fetch-regex` puts it in sys/amiga/regex
+AMIREGEX_URL = https://github.com/garyhouston/regex.git
+.PHONY: fetch-regex
+fetch-regex:
+	@DSTDIR=sys/amiga/regex; \
+	if [ ! -d src ]; then DSTDIR=../$$DSTDIR; fi; \
+	if [ -f $$DSTDIR/regcomp.c ]; then \
+	  echo "BSD regex already present"; \
+	else \
+	  echo "Fetching BSD regex from $(AMIREGEX_URL)"; \
+	  tmpdir=$$(mktemp -d) && \
+	  git clone --depth 1 $(AMIREGEX_URL) $$tmpdir && \
+	  cd $$tmpdir && \
+	  sh ./mkh -p regcomp.c > regcomp.ih && \
+	  sh ./mkh -p engine.c > engine.ih && \
+	  sh ./mkh -p regexec.c > regexec.ih && \
+	  sh ./mkh -p regerror.c > regerror.ih && \
+	  sh ./mkh -i _REGEX_H_ regex2.h regcomp.c \
+	    regexec.c regerror.c regfree.c > regex.h && \
+	  cd - > /dev/null && \
+	  mkdir -p $$DSTDIR && \
+	  for f in regcomp.c regexec.c regerror.c regfree.c \
+	    engine.c regex.h regex2.h cclass.h cname.h \
+	    utils.h regcomp.ih engine.ih regexec.ih \
+	    regerror.ih \
+	    COPYRIGHT; do \
+	    cp $$tmpdir/$$f $$DSTDIR/; \
+	  done && \
+	  rm -rf $$tmpdir && \
+	  echo "BSD regex installed in $$DSTDIR"; \
+	fi
+
 ifdef CROSS_TO_AMIGA
 $(TARGETPFX)tile.o : $(SRCDIR)/tile.c
 	$(TARGET_CC) $(TARGET_CFLAGS) -c -o $@ $(SRCDIR)/tile.c
@@ -275,39 +308,10 @@ $(TARGETPFX)tiles32.iff: ../dat/nhtiles.bmp $(TARGETPFX)bmp2iff_host
 
 AMITILES = $(TARGETPFX)tiles16.iff $(TARGETPFX)tiles32.iff $(TARGETPFX)tomb.iff
 
-AMIREGEX_URL = https://github.com/garyhouston/regex.git
 AMIREGEX_SRCDIR = $(AMISRC)/regex
 
-.PHONY: fetch-regex amigapkg amitiles
+.PHONY: amigapkg amitiles
 
-fetch-regex:
-	@DSTDIR=sys/amiga/regex; \
-	if [ ! -d src ]; then DSTDIR=../$$DSTDIR; fi; \
-	if [ -f $$DSTDIR/regcomp.c ]; then \
-	  echo "BSD regex already present"; \
-	else \
-	  echo "Fetching BSD regex from $(AMIREGEX_URL)"; \
-	  tmpdir=$$(mktemp -d) && \
-	  git clone --depth 1 $(AMIREGEX_URL) $$tmpdir && \
-	  cd $$tmpdir && \
-	  sh ./mkh -p regcomp.c > regcomp.ih && \
-	  sh ./mkh -p engine.c > engine.ih && \
-	  sh ./mkh -p regexec.c > regexec.ih && \
-	  sh ./mkh -p regerror.c > regerror.ih && \
-	  sh ./mkh -i _REGEX_H_ regex2.h regcomp.c \
-	    regexec.c regerror.c regfree.c > regex.h && \
-	  cd - > /dev/null && \
-	  mkdir -p $$DSTDIR && \
-	  for f in regcomp.c regexec.c regerror.c regfree.c \
-	    engine.c regex.h regex2.h cclass.h cname.h \
-	    utils.h regcomp.ih engine.ih regexec.ih \
-	    regerror.ih \
-	    COPYRIGHT; do \
-	    cp $$tmpdir/$$f $$DSTDIR/; \
-	  done && \
-	  rm -rf $$tmpdir && \
-	  echo "BSD regex installed in $$DSTDIR"; \
-	fi
 amitiles: $(AMITILES)
 
 amigapkg: $(GAMEBIN) $(AMITILES) ../util/uudecode
@@ -805,6 +809,88 @@ ataripkg: $(GAMEBIN) ../util/uudecode $(ATARITILES)
 	( cd $(TARGETPFX)pkg && zip -9r ../NH500ST.ZIP * )
 	@echo atari package zip file $(TARGETPFX)NH500ST.ZIP
 endif  # CROSS_TO_ATARI
+
+ifdef CROSS_TO_ATW800
+# tile.c is generated; own rule so the generic pattern waits for it
+$(TARGETPFX)tile.o : $(SRCDIR)/tile.c
+	$(TARGET_CC) $(TARGET_CFLAGS) -c -o$@ $<
+
+# sys_t800.c provides main() and calls pcmain's nh_main
+$(TARGETPFX)pcmain.o : ../sys/share/pcmain.c
+	$(TARGET_CC) $(TARGET_CFLAGS) -Dmain=nh_main -c -o$@ $<
+
+# Link the transputer image: ld.lld emits a raw binary at the nh-4mb.ld
+# layout, mkboot wraps it as a .btl link-boot image.  crt0, libc and the
+# host-side objects come from the toolchain sysroot (lib/t425 matches the
+# default -mcpu).  The loose sysroot objects precede libc.a so spfs.o
+# displaces its in-memory filesystem; t4con.o in HOBJ displaces its
+# console and exit.
+ATW_LINKOBJ = $(SYSROOT)/lib/t425/crt0.o $(HOBJ) $(TARGETPFX)date.o \
+		$(GENTILEOFILE) $(TARGET_HACKLIB) $(LUACROSSLIB) \
+		$(SYSROOT)/lib/t425/spfs-t425.o $(SYSROOT)/lib/t425/sphost-t425.o \
+		$(SYSROOT)/lib/t425/hostposix-t425.o \
+		$(SYSROOT)/lib/t425/chanio-t425.o $(SYSROOT)/lib/t425/libc.a \
+		$(SYSROOT)/lib/t425/libt8call.a $(SYSROOT)/lib/t425/libt8ipc.a \
+		$(SYSROOT)/lib/t425/libclang_rt.builtins.a
+Sysatw800: $(HOBJ) $(TARGETPFX)date.o $(GENTILEOFILE) $(TARGET_HACKLIB) \
+		$(LUACROSSLIB) $(BUILDMORE) Makefile
+	@echo "Linking $(GAME): one link-boot image (4 MB layout, fits the FPGA and a T800)."
+	$(LLD) --relax -T ../sys/atw800/nh-4mb.ld $(ATW_LINKOBJ) \
+		--oformat=binary -o $(TARGETPFX)nethack.bin
+	$(T800)/bin/mkboot -z $(TARGETPFX)nethack.bin -o $(TARGETPFX)nethack.btl
+	@touch Sysatw800
+	@echo "atw800 image: $(TARGETPFX)nethack.btl (link boot)"
+
+.PHONY: atw800pkg
+# a change in the port header recompiles every target object
+$(HOBJ) $(SYSOBJ): ../include/atw800conf.h
+
+# Atari .IMG tile sheets from dat/nhtiles.bmp
+$(TARGETPFX)bmp2img_host: ../sys/atari/bmp2img_host.c
+	$(CC) $(CFLAGS) -o $@ $<
+$(TARGETPFX)NH16.IMG: ../dat/nhtiles.bmp $(TARGETPFX)bmp2img_host
+	$(TARGETPFX)bmp2img_host -planes 4 ../dat/nhtiles.bmp $@
+$(TARGETPFX)NH32.IMG: ../dat/nhtiles.bmp $(TARGETPFX)bmp2img_host
+	$(TARGETPFX)bmp2img_host -planes 5 ../dat/nhtiles.bmp $@
+$(TARGETPFX)NH2.IMG: ../dat/nhtiles.bmp $(TARGETPFX)bmp2img_host
+	$(TARGETPFX)bmp2img_host -atkinson -planes 1 ../dat/nhtiles.bmp $@
+ATWTILES = $(TARGETPFX)NH16.IMG $(TARGETPFX)NH32.IMG $(TARGETPFX)NH2.IMG
+
+# GEM resource and splash/tombstone images from the win/gem .uu sources
+$(TARGETPFX)GEM_RSC.RSC: ../win/gem/gem_rsc.uu ../util/uudecode
+	( cd $(TARGETPFX) && ../../util/uudecode ../../win/gem/gem_rsc.uu )
+$(TARGETPFX)title.img: ../win/gem/title.uu ../util/uudecode
+	( cd $(TARGETPFX) && ../../util/uudecode ../../win/gem/title.uu )
+$(TARGETPFX)title2.img: ../win/gem/title2.uu ../util/uudecode
+	( cd $(TARGETPFX) && ../../util/uudecode ../../win/gem/title2.uu )
+$(TARGETPFX)rip.img: ../win/gem/rip.uu ../util/uudecode
+	( cd $(TARGETPFX) && ../../util/uudecode ../../win/gem/rip.uu )
+ATWGEN = $(TARGETPFX)GEM_RSC.RSC $(TARGETPFX)title.img $(TARGETPFX)title2.img $(TARGETPFX)rip.img
+
+# Release tree under build-atw/NETHACK, zipped: the m68k GEM host, the
+# transputer image, tiles, resources and the config files.  The config
+# is the Atari one without LEVELDIR and number_pad (hjkl stays usable)
+# plus the ATW800 additions.
+ATWREL    = ../build-atw/NETHACK
+atw800pkg: $(ATWTILES) $(ATWGEN) ../util/uudecode
+	@echo "Packaging the atw800 release into ../build-atw ..."
+	rm -rf ../build-atw ; mkdir -p $(ATWREL)/save
+	$(MAKE) -C ../sys/atw800/gem NH5ATW.PRG XCFLAGS=-DT8_RELEASE
+	cp ../sys/atw800/gem/NH5ATW.PRG $(ATWREL)/NETHACK.PRG
+	cp $(TARGETPFX)nethack.btl      $(ATWREL)/nethack.btl
+	cp $(ATWTILES) $(ATWREL)/
+	cp $(ATWGEN) $(ATWREL)/
+	cp ../dat/nhdat $(ATWREL)/nhdat
+	cp ../dat/license $(ATWREL)/LICENSE.TXT
+	cp ../dat/symbols $(ATWREL)/symbols
+	printf 'WIZARDS=*\nEXPLORERS=*\n' > $(ATWREL)/sysconf
+	sed -e '/^LEVELDIR=/d' -e 's/,number_pad$$//' ../sys/atari/nethack.cnf > $(ATWREL)/nethack.cnf
+	cat ../sys/atw800/atw800.cnf >> $(ATWREL)/nethack.cnf
+	: > $(ATWREL)/perm ; : > $(ATWREL)/record
+	printf 'NetHack for the Atari (ATW800 transputer accelerator)\n%s\n\nCold-boot, then double-click NETHACK.PRG (no arguments): it boots the\ntransputer over the link (the FPGA by default), renders GEM tiles, and asks\nyour name. A plug-in T800 TRAM instead of the FPGA: launch with -a 0xFFFAC0.\n' '=====================================================' > $(ATWREL)/README.TXT
+	cd ../build-atw && zip -rq nethack-atw.zip NETHACK
+	@echo "atw800 release -> ../build-atw/NETHACK/ and ../build-atw/nethack-atw.zip"
+endif  # CROSS_TO_ATW800
 
 ifdef CROSS_SHARED
 # shared file dependencies
