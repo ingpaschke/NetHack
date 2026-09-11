@@ -1,0 +1,13 @@
+
+# ATW800 additions to the Atari configuration
+
+# the mail probe would cost a link round trip per turn
+OPTIONS=!mail
+
+# status hilites, readable on the white GEM status line
+OPTIONS=hilite_status: carrying-capacity/burdened/yellow/stressed/orange
+OPTIONS=hilite_status: carrying-capacity/strained/red/overtaxed/red&bold/overloaded/red&inverse
+OPTIONS=hilite_status: hunger/satiated/yellow/hungry/orange/weak/red/fainting/red&inverse
+OPTIONS=hilite_status: condition/minor/yellow
+OPTIONS=hilite_status: gold/up/yellow
+OPTIONS=hilite_status: experience-level/up/green&inverse

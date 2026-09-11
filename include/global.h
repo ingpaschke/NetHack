@@ -176,6 +176,11 @@ typedef uchar nhsym;
 #include "tosconf.h"
 #endif
 
+/* included last so it can override the base config (pcconf.h) */
+#ifdef ATW800
+#include "atw800conf.h"
+#endif
+
 #include "warnings.h"
 
 #ifdef MAC68K

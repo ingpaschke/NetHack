@@ -32,7 +32,7 @@ struct lchoice {
     char menuletter;
 };
 
-static mapseen *load_mapseen(NHFILE *);
+staticfn mapseen *load_mapseen(NHFILE *);
 
 #ifndef SFCTOOL
 #if 0

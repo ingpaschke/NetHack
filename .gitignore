@@ -99,3 +99,5 @@ util/*.exp
 submodules/CHKSUMS.tmp
 sys/amiga/regex/
 __pycache__/
+src/Sysatw800
+build-atw/

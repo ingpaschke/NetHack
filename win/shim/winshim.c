@@ -98,7 +98,7 @@ ret_type name fn_args { \
     ret_type ret = (ret_type) 0; \
     debugf("SHIM GRAPHICS: " #name "\n"); \
     if (!shim_graphics_callback) return ret; \
-    shim_graphics_callback(#name, (void *)&ret, fmt, ## __VA_ARGS__); \
+    shim_graphics_callback(#name, (void *)&ret, fmt, __VA_ARGS__); \
     debugf("SHIM GRAPHICS: " #name " done.\n"); \
     return ret; \
 }
@@ -109,18 +109,29 @@ void name fn_args;\
 void name fn_args { \
     debugf("SHIM GRAPHICS: " #name "\n"); \
     if (!shim_graphics_callback) return; \
-    shim_graphics_callback(#name, NULL, fmt, ## __VA_ARGS__); \
+    shim_graphics_callback(#name, NULL, fmt, __VA_ARGS__); \
     debugf("SHIM GRAPHICS: " #name " done.\n"); \
 }
 #endif /* __EMSCRIPTEN__ */
 
-VDECLCB(shim_init_nhwindows,(int *argcp, char **argv), "vpp", P2V argcp, P2V argv)
-DECLCB(boolean, shim_player_selection_or_tty,(void), "b")
-VDECLCB(shim_askname,(void), "v")
-VDECLCB(shim_get_nh_event,(void), "v")
+/* VDECLCB variant that also sets iflags.window_inited, so pline() does
+   not fall back to raw_print */
+void shim_init_nhwindows(int *argcp, char **argv);
+void
+shim_init_nhwindows(int *argcp, char **argv)
+{
+    debugf("SHIM GRAPHICS: shim_init_nhwindows\n");
+    if (shim_graphics_callback)
+        shim_graphics_callback("shim_init_nhwindows", NULL, "vpp",
+                               P2V argcp, P2V argv);
+    iflags.window_inited = TRUE;
+}
+DECLCB(boolean, shim_player_selection_or_tty,(void), "b", A2P 0)
+VDECLCB(shim_askname,(void), "v", A2P 0)
+VDECLCB(shim_get_nh_event,(void), "v", A2P 0)
 VDECLCB(shim_exit_nhwindows,(const char *str), "vs", P2V str)
 VDECLCB(shim_suspend_nhwindows,(const char *str), "vs", P2V str)
-VDECLCB(shim_resume_nhwindows,(void), "v")
+VDECLCB(shim_resume_nhwindows,(void), "v", A2P 0)
 DECLCB(winid, shim_create_nhwindow, (int type), "ii", A2P type)
 VDECLCB(shim_clear_nhwindow,(winid window), "vi", A2P window)
 VDECLCB(shim_display_nhwindow,(winid window, boolean blocking), "vib", A2P window, A2P blocking)
@@ -137,31 +148,31 @@ VDECLCB(shim_end_menu,(winid window, const char *prompt), "vis", A2P window, P2V
 /* XXX: shim_select_menu menu_list is an output */
 DECLCB(int, shim_select_menu,(winid window, int how, MENU_ITEM_P **menu_list), "iiip", A2P window, A2P how, P2V menu_list)
 DECLCB(char, shim_message_menu,(char let, int how, const char *mesg), "ciis", A2P let, A2P how, P2V mesg)
-VDECLCB(shim_mark_synch,(void), "v")
-VDECLCB(shim_wait_synch,(void), "v")
+VDECLCB(shim_mark_synch,(void), "v", A2P 0)
+VDECLCB(shim_wait_synch,(void), "v", A2P 0)
 VDECLCB(shim_cliparound,(int x, int y), "vii", A2P x, A2P y)
 VDECLCB(shim_update_positionbar,(char *posbar), "vs", P2V posbar)
 VDECLCB(shim_print_glyph,(winid w, coordxy x, coordxy y, const glyph_info *glyphinfo, const glyph_info *bkglyphinfo), "vi11pp", A2P w, A2P x, A2P y, P2V glyphinfo, P2V bkglyphinfo)
 VDECLCB(shim_raw_print,(const char *str), "vs", P2V str)
 VDECLCB(shim_raw_print_bold,(const char *str), "vs", P2V str)
-DECLCB(int, shim_nhgetch,(void), "i")
+DECLCB(int, shim_nhgetch,(void), "i", A2P 0)
 DECLCB(int, shim_nh_poskey,(coordxy *x, coordxy *y, int *mod), "ippp", P2V x, P2V y, P2V mod)
-VDECLCB(shim_nhbell,(void), "v")
-DECLCB(int, shim_doprev_message,(void),"iv")
+VDECLCB(shim_nhbell,(void), "v", A2P 0)
+DECLCB(int, shim_doprev_message,(void),"iv", A2P 0)
 DECLCB(char, shim_yn_function,(const char *query, const char *resp, char def), "css0", P2V query, P2V resp, A2P def)
 VDECLCB(shim_getlin,(const char *query, char *bufp), "vsp", P2V query, P2V bufp)
-DECLCB(int,shim_get_ext_cmd,(void),"iv")
+DECLCB(int,shim_get_ext_cmd,(void),"iv", A2P 0)
 VDECLCB(shim_number_pad,(int state), "vi", A2P state)
-VDECLCB(shim_delay_output,(void), "v")
+VDECLCB(shim_delay_output,(void), "v", A2P 0)
 VDECLCB(shim_change_color,(int color, long rgb, int reverse), "viii", A2P color, A2P rgb, A2P reverse)
 VDECLCB(shim_change_background,(int white_or_black), "vi", A2P white_or_black)
 DECLCB(short, set_shim_font_name,(winid window_type, char *font_name),"2is", A2P window_type, P2V font_name)
-DECLCB(char *,shim_get_color_string,(void),"sv")
+DECLCB(char *,shim_get_color_string,(void),"sv", A2P 0)
 
 VDECLCB(shim_preference_update, (const char *pref), "vp", P2V pref)
 DECLCB(char *,shim_getmsghistory, (boolean init), "sb", A2P init)
 VDECLCB(shim_putmsghistory, (const char *msg, boolean restoring_msghist), "vsb", P2V msg, A2P restoring_msghist)
-VDECLCB(shim_status_init, (void), "v")
+VDECLCB(shim_status_init, (void), "v", A2P 0)
 VDECLCB(shim_status_enablefield,
     (int fieldidx, const char *nm, const char *fmt, boolean enable),
     "vippb",
@@ -195,7 +206,7 @@ shim_ctrl_nhwindow(
     return (win_request_info *) 0;
 }
 #else /* !__EMSCRIPTEN__ */
-VDECLCB(shim_player_selection, (void), "v")
+VDECLCB(shim_player_selection, (void), "v", A2P 0)
 VDECLCB(shim_update_inventory,(int a1 UNUSED), "vi", A2P a1)
 DECLCB(win_request_info *, shim_ctrl_nhwindow,
     (winid window, int request, win_request_info *wri),

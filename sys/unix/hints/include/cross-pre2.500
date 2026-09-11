@@ -848,6 +848,96 @@ $(TARGETPFX)%.o : ../sys/atari/%.c
 $(TARGETPFX)%.o : ../win/gem/%.c
 	$(TARGET_CC) $(TARGET_CFLAGS) -o$@ $<
 endif  # CROSS_TO_ATARI
+
+ifdef CROSS_TO_ATW800
+#=================================================================
+# Atari Transputer Workstation (ATW800/2) cross-compile recipe
+#=================================================================
+# NetHack runs on the card's transputer, built with the LLVM t800
+# backend, and renders on the host Atari ST via the windowport RPC
+# (sys/atw800).
+#
+#   sys/unix/setup.sh sys/unix/hints/linux.500
+#   make fetch-lua
+#   make CROSS_TO_ATW800=1 fetch-regex
+#   make CROSS_TO_ATW800=1 all
+#
+# T800 is the llvm-t800 install.  Override on the make command line.
+#=================================================================
+T800 ?= /opt/llvm-t800
+CLANG ?= $(T800)/bin/clang
+LLD ?= $(T800)/bin/ld.lld
+SYSROOT ?= $(T800)/sysroots/libt800
+
+CFLAGS += -DCROSSCOMPILE
+
+# clang --target=t800: ILP32 little-endian, defines __TRANSPUTER__;
+# -nostdinc with the sysroot headers on -I
+override TARGET_CC = $(CLANG) --target=t800
+override TARGET_CXX = $(TARGET_CC)
+override TARGET_AR = ar
+override TARGET_STUBEDIT=
+# size matters: the boot image is streamed to the card
+ATW_OPT ?= -Oz
+# some MICRO helpers are called without a prototype in scope
+override TARGET_CFLAGS = $(ATW_OPT) -std=c99 -nostdinc -fno-builtin -w \
+	-Wno-error=implicit-function-declaration -Wno-error=implicit-int \
+	-I../include -I../win/share -I../sys/atw800 -I../sys/amiga/regex \
+	-I$(SYSROOT)/include \
+	$(LUAINCL) -DNOTTYGRAPHICS -DLUA_32BITS \
+	-DCROSSCOMPILE -DCROSSCOMPILE_TARGET -DCROSS_TO_ATW800 -DATW800 \
+	-DMSDOS -DNO_TERMCAP_HEADERS -DNOSTATICFN -DTILES_IN_GLYPHMAP -DSHIM_GRAPHICS
+override TARGET_CXXFLAGS = $(TARGET_CFLAGS)
+LUA_TARGET_CFLAGS = $(TARGET_CFLAGS)
+override TARGET_LINK = $(TARGET_CC)
+
+# POSIX regex over the BSD engine in sys/amiga/regex (make fetch-regex)
+override REGEXOBJ = $(TARGETPFX)posixregex.o
+ATWREGEXOBJ = $(TARGETPFX)regcomp.o $(TARGETPFX)regexec.o \
+	$(TARGETPFX)regerror.o $(TARGETPFX)regfree.o
+
+# no git version stamps in the target image
+override GITHASH =
+override GITBRANCH =
+override GITPREFIX =
+
+# port startup, console and windowport RPC, the PC-family main and the
+# shim windowport; the host file and link layers come from the toolchain
+# sysroot (ATW_LINKOBJ in cross-post.500)
+override SYSSRC = ../sys/atw800/sys_t800.c ../sys/atw800/t4con.c \
+		../sys/atw800/t4win.c ../sys/atw800/pcstub.c \
+		../sys/share/pcmain.c ../sys/share/pcunix.c \
+		../win/shim/winshim.c
+override SYSOBJ = $(TARGETPFX)sys_t800.o $(TARGETPFX)t4con.o \
+		$(TARGETPFX)t4win.o $(TARGETPFX)pcstub.o \
+		$(TARGETPFX)pcmain.o $(TARGETPFX)pcunix.o \
+		$(TARGETPFX)winshim.o $(ATWREGEXOBJ)
+override WINLIB=
+override WINOBJ=
+override LUALIB=
+override LUALIBS=
+override TOPLUALIB=
+override DLLIB=
+override GENTILEOFILE = $(TARGETPFX)tile.o
+override GAMEBIN = $(TARGETPFX)nethack.btl
+# link recipe in cross-post.500
+override SYSTEM = Sysatw800
+override TARGET_LFLAGS =
+override PACKAGE = atw800pkg
+override PREGAME += mkdir -p $(TARGETDIR) ;
+override CLEANMORE += rm -r $(TARGETDIR) ;
+
+$(TARGETPFX)%.o : ../sys/atw800/%.c
+	$(TARGET_CC) $(TARGET_CFLAGS) -c -o$@ $<
+$(TARGETPFX)%.o : ../sys/amiga/regex/%.c
+	$(TARGET_CC) $(TARGET_CFLAGS) -c -o$@ $<
+$(TARGETPFX)pcsys.o : ../sys/share/pcsys.c
+	$(TARGET_CC) $(TARGET_CFLAGS) -c -o$@ $<
+$(TARGETPFX)pcunix.o : ../sys/share/pcunix.c
+	$(TARGET_CC) $(TARGET_CFLAGS) -c -o$@ $<
+# the pcmain.o rule (-Dmain=nh_main) is in cross-post.500 so it wins
+# over the base recipe in Makefile.src
+endif  # CROSS_TO_ATW800
 #=================================================================
 
 ifdef WANT_WIN_CURSES

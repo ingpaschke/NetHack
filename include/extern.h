@@ -2655,12 +2655,13 @@ extern void free_questpager(void);
 /* ### random.c ### */
 
 #if defined(RANDOM) && !defined(__GO32__) /* djgpp has its own random */
-#if !defined(CROSS_TO_AMIGA) && !defined(CROSS_TO_ATARI)
+#if !defined(CROSS_TO_AMIGA) && !defined(CROSS_TO_ATARI) \
+    && !defined(CROSS_TO_ATW800)
 extern void srandom(unsigned);
 extern char *initstate(unsigned, char *, int);
 extern char *setstate(char *);
 extern long random(void);
-#endif /* !CROSS_TO_AMIGA && !CROSS_TO_ATARI */
+#endif /* !CROSS_TO_AMIGA && !CROSS_TO_ATARI && !CROSS_TO_ATW800 */
 #endif /* RANDOM */
 
 /* ### read.c ### */
