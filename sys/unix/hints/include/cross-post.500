@@ -877,18 +877,26 @@ atw800pkg: $(ATWTILES) $(ATWGEN) ../util/uudecode
 	rm -rf ../build-atw ; mkdir -p $(ATWREL)/save
 	$(MAKE) -C ../sys/atw800/gem clean
 	$(MAKE) -C ../sys/atw800/gem NH5ATW.PRG XCFLAGS=-DT8_RELEASE
-	cp ../sys/atw800/gem/NH5ATW.PRG $(ATWREL)/NETHACK.PRG
+	# all names lowercase: TOS is case-insensitive, but a copy onto a
+	# case-sensitive MiNT/ext2 volume lowercases them, and the code opens
+	# them lowercase, so the release must ship them that way.
+	cp ../sys/atw800/gem/NH5ATW.PRG $(ATWREL)/nethack.prg
 	cp $(TARGETPFX)nethack.btl      $(ATWREL)/nethack.btl
-	cp $(ATWTILES) $(ATWREL)/
-	cp $(ATWGEN) $(ATWREL)/
+	cp $(TARGETPFX)NH16.IMG $(ATWREL)/nh16.img
+	cp $(TARGETPFX)NH32.IMG $(ATWREL)/nh32.img
+	cp $(TARGETPFX)NH2.IMG  $(ATWREL)/nh2.img
+	cp $(TARGETPFX)GEM_RSC.RSC $(ATWREL)/gem_rsc.rsc
+	cp $(TARGETPFX)title.img   $(ATWREL)/title.img
+	cp $(TARGETPFX)title2.img  $(ATWREL)/title2.img
+	cp $(TARGETPFX)rip.img     $(ATWREL)/rip.img
 	cp ../dat/nhdat $(ATWREL)/nhdat
-	cp ../dat/license $(ATWREL)/LICENSE.TXT
+	cp ../dat/license $(ATWREL)/license.txt
 	cp ../dat/symbols $(ATWREL)/symbols
 	printf 'WIZARDS=*\nEXPLORERS=*\n' > $(ATWREL)/sysconf
 	sed -e '/^LEVELDIR=/d' -e 's/,number_pad$$//' ../sys/atari/nethack.cnf > $(ATWREL)/nethack.cnf
 	cat ../sys/atw800/atw800.cnf >> $(ATWREL)/nethack.cnf
 	: > $(ATWREL)/perm ; : > $(ATWREL)/record
-	printf 'NetHack for the Atari (ATW800 transputer accelerator)\n%s\n\nCold-boot, then double-click NETHACK.PRG (no arguments): it boots the\ntransputer over the link (the FPGA by default), renders GEM tiles, and asks\nyour name. A plug-in T800 TRAM instead of the FPGA: launch with -a 0xFFFAC0.\n' '=====================================================' > $(ATWREL)/README.TXT
+	printf 'NetHack for the Atari (ATW800 transputer accelerator)\n%s\n\nCold-boot, then double-click nethack.prg (no arguments): it boots the\ntransputer over the link (the FPGA by default), renders GEM tiles, and asks\nyour name. A plug-in T800 TRAM instead of the FPGA: launch with -a 0xFFFAC0.\n' '=====================================================' > $(ATWREL)/readme.txt
 	cd ../build-atw && zip -rq nethack-atw.zip NETHACK
 	@echo "atw800 release -> ../build-atw/NETHACK/ and ../build-atw/nethack-atw.zip"
 endif  # CROSS_TO_ATW800
