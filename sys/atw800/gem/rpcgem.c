@@ -350,20 +350,13 @@ static int ext_pre(const char *pfx, const char *s)
         if (pfx[i] != s[i]) return 0;
     return 1;
 }
-/* one map cell of nh_glyphrow; out-of-range cells are rejected and
-   logged.  valid map: x 1..79, y 0..20 */
+/* one map cell of nh_glyphrow; out-of-range cells are dropped.
+   valid map: x 1..79, y 0..20 */
 static void glyph_cell(long w, long x, long y, long ch, long color,
                        long flags, long tile, long bktile)
 {
-    if (x < 1 || x > 79 || y < 0 || y > 20) {
-        FILE *lg = T8LOG_OPEN("a");
-        if (lg) {
-            fprintf(lg, "GLYPH REJECT x=%ld y=%ld ch=%ld tile=%ld\n",
-                    x, y, ch, tile);
-            fclose(lg);
-        }
+    if (x < 1 || x > 79 || y < 0 || y > 20)
         return;
-    }
     mar_curs((short)(x - 1), (short)y);
     if (tile >= 0 && mar_set_tile_mode(-1)) {
         mar_print_glyph((winid)w, (short)(x - 1), (short)y,
@@ -858,11 +851,6 @@ static void h_extlist(struct t8call_ctx *c)      /* cache the table */
         }
         p += len;
     }
-    {
-        FILE *lg = T8LOG_OPEN("a");
-        if (lg) { fprintf(lg, "EXTLIST first=%ld n=%ld total=%d\n",
-                          first, m, ext_n); fclose(lg); }
-    }
 }
 
 static void h_extcmd(struct t8call_ctx *c)
@@ -875,11 +863,6 @@ static void h_extcmd(struct t8call_ctx *c)
         idx = ext_menu_pick();
     else
         idx = (r == 0) ? ext_resolve(q) : -1;
-    {
-        FILE *lg = T8LOG_OPEN("a");
-        if (lg) { fprintf(lg, "EXTCMD cached=%d r=%d q='%s' idx=%d\n",
-                          ext_n, r, q, idx); fclose(lg); }
-    }
     t8call_ret_i(c, idx);
 }
 
