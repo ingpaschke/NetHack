@@ -875,6 +875,7 @@ ATWREL    = ../build-atw/NETHACK
 atw800pkg: $(ATWTILES) $(ATWGEN) ../util/uudecode
 	@echo "Packaging the atw800 release into ../build-atw ..."
 	rm -rf ../build-atw ; mkdir -p $(ATWREL)/save
+	$(MAKE) -C ../sys/atw800/gem clean
 	$(MAKE) -C ../sys/atw800/gem NH5ATW.PRG XCFLAGS=-DT8_RELEASE
 	cp ../sys/atw800/gem/NH5ATW.PRG $(ATWREL)/NETHACK.PRG
 	cp $(TARGETPFX)nethack.btl      $(ATWREL)/nethack.btl
