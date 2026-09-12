@@ -1801,8 +1801,8 @@ tcache_save(const char *img)
 }
 
 #define TILE_SHEET_NAME() \
-    (Tilefile ? Tilefile : (planes >= 5) ? "NH32.IMG" \
-                          : (planes >= 4) ? "NH16.IMG" : "NH2.IMG")
+    (Tilefile ? Tilefile : (planes >= 5) ? "nh32.img" \
+                          : (planes >= 4) ? "nh16.img" : "nh2.img")
 
 /* load and prepare the tile sheet; 0 on success, IMG error code else */
 static short
@@ -1816,9 +1816,9 @@ load_tile_image(void)
         return (0);
 
 loadimg:
-    img_err = depack_img(Tilefile ? Tilefile : (planes >= 5) ? "NH32.IMG"
-                                                  : (planes >= 4) ? "NH16.IMG"
-                                                                   : "NH2.IMG",
+    img_err = depack_img(Tilefile ? Tilefile : (planes >= 5) ? "nh32.img"
+                                                  : (planes >= 4) ? "nh16.img"
+                                                                   : "nh2.img",
                              &tile_image);
     if (img_err)
         return (img_err);
@@ -1928,7 +1928,7 @@ mar_gem_init(void)
     crash_checkpoint("gemini");
     if (!open_rsc("gem_rsc.rsc", md, md, md, md, 0, 0, 0)) {
         graf_mouse(M_OFF, NULL);
-        form_alert(1, "[3][| Fatal Error | File: GEM_RSC.RSC | not "
+        form_alert(1, "[3][| Fatal Error | File: gem_rsc.rsc | not "
                       "found or | GEM init failed. ][ grumble ]");
         return (0);
     }
@@ -2175,7 +2175,7 @@ mar_ask_name(void)
 
     crash_checkpoint("askname");
     img_err =
-        depack_img(planes < 4 ? "TITLE2.IMG" : "TITLE.IMG", &titel_image);
+        depack_img(planes < 4 ? "title2.img" : "title.img", &titel_image);
     if (img_err) { /* not fatal */
         ob_set_text(z_ob, NETHACKPICTURE, "missing title.img.");
     } else if (planes >= 16 && titel_image.palette) {
@@ -3207,7 +3207,7 @@ mar_display_nhwindow(winid wind)
         scroll_menu.vsize = num_text_lines;
         scroll_menu.vpos = 0;
         if (use_rip) {
-            if (!depack_img(planes < 4 ? "RIP2.IMG" : "RIP.IMG",
+            if (!depack_img(planes < 4 ? "rip2.img" : "rip.img",
                             &rip_image)) {
                 if (planes >= 16 && rip_image.palette) {
                     MFDB new_mfdb;

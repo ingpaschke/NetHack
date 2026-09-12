@@ -308,7 +308,7 @@ static long read_hz200(void)
 static const char *missing_asset(void)
 {
     static const char *req[] = {
-        "GEM_RSC.RSC", "NH16.IMG", "NH32.IMG", "NH2.IMG", 0
+        "gem_rsc.rsc", "nh16.img", "nh32.img", "nh2.img", 0
     };
     int i;
     for (i = 0; req[i]; i++) {
