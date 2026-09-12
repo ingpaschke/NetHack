@@ -339,6 +339,9 @@ int main(int argc, char **argv)
     int rc, fpga_init = 0;
     int memboot = 0;                    /* -m or a MEMBOOT flag: memory boot */
 
+#ifdef T8_RELEASE
+    t8log_name = 0;                     /* no t8log.txt in a release build */
+#endif
     for (i = 1; i < argc; i++) {
         if (argv[i][0] == '-' && argv[i][1] == 'n') {
             sp_no_ring = 1;             /* -noring */
