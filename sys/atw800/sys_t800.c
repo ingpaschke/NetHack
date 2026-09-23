@@ -13,7 +13,6 @@
 int dosuspend(void) { return 0; }
 void intron(void) {}
 void introff(void) {}
-int umask(int mask) { (void)mask; return 0; }
 
 /* fatal startup error (files.c, unixmain.c expect it) */
 void error(const char *fmt, ...)
@@ -32,6 +31,24 @@ void shim_graphics_set_callback(shim_callback_t cb);
 extern void t800_rpc_cb(const char *, void *, const char *, ...);
 extern int nh_main(int argc, char **argv);
 
+/* At exit, on the console (the host's log and message window): the heap's
+   high-water mark, and the paniclog if there is one.  libc's exit() runs
+   this before it flushes stdout. */
+static void exit_report(void)
+{
+    extern long __malloc_hiwater;
+    FILE *f;
+    char buf[256];
+
+    printf("[heap high-water %ld KB]\n", __malloc_hiwater >> 10);
+    if ((f = fopen("paniclog", "r")) != 0) {
+        printf("--- paniclog ---\n");
+        while (fgets(buf, sizeof buf, f))
+            fputs(buf, stdout);
+        fclose(f);
+    }
+}
+
 int main(int argc, char **argv)
 {
     static char *av[] = { (char *)"nethack", 0 };  /* normal player selection */
@@ -40,6 +57,7 @@ int main(int argc, char **argv)
     /* host capability handshake: shared-memory polling, packet size */
     __t800_host_probe();
     printf("t800 nethack: %d-byte file chunks\n", __t800_host_chunk());
+    atexit(exit_report);
     shim_graphics_set_callback(t800_rpc_cb);
     printf("t800 nethack: entering nh_main\n");
     return nh_main(1, av);

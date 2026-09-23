@@ -158,9 +158,11 @@ void rpcgem_console(const char *s, int n)
         char c = s[i];
         if (c == '\n' || len == (int)sizeof line - 1) {
             line[len] = 0;
-            /* drop the transputer's boot diagnostics ("t800 nethack: ...") */
-            if (len && !strncmp(line, "t800 nethack:",
-                              sizeof("t800 nethack:") - 1))
+            /* drop the transputer's boot diagnostics ("t800 nethack: ...")
+               and libc's exit status line ("RESULT 0", on stderr) */
+            if (len && (!strncmp(line, "t800 nethack:",
+                                 sizeof("t800 nethack:") - 1) ||
+                        !strncmp(line, "RESULT ", sizeof("RESULT ") - 1)))
                 len = 0;
             if (len) {
                 FILE *lg = T8LOG_OPEN("a");
