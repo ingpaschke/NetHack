@@ -819,24 +819,22 @@ $(TARGETPFX)tile.o : $(SRCDIR)/tile.c
 $(TARGETPFX)pcmain.o : ../sys/share/pcmain.c
 	$(TARGET_CC) $(TARGET_CFLAGS) -Dmain=nh_main -c -o$@ $<
 
-# Link the transputer image: ld.lld emits a raw binary at the nh-4mb.ld
-# layout, mkboot wraps it as a .btl link-boot image.  crt0, libc and the
-# host-side objects come from the toolchain sysroot (lib/t425 matches the
-# default -mcpu).  The loose sysroot objects precede libc.a so spfs.o
-# displaces its in-memory filesystem; t4con.o in HOBJ displaces its
-# console and exit.
-ATW_LINKOBJ = $(SYSROOT)/lib/t425/crt0.o $(HOBJ) $(TARGETPFX)date.o \
-		$(GENTILEOFILE) $(TARGET_HACKLIB) $(LUACROSSLIB) \
-		$(SYSROOT)/lib/t425/spfs-t425.o $(SYSROOT)/lib/t425/sphost-t425.o \
-		$(SYSROOT)/lib/t425/hostposix-t425.o \
-		$(SYSROOT)/lib/t425/chanio-t425.o $(SYSROOT)/lib/t425/libc.a \
-		$(SYSROOT)/lib/t425/libt8call.a $(SYSROOT)/lib/t425/libt8ipc.a \
-		$(SYSROOT)/lib/t425/libclang_rt.builtins.a
+# Link the transputer image through the toolchain's driver: its linker
+# script with the ATW800/2's layout (-mboard=atw800: 4 MB, the stack top
+# 4 KB below the end; libc's malloc takes more only if the host answers
+# IBOARDSIZE, which NH5ATW.PRG does not), 128 KB of it kept for the
+# workspace, crt0, libc and the iserver console, files and link layer.  objcopy makes the raw image, mkboot the .btl
+# link-boot image.
+ATW_LDFLAGS = --sysroot=$(SYSROOT) -mboard=atw800 -mstack-reserve=128K
+ATW_LINKOBJ = $(HOBJ) $(TARGETPFX)date.o $(GENTILEOFILE) \
+		$(TARGET_HACKLIB) $(LUACROSSLIB)
 Sysatw800: $(HOBJ) $(TARGETPFX)date.o $(GENTILEOFILE) $(TARGET_HACKLIB) \
 		$(LUACROSSLIB) $(BUILDMORE) Makefile
 	@echo "Linking $(GAME): one link-boot image (4 MB layout, fits the FPGA and a T800)."
-	$(LLD) --relax -T ../sys/atw800/nh-4mb.ld $(ATW_LINKOBJ) \
-		--oformat=binary -o $(TARGETPFX)nethack.bin
+	$(TARGET_CC) $(ATW_LDFLAGS) $(ATW_LINKOBJ) -lt8call \
+		-o $(TARGETPFX)nethack.elf
+	$(T800)/bin/llvm-objcopy -O binary $(TARGETPFX)nethack.elf \
+		$(TARGETPFX)nethack.bin
 	$(T800)/bin/mkboot -z $(TARGETPFX)nethack.bin -o $(TARGETPFX)nethack.btl
 	@touch Sysatw800
 	@echo "atw800 image: $(TARGETPFX)nethack.btl (link boot)"

@@ -866,7 +866,6 @@ ifdef CROSS_TO_ATW800
 #=================================================================
 T800 ?= /opt/llvm-t800
 CLANG ?= $(T800)/bin/clang
-LLD ?= $(T800)/bin/ld.lld
 SYSROOT ?= $(T800)/sysroots/libt800
 
 CFLAGS += -DCROSSCOMPILE
@@ -901,14 +900,14 @@ override GITHASH =
 override GITBRANCH =
 override GITPREFIX =
 
-# port startup, console and windowport RPC, the PC-family main and the
-# shim windowport; the host file and link layers come from the toolchain
-# sysroot (ATW_LINKOBJ in cross-post.500)
-override SYSSRC = ../sys/atw800/sys_t800.c ../sys/atw800/t4con.c \
+# port startup and windowport RPC, the PC-family main and the shim
+# windowport; the console, the host files and the link layer are the
+# toolchain's (the Sysatw800 link in cross-post.500)
+override SYSSRC = ../sys/atw800/sys_t800.c \
 		../sys/atw800/t4win.c ../sys/atw800/pcstub.c \
 		../sys/share/pcmain.c ../sys/share/pcunix.c \
 		../win/shim/winshim.c
-override SYSOBJ = $(TARGETPFX)sys_t800.o $(TARGETPFX)t4con.o \
+override SYSOBJ = $(TARGETPFX)sys_t800.o \
 		$(TARGETPFX)t4win.o $(TARGETPFX)pcstub.o \
 		$(TARGETPFX)pcmain.o $(TARGETPFX)pcunix.o \
 		$(TARGETPFX)winshim.o $(ATWREGEXOBJ)
