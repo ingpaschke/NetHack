@@ -880,8 +880,10 @@ override TARGET_STUBEDIT=
 # 0 to 2.5% in speed on the SDK's benchmarks; -Oz saves 3% more but costs
 # up to 16%. ATW_OPT=-Oz for the smallest image.
 ATW_OPT ?= -Os
+# -ffunction-sections: one section per function, so the link's --gc-sections
+# drops the unused ones (about 23 KB, 1.1% of the code).
 # some MICRO helpers are called without a prototype in scope
-override TARGET_CFLAGS = $(ATW_OPT) -std=c99 -nostdinc -fno-builtin -w \
+override TARGET_CFLAGS = $(ATW_OPT) -ffunction-sections -std=c99 -nostdinc -fno-builtin -w \
 	-Wno-error=implicit-function-declaration -Wno-error=implicit-int \
 	-I../include -I../win/share -I../sys/atw800 -I../sys/amiga/regex \
 	-I$(SYSROOT)/include \
