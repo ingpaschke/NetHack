@@ -1104,8 +1104,7 @@ ifdef CROSS_TO_ATW800
 # backend, and renders on the host Atari ST via the windowport RPC
 # (sys/atw800).
 #
-#   sys/unix/setup.sh sys/unix/hints/linux.500
-#   make fetch-lua
+#   sys/unix/setup.sh sys/unix/hints/linux.501
 #   make CROSS_TO_ATW800=1 fetch-regex
 #   make CROSS_TO_ATW800=1 all
 #
@@ -1150,10 +1149,11 @@ ATWREGEXOBJ = $(TARGETPFX)regcomp.o $(TARGETPFX)regexec.o \
 override GITHASH =
 override GITBRANCH =
 override GITPREFIX =
+VARDATND += nhtiles.bmp
 
 # port startup and windowport RPC, the PC-family main and the shim
 # windowport; the console, the host files and the link layer are the
-# toolchain's (the Sysatw800 link in cross-post.500)
+# toolchain's (the Sysatw800 link in cross-post.501)
 override SYSSRC = ../sys/atw800/sys_t800.c \
 		../sys/atw800/t4win.c ../sys/atw800/pcstub.c \
 		../sys/share/pcmain.c ../sys/share/pcunix.c \
@@ -1170,7 +1170,7 @@ override TOPLUALIB=
 override DLLIB=
 override GENTILEOFILE = $(TARGETPFX)tile.o
 override GAMEBIN = $(TARGETPFX)nethack.btl
-# link recipe in cross-post.500
+# link recipe in cross-post.501
 override SYSTEM = Sysatw800
 override TARGET_LFLAGS =
 override PACKAGE = atw800pkg
@@ -1185,7 +1185,7 @@ $(TARGETPFX)pcsys.o : ../sys/share/pcsys.c
 	$(TARGET_CC) $(TARGET_CFLAGS) -c -o$@ $<
 $(TARGETPFX)pcunix.o : ../sys/share/pcunix.c
 	$(TARGET_CC) $(TARGET_CFLAGS) -c -o$@ $<
-# the pcmain.o rule (-Dmain=nh_main) is in cross-post.500 so it wins
+# the pcmain.o rule (-Dmain=nh_main) is in cross-post.501 so it wins
 # over the base recipe in Makefile.src
 endif  # CROSS_TO_ATW800
 #=================================================================
