@@ -2441,9 +2441,16 @@ unlock_file(const char *filename)
 #endif
 
 #if defined(UNIX) || defined(VMS)
+#ifdef HELIOS
+        /* Close before unlinking: on the ATW800 the game directory is a
+         * GEMDOS disk behind the I/O Server, and GEMDOS does not delete
+         * a file that is still open, so the lock file would stay and
+         * the next game would wait for it. */
+        (void) nhclose(lockfd), lockfd = -1;
+#endif
         if (unlink(lockname) < 0)
             HUP raw_printf("Can't unlink %s.", lockname);
-#ifdef NO_FILE_LINKS
+#if defined(NO_FILE_LINKS) && !defined(HELIOS)
         (void) nhclose(lockfd), lockfd = -1;
 #endif
 
