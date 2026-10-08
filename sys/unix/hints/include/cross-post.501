@@ -899,6 +899,51 @@ atw800pkg: $(ATWTILES) $(ATWGEN) ../util/uudecode
 	@echo "atw800 release -> ../build-atw/NETHACK/ and ../build-atw/nethack-atw.zip"
 endif  # CROSS_TO_ATW800
 
+ifdef CROSS_TO_HELIOS
+# tile.c is not used by tty; date.o and the objects as for the others
+$(TARGETPFX)tile.o : $(SRCDIR)/tile.c
+	$(TARGET_CC) $(TARGET_CFLAGS) -c -o$@ $<
+
+# Link through clang's Helios driver: asm -o nethack -nnethack c0.o
+# <objects> <libraries> c.lib helios.lib.  The -s (stack) and -h (heap
+# growth granule) sizes are in bytes and land in the program's image
+# header; Helios's C library does not grow the stack, so -s must cover
+# the deepest call chain (Lua's parser and the level generator).
+HELIOS_STACK ?= 131072
+HELIOS_HEAP ?= 65536
+HELIOS_LIBS = -l$(TARGET_HACKLIB) -l$(LUACROSSLIB) \
+	-l$(HELIOS_ROOT)/lib/termcap.lib -l$(HELIOS_RTLIB)
+Syshelios: $(HOBJ) $(TARGETPFX)date.o $(TARGET_HACKLIB) $(LUACROSSLIB) \
+		$(BUILDMORE) Makefile
+	@echo "Linking $(GAME) for Helios."
+	$(TARGET_CC) \
+		-Wl,-s$(HELIOS_STACK) -Wl,-h$(HELIOS_HEAP) -o $(GAMEBIN) \
+		$(HOBJ) $(TARGETPFX)date.o $(HELIOS_LIBS)
+	@touch Syshelios
+	@ls -l $(GAMEBIN)
+
+# a change in the port header recompiles every target object
+$(HOBJ): ../include/heliosconf.h
+
+# Copy-ready tree for a Helios root (8.3 names, upper case for a GEMDOS
+# host file system): LOCAL/GAMES/NETHACK holds the program and its data
+HELREL = ../targets/helios/pkg
+HELGAME = $(HELREL)/LOCAL/GAMES/NETHACK
+.PHONY: heliospkg
+heliospkg: $(GAMEBIN)
+	rm -rf $(HELREL) ; mkdir -p $(HELGAME)/SAVE
+	cp $(GAMEBIN) $(HELGAME)/NETHACK
+	cp ../dat/nhdat $(HELGAME)/NHDAT
+	cp ../dat/license $(HELGAME)/LICENSE
+	cp ../dat/symbols $(HELGAME)/SYMBOLS
+	cp ../sys/helios/sysconf $(HELGAME)/SYSCONF
+	cp ../sys/helios/nethack.cnf $(HELGAME)/NETHACK.CNF
+	: > $(HELGAME)/PERM ; : > $(HELGAME)/RECORD ; : > $(HELGAME)/LOGFILE
+	: > $(HELGAME)/XLOGFILE
+	cp ../sys/helios/README.txt $(HELREL)/README.TXT
+	@echo "helios package -> $(HELREL)"
+endif  # CROSS_TO_HELIOS
+
 ifdef CROSS_SHARED
 # shared file dependencies
 $(TARGETPFX)pcmain.o : ../sys/share/pcmain.c $(HACK_H)

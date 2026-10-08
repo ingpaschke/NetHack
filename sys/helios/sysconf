@@ -1,0 +1,16 @@
+# NetHack 5.0 system configuration for Helios (sysconf in the playground,
+# /helios/local/games/nethack).  See sys/unix/sysconf for every option.
+#
+# Helios's only users are usually root and guest: treat both as generic,
+# so NetHack asks "Who are you?" instead of naming every hero "root".
+WIZARDS=root
+EXPLORERS=*
+GENERICUSERS=root guest
+# A small number of simultaneous games: the lock and level files are then
+# named alock, alock.1, ... (8.3 names for a GEMDOS host).
+MAXPLAYERS=4
+# Scores: keep the record file and the top ten as on Unix.
+PERSMAX=10
+ENTRYMAX=100
+POINTSMIN=1
+CHECK_SAVE_UID=0

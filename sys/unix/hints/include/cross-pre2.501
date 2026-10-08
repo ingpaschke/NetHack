@@ -1188,6 +1188,108 @@ $(TARGETPFX)pcunix.o : ../sys/share/pcunix.c
 # the pcmain.o rule (-Dmain=nh_main) is in cross-post.501 so it wins
 # over the base recipe in Makefile.src
 endif  # CROSS_TO_ATW800
+
+ifdef CROSS_TO_HELIOS
+#=================================================================
+# Helios (transputer OS) cross-compile recipe
+#=================================================================
+# NetHack as a Helios program (the tty window port on termcap), built
+# with clang's Helios mode (--target=t800-unknown-helios) and linked by
+# the Helios assembler/linker `asm` against a Helios tree's c0.o, c.lib,
+# helios.lib and termcap.lib.
+#
+#   sys/unix/setup.sh sys/unix/hints/linux.501
+#   make CROSS_TO_HELIOS=1 fetch-regex
+#   make CROSS_TO_HELIOS=1 all
+#   make CROSS_TO_HELIOS=1 heliospkg
+#
+# Override on the make command line:
+#   LLVMBIN      the llvm-t800 build or install's bin (clang)
+#   HELIOS_ROOT  a Helios tree (include/, lib/c0.o, c.lib, helios.lib,
+#                termcap.lib)
+#   HELIOS_ASM   the Helios assembler/linker (64-bit helios-asm)
+#   HELIOS_RTLIB compiler-rt builtins as a Helios scanned library (i64
+#                division and the like that the backend calls)
+#=================================================================
+LLVMBIN ?= /home/ipaschke/Source/llvm-project/build/bin
+HELIOS_ROOT ?= /home/ipaschke/Source/helios/hhead-rebuild/roots/clang64w
+HELIOS_ASM ?= /home/ipaschke/Source/helios/helios-asm/asm
+HELIOS_RTLIB ?= /home/ipaschke/Source/helios/fixtures/rt/llvmrt-generic.lib
+# where the game lives on the Helios machine (/helios is the Helios
+# tree's root): data, sysconf, save files, record
+HELIOS_HACKDIR ?= /helios/local/games/nethack
+# -Os: see the atw800 recipe; HELIOS_OPT=-Oz for the smallest image
+HELIOS_OPT ?= -Os
+
+CFLAGS += -DCROSSCOMPILE
+
+# generic transputer code (the T425 and the T805 run it); floating point
+# goes through Helios's FpLib, which uses the FPU where there is one
+override TARGET_CC = $(LLVMBIN)/clang --target=t800-unknown-helios \
+	--sysroot=$(HELIOS_ROOT) -B$(dir $(HELIOS_ASM))
+override TARGET_CXX = $(TARGET_CC)
+# Helios has no ar: a scanned library is its objects concatenated
+override TARGET_AR = sh ../sys/helios/hlibar.sh
+override TARGET_ARFLAGS = rcs
+override TARGET_STUBEDIT=
+override TARGET_CFLAGS = $(HELIOS_OPT) -std=gnu99 -w \
+	-Wno-error=implicit-function-declaration -Wno-error=implicit-int \
+	-Wno-error=incompatible-pointer-types -Wno-error=int-conversion \
+	-I../include -I../win/share -I../sys/helios -I../sys/helios/include \
+	-I../sys/amiga/regex $(LUAINCL) -DLUA_32BITS \
+	-DCROSSCOMPILE -DCROSSCOMPILE_TARGET -DCROSS_TO_HELIOS -DHELIOS \
+	-DTTY_GRAPHICS -DDEFAULT_WINDOW_SYS=\"tty\" -DDLB -DNO_TERMCAP_HEADERS \
+	-DHACKDIR=\"$(HELIOS_HACKDIR)\" -DSYSCF -DSYSCF_FILE=\"sysconf\" \
+	-DNOPANICTRACE -DNOCRASHREPORT \
+	-DNOSTATICFN
+override TARGET_CXXFLAGS = $(TARGET_CFLAGS)
+LUA_TARGET_CFLAGS = $(TARGET_CFLAGS) -DLUA_USE_JUMPTABLE=0
+override TARGET_LINK = $(TARGET_CC)
+
+# POSIX regex over the BSD engine in sys/amiga/regex (make fetch-regex)
+override REGEXOBJ = $(TARGETPFX)posixregex.o $(TARGETPFX)regcomp.o \
+	$(TARGETPFX)regexec.o $(TARGETPFX)regerror.o $(TARGETPFX)regfree.o
+override RANDOBJ =
+override HINTOBJ =
+override SNDLIBOBJ =
+override UUIDOBJ =
+
+# no git version stamps in the target image
+override GITHASH =
+override GITBRANCH =
+override GITPREFIX =
+
+# the Unix main, tty and file code, plus what Helios's C library lacks
+override SYSSRC = ../sys/share/ioctl.c ../sys/share/unixtty.c \
+	../sys/unix/unixmain.c ../sys/unix/unixunix.c ../sys/helios/helios.c
+override SYSOBJ = $(TARGETPFX)ioctl.o $(TARGETPFX)unixtty.o \
+	$(TARGETPFX)unixmain.o $(TARGETPFX)unixunix.o $(TARGETPFX)helios.o
+override WINSRC = $(WINTTYSRC)
+override WINOBJ = $(WINTTYOBJ)
+override WINLIB =
+override LUALIB =
+override LUALIBS =
+override TOPLUALIB =
+override DLLIB =
+override GAMEBIN = $(TARGETPFX)nethack
+# link recipe in cross-post.501
+override SYSTEM = Syshelios
+override TARGET_LFLAGS =
+override PACKAGE = heliospkg
+override PREGAME += mkdir -p $(TARGETDIR) ;
+override CLEANMORE += rm -r $(TARGETDIR) ;
+
+$(TARGETPFX)%.o : ../sys/helios/%.c
+	$(TARGET_CC) $(TARGET_CFLAGS) -c -o$@ $<
+$(TARGETPFX)%.o : ../sys/amiga/regex/%.c
+	$(TARGET_CC) $(TARGET_CFLAGS) -c -o$@ $<
+$(TARGETPFX)%.o : ../sys/unix/%.c
+	$(TARGET_CC) $(TARGET_CFLAGS) -c -o$@ $<
+$(TARGETPFX)%.o : ../sys/share/%.c
+	$(TARGET_CC) $(TARGET_CFLAGS) -c -o$@ $<
+$(TARGETPFX)%.o : ../win/tty/%.c
+	$(TARGET_CC) $(TARGET_CFLAGS) -c -o$@ $<
+endif  # CROSS_TO_HELIOS
 #=================================================================
 
 ifdef WANT_WIN_CURSES

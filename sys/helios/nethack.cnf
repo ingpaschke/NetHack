@@ -1,0 +1,12 @@
+# NetHack 5.0 options for Helios (nethack.cnf).  NetHack reads
+# $HOME/nethack.cnf if it exists, else this file in the playground.
+#
+# The Helios console window and xterm under Helios X both understand the
+# ANSI cursor and attribute sequences from /helios/etc/termcap.  Map
+# symbols stay plain ASCII.
+OPTIONS=time,showexp,showscore,!autopickup
+OPTIONS=pickup_types:$?!/="+
+OPTIONS=number_pad:0
+OPTIONS=menustyle:traditional
+# The 25-line console window has room for the two status lines.
+# OPTIONS=color   (only if your terminal does ANSI colour; termcap has none)

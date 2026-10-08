@@ -32,10 +32,12 @@
                      /* use SYSV for < v6.5 */
 
 /* define any of the following that are appropriate */
+#ifndef HELIOS /* Helios: see heliosconf.h */
 #define SVR4           /* use in addition to SYSV for System V Release 4 */
                        /* including Solaris 2+ */
 #define NETWORK        /* if running on a networked system */
                        /* e.g. Suns sharing a playground through NFS */
+#endif
 /* #define SUNOS4 */   /* SunOS 4.x */
 #ifdef __linux__
 #define LINUX    /* Another Unix clone */
@@ -49,6 +51,7 @@
                         * job control (note that AIX is SYSV otherwise)
                         * Also define this for AIX 3.2 */
 
+#ifndef HELIOS /* Helios has termcap and no job control */
 #define TERMINFO       /* uses terminfo rather than termcap */
                        /* Should be defined for most SYSV, SVR4 (including
                         * Solaris 2+), HPUX, and Linux systems.  In
@@ -57,6 +60,7 @@
                         * the Makefile */
 #define POSIX_JOB_CONTROL /* use System V / Solaris 2.x / POSIX job control
                            * (e.g., VSUSP) */
+#endif /* !HELIOS */
 #define POSIX_TYPES /* use POSIX types for system calls and termios */
                     /* Define for many recent OS releases, including
                      * those with specific defines (since types are
@@ -435,6 +439,10 @@
 # if defined(BSD) || defined(MACOS)
 #  define DEV_RANDOM "/dev/random"
 # endif
+#endif
+
+#ifdef HELIOS
+#include "heliosconf.h"
 #endif
 
 #endif /* UNIXCONF_H */

@@ -1049,6 +1049,9 @@ set_savefile_name(boolean regularize_it)
 #endif
 #ifdef UNIX
     Sprintf(gs.SAVEF, "save/%d%s", (int) getuid(), svp.plname);
+#ifdef HELIOS
+    gs.SAVEF[5 + 8] = '\0'; /* 8.3 host file systems */
+#endif
     regoffset = 5;
     indicator_spot = 2;
 #endif
@@ -2239,7 +2242,11 @@ make_lockname(const char *filename UNUSED_conditional, char *lockname)
     }
     Strcat(lockname, ".lock;1");
 #else
+#ifdef HELIOS
+    Strcat(lockname, ".lck"); /* 8.3: perm.lck, record.lck, ... */
+#else
     Strcat(lockname, "_lock");
+#endif
 #endif
     return lockname;
 #else /* !(UNIX || VMS || AMIGA || WIN32 || MSDOS) */

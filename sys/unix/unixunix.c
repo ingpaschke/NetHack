@@ -133,6 +133,11 @@ getlock(void)
        if we aren't restricting the number of simultaneous games */
     if (!gl.locknum)
         Sprintf(gl.lock, "%u%s", (unsigned) getuid(), svp.plname);
+#ifdef HELIOS
+    /* 8.3 host file systems (GEMDOS via the I/O Server): the level
+       files are <lock>.<n>, so keep <lock> to 8 characters */
+    gl.lock[8] = '\0';
+#endif
 
     regularize(gl.lock);
     set_levelfile_name(gl.lock, 0);
