@@ -5,6 +5,8 @@
 # ANSI cursor and attribute sequences from /helios/etc/termcap.  Map
 # symbols stay plain ASCII.
 OPTIONS=time,showexp,showscore,!autopickup
+# the new-player tutorial: delete this line to be asked for it
+OPTIONS=!tutorial
 OPTIONS=pickup_types:$?!/="+
 OPTIONS=number_pad:0
 OPTIONS=menustyle:traditional
