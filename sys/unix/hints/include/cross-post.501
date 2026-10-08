@@ -909,30 +909,71 @@ $(TARGETPFX)tile.o : $(SRCDIR)/tile.c
 # growth granule) sizes are in bytes and land in the program's image
 # header; Helios's C library does not grow the stack, so -s must cover
 # the deepest call chain (Lua's parser and the level generator).
+# The heap grows in 8 KB steps: with 64 KB the last heap extension of
+# the small build found no contiguous free block on a 4 MB T805 ("cannot
+# extend to 68 bytes" on level 1); on a 5 MB T425 the default build
+# keeps as much free with 8 KB steps as with 64 KB (0.64-0.67 MB vs
+# 0.65 MB least free in the same wizard-mode script; levels are random).
 HELIOS_STACK ?= 131072
-HELIOS_HEAP ?= 65536
+HELIOS_HEAP ?= 8192
+# the link stamp lives in the target directory, so the two variants
+# (targets/helios, targets/helios-small) each relink when needed
+ifndef HELIOS_SMALL
 HELIOS_LIBS = -l$(TARGET_HACKLIB) -l$(LUACROSSLIB) \
 	-l$(HELIOS_ROOT)/lib/termcap.lib -l$(HELIOS_RTLIB)
-Syshelios: $(HOBJ) $(TARGETPFX)date.o $(TARGET_HACKLIB) $(LUACROSSLIB) \
-		$(BUILDMORE) Makefile
+$(TARGETPFX)Syshelios: $(HOBJ) $(TARGETPFX)date.o $(TARGET_HACKLIB) \
+		$(LUACROSSLIB) $(BUILDMORE) Makefile
 	@echo "Linking $(GAME) for Helios."
 	$(TARGET_CC) \
 		-Wl,-s$(HELIOS_STACK) -Wl,-h$(HELIOS_HEAP) -o $(GAMEBIN) \
 		$(HOBJ) $(TARGETPFX)date.o $(HELIOS_LIBS)
-	@touch Syshelios
+	@touch $@
 	@ls -l $(GAMEBIN)
+else
+# Whole-program link (HELIOS_SMALL): every .o in targets/helios-small is
+# LLVM bitcode.  The modules are linked in name order (the order the
+# variant was measured and tested with); hacklib.o and the Lua objects
+# are used directly, not through hacklib.a / lua.a.  internalize +
+# globaldce drop everything main does not reach, constmerge shares equal
+# constants (string literals) across files, then clang optimises and
+# generates code for the one module.
+HELIOS_BC = $(sort $(HOBJ) $(TARGETPFX)date.o $(TARGETPFX)hacklib.o \
+	$(LUALIBOBJS))
+HELIOS_LIBS = -l$(HELIOS_ROOT)/lib/termcap.lib -l$(HELIOS_RTLIB)
+$(TARGETPFX)Syshelios: $(HELIOS_BC) $(BUILDMORE) Makefile
+	@echo "Linking $(GAME) for Helios (whole program)."
+	$(LLVM_LINK) -o $(TARGETPFX)whole.bc $(HELIOS_BC)
+	$(OPT) -passes=internalize,globaldce \
+		-internalize-public-api-list=main \
+		-o $(TARGETPFX)whole-int.bc $(TARGETPFX)whole.bc
+	$(OPT) -passes=constmerge -o $(TARGETPFX)whole-cm.bc \
+		$(TARGETPFX)whole-int.bc
+	$(TARGET_CC) $(HELIOS_OPT) $(HELIOS_SMALL_CGFLAGS) -S \
+		-o $(TARGETPFX)whole.s $(TARGETPFX)whole-cm.bc
+	$(TARGET_CC) \
+		-Wl,-s$(HELIOS_STACK) -Wl,-h$(HELIOS_HEAP) -o $(GAMEBIN) \
+		$(TARGETPFX)whole.s $(HELIOS_LIBS)
+	@touch $@
+	@ls -l $(GAMEBIN)
+endif
 
 # a change in the port header recompiles every target object
 $(HOBJ): ../include/heliosconf.h
 
 # Copy-ready tree for a Helios root (8.3 names, upper case for a GEMDOS
-# host file system): LOCAL/GAMES/NETHACK holds the program and its data
+# host file system): LOCAL/GAMES/NETHACK holds the program and its data.
+# One package for both variants: NETHACK is the default build
+# (targets/helios), NETHACKS the HELIOS_SMALL build (targets/helios-small);
+# each is included when it has been built.
 HELREL = ../targets/helios/pkg
 HELGAME = $(HELREL)/LOCAL/GAMES/NETHACK
 .PHONY: heliospkg
 heliospkg: $(GAMEBIN)
 	rm -rf $(HELREL) ; mkdir -p $(HELGAME)/SAVE
-	cp $(GAMEBIN) $(HELGAME)/NETHACK
+	if [ -f ../targets/helios/nethack ]; then \
+		cp ../targets/helios/nethack $(HELGAME)/NETHACK ; fi
+	if [ -f ../targets/helios-small/nethack ]; then \
+		cp ../targets/helios-small/nethack $(HELGAME)/NETHACKS ; fi
 	cp ../dat/nhdat $(HELGAME)/NHDAT
 	cp ../dat/license $(HELGAME)/LICENSE
 	cp ../dat/symbols $(HELGAME)/SYMBOLS

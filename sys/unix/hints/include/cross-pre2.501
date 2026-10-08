@@ -1203,6 +1203,15 @@ ifdef CROSS_TO_HELIOS
 #   make CROSS_TO_HELIOS=1 all
 #   make CROSS_TO_HELIOS=1 heliospkg
 #
+# HELIOS_SMALL=1 (with CROSS_TO_HELIOS=1, on every make command) builds
+# the small whole-program variant in targets/helios-small instead: each
+# source file to LLVM bitcode at -Oz, llvm-link of all of them (NetHack,
+# hacklib, Lua) into one module, internalize + globaldce (only main
+# stays external) and constmerge with opt, then one -Oz code generation
+# of that module without stack checks and procedure names, and the
+# Helios link.  About 0.5 MB less image than the default build; it fits
+# a 4 MB T805.  Recipe in cross-post.501 (Syshelios).
+#
 # Override on the make command line:
 #   LLVMBIN      the llvm-t800 build or install's bin (clang)
 #   HELIOS_ROOT  a Helios tree (include/, lib/c0.o, c.lib, helios.lib,
@@ -1210,6 +1219,7 @@ ifdef CROSS_TO_HELIOS
 #   HELIOS_ASM   the Helios assembler/linker (64-bit helios-asm)
 #   HELIOS_RTLIB compiler-rt builtins as a Helios scanned library (i64
 #                division and the like that the backend calls)
+#   LLVM_LINK, OPT  llvm-link and opt (HELIOS_SMALL only)
 #=================================================================
 LLVMBIN ?= /home/ipaschke/Source/llvm-project/build/bin
 HELIOS_ROOT ?= /home/ipaschke/Source/helios/hhead-rebuild/roots/clang64w
@@ -1218,8 +1228,15 @@ HELIOS_RTLIB ?= /home/ipaschke/Source/helios/fixtures/rt/llvmrt-generic.lib
 # where the game lives on the Helios machine (/helios is the Helios
 # tree's root): data, sysconf, save files, record
 HELIOS_HACKDIR ?= /helios/local/games/nethack
+LLVM_LINK ?= $(LLVMBIN)/llvm-link
+OPT ?= $(LLVMBIN)/opt
 # -Os: see the atw800 recipe; HELIOS_OPT=-Oz for the smallest image
+# (the HELIOS_SMALL variant uses -Oz)
+ifdef HELIOS_SMALL
+HELIOS_OPT ?= -Oz
+else
 HELIOS_OPT ?= -Os
+endif
 
 CFLAGS += -DCROSSCOMPILE
 
@@ -1242,6 +1259,15 @@ override TARGET_CFLAGS = $(HELIOS_OPT) -std=gnu99 -w \
 	-DHACKDIR=\"$(HELIOS_HACKDIR)\" -DSYSCF -DSYSCF_FILE=\"sysconf\" \
 	-DNOPANICTRACE -DNOCRASHREPORT \
 	-DNOSTATICFN
+ifdef HELIOS_SMALL
+# the same compile lines, but every "object" is LLVM bitcode for the
+# whole-program link in cross-post.501
+override TARGET_CFLAGS += -emit-llvm
+# code generation of the one module: no stack checks (no overflow
+# detection) and no procedure names (none in Helios debuggers)
+HELIOS_SMALL_CGFLAGS ?= -mllvm -t800-helios-stack-check=0 \
+	-mllvm -t800-helios-proc-names=0
+endif
 override TARGET_CXXFLAGS = $(TARGET_CFLAGS)
 LUA_TARGET_CFLAGS = $(TARGET_CFLAGS) -DLUA_USE_JUMPTABLE=0
 override TARGET_LINK = $(TARGET_CC)
@@ -1273,7 +1299,7 @@ override TOPLUALIB =
 override DLLIB =
 override GAMEBIN = $(TARGETPFX)nethack
 # link recipe in cross-post.501
-override SYSTEM = Syshelios
+override SYSTEM = $(TARGETPFX)Syshelios
 override TARGET_LFLAGS =
 override PACKAGE = heliospkg
 override PREGAME += mkdir -p $(TARGETDIR) ;

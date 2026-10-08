@@ -94,7 +94,12 @@ CROSS=1
 BUILD_TARGET_LUA=1
 CROSS_SHARED=1
 override TARGET = helios
+ifdef HELIOS_SMALL
+# whole-program build (bitcode objects): see cross-pre2.501
+override TARGETDIR=../targets/helios-small
+else
 override TARGETDIR=../targets/$(TARGET)
+endif
 override TARGETPFX = $(TARGETDIR)/
 override TARGET_LIBS=
 endif
