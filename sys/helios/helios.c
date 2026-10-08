@@ -346,6 +346,8 @@ log2(double x)
  */
 #include <helios.h>
 #include <syslib.h>
+#include <errno.h>
+#include <unistd.h>
 
 static long mem_heap_max = 0, mem_sys_min = -1, mem_sys_total = 0;
 static int mem_registered = 0;
@@ -382,6 +384,19 @@ helios_getchar(void)
             atexit(mem_report);
         }
     }
-    mem_sample();
-    return getchar();
+    if (mem_sys_total)
+        mem_sample();
+    /* One byte straight from the stream, not through stdio: getchar()
+     * fills a BUFSIZ (1 KB) buffer, and on a Helios xterm's pseudo-
+     * terminal such a read returned a single key only after about a
+     * second.  frotz reads single bytes and answers at once. */
+    {
+        unsigned char c;
+        int n;
+
+        do
+            n = read(0, (char *) &c, 1);
+        while (n < 0 && errno == EINTR);
+        return n == 1 ? (int) c : EOF;
+    }
 }
