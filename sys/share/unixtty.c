@@ -310,6 +310,16 @@ setftty(void)
         change++;
     }
 
+#ifdef HELIOS
+    /* Helios console windows interpret escape sequences only in raw
+     * output mode (ConsoleRawOutput); Helios termios maps a cleared
+     * OPOST to it (posix/termios.c).  settty() restores the cooked
+     * mode of inittyb on exit. */
+    if (curttyb.c_oflag & OPOST) {
+        curttyb.c_oflag &= ~OPOST;
+        change++;
+    }
+#endif
     if (change)
         setctty();
 
