@@ -68,21 +68,33 @@ Memory
 ------
 
 The program image is 2.9 MB (code; the Helios loader keeps it in
-memory), its static data 0.6 MB, its stack 128 KB, and NetHack's heap
-grows to between 0.3 and 0.8 MB depending on the level.  Measured on the
-t4 emulator with the same Helios HEAD tree and a 5 MB T425 root:
-4.7 MB free after boot; while playing, at least 0.99 MB stayed free (see
-NH_MEMSTAT below).
+memory), its static data 0.6 MB, its stack 128 KB.  Levels you are
+not on live in level files (alock.<n>), not in memory.  Measured on the t4 emulator with
+the same Helios HEAD tree and a 5 MB T425 root (4.7 MB free after boot):
+one level: heap 131 KB, at least 0.99 MB of system memory stayed free;
+four levels (1, 5, 2, 7 by wizard-mode level teleport): heap 524 KB, at
+least 0.60 MB stayed free.  Big special levels and a large inventory
+need more; if memory runs short, save (S) and restart the game.
 
-  /00 (T425, 5 MB): fits.  Run it from the console window (no X):
-      the X server takes too much of /00's memory.
-  /01 (T805, 4 MB): does NOT fit.  With 3.67 MB free after boot the
-      program fails at start ("Memory allocation failure").  It would
+  /00 (T425, 5 MB): fits, with about 0.6 to 1 MB to spare.  Prefer
+      the console window: X and other servers started on /00 take
+      from that margin (check with `mem` before starting).
+  /01 (T805, 4 MB): does NOT fit.  A 4 MB T800 root on t4 (3.67 MB
+      free after boot) fails at start even with the -Oz build
+      ("Memory allocation failure; cannot get 76992 bytes").  It would
       need about 0.6 MB less code (or data).  So: do not use
       `remote 01 nethack`.
 
 With NH_MEMSTAT set (setenv NH_MEMSTAT 1) the game prints at exit the
 largest size the C heap reached and the least free system memory seen.
+
+Known messages
+--------------
+
+"untrustworthy null shkp; level_status.shkready is FALSE" (an
+impossible() of NetHack 5.0.1's work-in-progress status, written to
+PANICLOG too) can appear when a level with a shop is made.  The Linux
+build of the same sources prints it as well; it is harmless.
 
 Not available on Helios
 -----------------------
