@@ -432,7 +432,14 @@ bufon(int fd)
         if (bw_buffered[idx])
             panic("buffering already enabled");
         if (!bw_FILE[idx]) {
+#ifdef HELIOS
+            /* binary: on the ATW800 the save directory is a GEMDOS disk,
+               and Helios stdio inserts a CR before every LF in a text
+               stream on such a file (Flags_MSdos) */
+            if ((bw_FILE[idx] = fdopen(fd, "wb")) == 0)
+#else
             if ((bw_FILE[idx] = fdopen(fd, "w")) == 0)
+#endif
                 panic("buffering of file %d failed", fd);
 #ifdef SFSTRUCT_BUFFERING
             (void) setvbuf(bw_FILE[idx], (char *) 0, _IOFBF,

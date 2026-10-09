@@ -136,7 +136,7 @@ long rsrc_dlb_ftell(dlb *dp);
 #define WRTMODE "w+"
 #endif
 #if (defined(MICRO) && !defined(AMIGA)) || defined(THINK_C) \
-    || defined(__MWERKS__) || defined(WIN32)
+    || defined(__MWERKS__) || defined(WIN32) || defined(HELIOS)
 #define RDBMODE "rb"
 #define WRBMODE "w+b"
 #else
